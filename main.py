@@ -4,7 +4,7 @@ from drawing import draw_graph, compute_layout
 from utils import vertex_satisfies_triangular_conditions
 from reducer import reduce_all_cycles 
 from gluer import glue_open_edges
-import imageio
+from LaTeX_rendering import render_latex_expression, save_latex_pdf
 
 
     # Function to check the triangular condition for all nodes
@@ -109,6 +109,82 @@ def debug_graph_summary(G):
     cycles = nx.cycle_basis(nx.Graph(G))
     print(f"Cycle basis ({len(cycles)}): lengths={[len(C) for C in cycles]}")
 
+def print_norm_expression(terms, LaTeX=False):
+    """
+    Print the norm expression in a readable format.
+    """
+    ORDER = {
+        "6j": 0,
+        "theta": 1,
+        "big delta": 2,
+        "big delta inverse": 3,
+        "Kronecker delta": 4,
+    }
+
+    for term in terms:
+        coeffs = term.get("coeffs", [])
+
+        # sort coeff list by type priority
+        coeffs = sorted(
+            coeffs,
+            key=lambda c: ORDER.get(c.get("type"), 999)
+        )
+
+        factors = []
+
+        for c in coeffs:
+            typ = c.get("type")
+            fixed = c.get("fixed", {})
+
+            if typ == "6j":
+                a = fixed.get("a", fixed.get("A"))
+                b = fixed.get("b", fixed.get("B"))
+                d = fixed.get("d", fixed.get("D"))
+                cc = fixed.get("c", fixed.get("C"))
+                e = fixed.get("e", fixed.get("E"))
+
+                rng = c.get("sum_range2")
+                if rng:
+                    f = c.get("sum_index", "f")
+                    rng_str = (
+                        f"[{f}={rng['Fmin']/2},\ldots, {rng['Fmax']/2} "
+                        # f"step 1, parity={rng['parity']}]"
+                    )
+                    factors.append(
+                        f"∑_{rng_str} 6j({a},{b},{f},{cc},{d},{e})"
+                    )
+                else:
+                    f = fixed.get("f", fixed.get("F"))
+                    factors.append(f"6j({a},{b},{f},{cc},{d},{e})")
+
+            elif typ == "theta":
+                a = fixed.get("a", fixed.get("A"))
+                b = fixed.get("b", fixed.get("B"))
+                cval = fixed.get("c", fixed.get("C"))
+                factors.append(f"θ({a},{b},{cval})")
+
+            elif typ == "big delta":
+                j = fixed.get("j", fixed.get("J"))
+                factors.append(f"Δ({j})")
+
+            elif typ == "big delta inverse":
+                j = fixed.get("j", fixed.get("J"))
+                factors.append(f"Δ^{{-1}}({j})")
+
+            elif typ == "Kronecker delta":
+                c1 = fixed.get("c", fixed.get("C"))
+                d1 = fixed.get("d", fixed.get("D"))
+                factors.append(f"δ({c1},{d1})")
+
+            else:
+                factors.append(str(c))
+
+
+    product_str = " * ".join(factors) if factors else "1"
+
+    print("\nNorm of the spin network:\n")
+    print("|", product_str, "|")
+
 # -------------------------------
 # --- Main
 # -------------------------------
@@ -166,53 +242,8 @@ if __name__ == "__main__":
 
     # -------------------------------
     # Print result: formal product string
-    # -------------------------------
+    # -------------------------------   
 
-    for t_idx, term in enumerate(terms):
-        coeffs = term.get("coeffs", [])
+    print_norm_expression(terms)
 
-        # Build formatted factor strings
-        factors = []
-        for c in coeffs:
-            typ = c.get("type")
-            fixed = c.get("fixed", {})
-
-            if typ == "6j":
-                # canonical order: [a,b,f,d,c,e]
-                a = fixed.get("a", fixed.get("A", fixed.get("a")))
-                b = fixed.get("b", fixed.get("B", fixed.get("b")))
-                d = fixed.get("d", fixed.get("D", fixed.get("d")))
-                cc = fixed.get("c", fixed.get("C", fixed.get("c")))
-                e = fixed.get("e", fixed.get("E", fixed.get("e")))
-
-                # sum range if present (doubled form)
-                rng = c.get("sum_range2")
-                if rng:
-                    rng_str = f"[F={rng['Fmin']}...{rng['Fmax']} step 2, parity={rng['parity']}]"
-                    factors.append(f"Σ_f{rng_str} 6j({a},{b},f,{d},{cc},{e})")
-                else:
-                    factors.append(f"6j({a},{b},f,{d},{cc},{e})")
-
-            elif typ == "theta":
-                a = fixed.get("a", fixed.get("A", fixed.get("a")))
-                b = fixed.get("b", fixed.get("B", fixed.get("b")))
-                cval = fixed.get("c", fixed.get("C", fixed.get("c")))
-                factors.append(f"θ({a},{b},{cval})")
-
-            elif typ == "delta":
-                c1 = fixed.get("c", fixed.get("C", fixed.get("c")))
-                d1 = fixed.get("d", fixed.get("D", fixed.get("d")))
-                factors.append(f"δ({c1},{d1})")
-
-            else:
-                # Fallback: pretty print unknown coeff dict
-                factors.append(str(c))
-
-    product_str = " * ".join(factors) if factors else "1"
-
-    print("\nNorm of the spin network:\n")
-    print("|", product_str, "|")
-
-    print("\nFinal reduced graph:")
-    print(term["graph"])
-    print()  # blank line between terms
+    save_latex_pdf(terms, filename="norm_expression.pdf")
