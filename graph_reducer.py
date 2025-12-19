@@ -13,7 +13,7 @@ F_COUNTER = {"value": 0}
 # Coefficient builders
 # --------------------
 
-def build_kronecker_delta_coeff(c, d):
+def build_kronecker_coeff(c, d, power=1):
     """
     Kronecker recording the constraint c == d (stored even if equality is numeric and enforced).
     args order [c, d]; doubles included if numeric.
@@ -28,32 +28,25 @@ def build_kronecker_delta_coeff(c, d):
         "type": "Kronecker",
         "list_order": ["c", "d"],
         "fixed": fixed,
-        "sum_index": None
+        "power": power
     }
 
-def build_delta_coeff(j, is_inverted=False):
+def build_delta_coeff(j, power=1):
     """
-    delta coefficient. is_inverted indicates whether this is Δ_j or Δ_j^{-1}.
+    delta coefficient.
     """
     fixed = {"j": j}
     if is_numeric_label(j):
         fixed["J"] = to_doubled(j)
     print(f"Built delta coeff with fixed label:", j)
-    if is_inverted:
-        return {
-            "type": "delta inverse",
-            "list_order": ["j"],
-            "fixed": fixed,
-            "sum_index": None
-        }
     return {
         "type": "delta",
         "list_order": ["j"],
         "fixed": fixed,
-        "sum_index": None
+        "power": power
     }
 
-def build_theta_coeff(a, b, c):
+def build_theta_coeff(a, b, c, power=1):
     """
     Theta coefficient for 2-cycle collapse.
     Requires numeric equality c == d checked elsewhere; stores numeric doubles if available.
@@ -68,83 +61,32 @@ def build_theta_coeff(a, b, c):
         "type": "theta",
         "list_order": ["a", "b", "c"],
         "fixed": fixed,
-        "sum_index": None
+        "power": power
     }
 
-def build_triangle_coeff(a, b, f, c, d, e):
-    """
-    Final triangle reduction {adf}+{bde}+{efc} -> {abc}; attach its 6j.
-    Stored as a fixed (non-summed) coefficient for the last step.
-    Works with numeric or symbolic labels.
-    """
-    fixed = {"a": a, "b": b, "c": c, "d": d, "e": e, "f": f}
+def build_6j_coeff(a, b, f, c, d, e, power=1):
+    fixed = {"a": a, "b": b, "f": f, "c": c, "d": d, "e": e}
+
+    # doubled numeric values
     for key in ["a", "b", "c", "d", "e", "f"]:
         val = fixed[key]
         if is_numeric_label(val):
             fixed[key.upper()] = to_doubled(val)
-    print(f"Built triangle coeff with fixed labels:", a, b, f, c, d, e)
+    print(f"Built 6j coeff with fixed labels:", a, b, f, c, d, e)
+
     return {
         "type": "6j",
-        "list_order": ["a", "b", "f", "c", "d", "e"],
+        "list_order": ["a","b","f","c","d","e"],
         "fixed": fixed,
-        "sum_index": None
+        "power": power
     }
 
-def build_fmove_coeff(a, b, f, c, d, e):
-    """
-    Build and return the coefficient structure for an F-move:
-
-            {a  b  f}
-       ∑_f  {d  c  e}
-
-    Arguments may be numeric or symbolic.
-    f must be the explicit label (e.g., "f_3") supplied by apply_f_move().
-    """
-
-    # store basic arguments (symbolic or numeric)
-    args = (a, b, f, c, d, e)
-
-    # numeric conversion storage
-    fixed = {"a": a, "b": b, "f": f, "c": c, "d": d, "e": e}
-
-    # add doubled numeric values when applicable
-    for key in ["a", "b", "c", "d", "e"]:
-        val = fixed[key]
-        if is_numeric_label(val):
-            fixed[key.upper()] = to_doubled(val)
-
-    # range of summation for f if all needed values are numeric
-    # (None means: keep symbolic sum over f)
-    if all(is_numeric_label(x) for x in (a, b, c, d)):
-        rng = f_range_symbolic(a, b, c, d)
-    else:
-        rng = None
-
-    coeff_entry = {
-        "type": "6j",
-        "args": args,                  # ordered (a, b, f, c, d, e)
-        "fixed": fixed,                # numeric + doubled entries
-        "sum_index": f,                # actual summation index name (string)
-        "sum_range2": rng,             # doubled upper/lower bounds or None
-
-        # generator producing raw args for later evaluation:
-        "gen_args": lambda ff: (a, b, ff, c, d, e),
-
-        # doubled generator for numeric evaluation
-        "gen_args2": (
-            None if any(not is_numeric_label(x) for x in args)
-            else lambda FF: (
-                fixed["A"], fixed["B"], FF,
-                fixed["C"], fixed["D"], fixed["E"]
-            )
-        ),
+def build_sum_coeff(f, rng):
+    return {
+        "type": "sum",
+        "index": f,      # e.g., "f_3"
+        "range2": rng    # numeric doubled bounds or None
     }
-
-    # debug optional
-    print(f"Built F-move coeff: ({a},{b},{f},{c},{d},{e})  range={rng}")
-
-    return coeff_entry
-
 
 # ------------------
 # Subnetwork finders
@@ -306,7 +248,7 @@ def apply_two_cycle_reduction(term):
 
     # Record theta: internal edge + external edges
     coeffs.append(build_theta_coeff(a_lbl, int_lbl_1, int_lbl_2))
-    coeffs.append(build_delta_coeff(a_lbl, is_inverted=True))
+    coeffs.append(build_delta_coeff(a_lbl, -1))
 
     # Remove u, v
     if G.has_node(u):
@@ -408,9 +350,9 @@ def apply_triangle_reduction(term):
     add_edge_with_label(G, T, au_node, a)
     print(f"Collapsed triangle nodes:", u, v, w, "into node:", T)
 
-    coeffs.append(build_triangle_coeff(a, b, f, c, d, e))
+    coeffs.append(build_6j_coeff(a, b, f, c, d, e))
     coeffs.append(build_theta_coeff(b, c, f))
-    coeffs.append(build_delta_coeff(f, is_inverted=True))
+    coeffs.append(build_delta_coeff(f, -1))
 
     print(f"Applied triangle reduction to : ", u, v, w)
 
@@ -476,8 +418,12 @@ def f_move_recouple_term(term, cycle_nodes, i):
 
     add_edge_with_label(G, u_node, v_node, f_symbol)
 
+    rng = f_range_symbolic(a_label, b_label, c_label, d_label)
+    if rng is not None:
+        coeffs.append(build_sum_coeff(f_symbol, rng))  # numeric sum over f
+
     # Record the 6j with correct mapping [a, b, f, d, c, e]
-    coeffs.append(build_fmove_coeff(a=a_label, b=b_label, f=f_symbol, c=c_label, d=d_label, e=e_label))
+    coeffs.append(build_6j_coeff(a=a_label, b=b_label, f=f_symbol, c=c_label, d=d_label, e=e_label))
 
     print(f"Applied F-move on nodes:", b_node, d_node, "with new diagonal f:", f_symbol)
     edge_labels = {(u, v, k): d["label"] for u, v, k, d in G.edges(keys=True, data=True)}
@@ -549,75 +495,6 @@ def reduce_all_triangles(term):
         cur = t2
     return cur
 
-# -----------------------------------------------------------------------
-# Reduce N-cycle to triangles, then triangle to single vertex with {a,b,c}
-# -----------------------------------------------------------------------
-
-def reduce_cycle_to_triangle(initial_term, cycle_nodes):
-    """
-    Reduce a cycle to a triangle by repeatedly applying F-moves,
-    each time recomputing the current largest cycle from the updated graph.
-    Then collapse the triangle topology and record the 6j.
-    """
-    print(f"Reducing cycle to triangle for nodes:", cycle_nodes)
-    terms = [initial_term]
-
-    # Keep applying F-moves until the target cycle shrinks to 3
-    for _ in range(1000):  # safety cap
-        new_terms = []
-        progressed = False
-        for term in terms:
-            # Recompute the current cycle in this term
-            cycles = list_face_cycles(term["graph"])
-            C = pick_smallest_interior_face_gt3(cycles) if cycles else None
-            if not C or len(C) <= 3:
-                # No F-move needed for this term
-                new_terms.append(term)
-                continue
-
-            # Apply one F-move on a consecutive pair (pick i=0)
-            t2 = f_move_recouple_term(term, C, i=0)
-            if t2 is not None:
-                new_terms.append(t2)
-                progressed = True
-            else:
-                # Couldn’t apply—keep term
-                new_terms.append(term)
-
-        terms = new_terms
-        if not progressed:
-            break  # nothing more to do
-
-    # Now collapse triangles and attach 6j's
-    finalized = []
-    for term in terms:
-        G = deepcopy(term["graph"])
-        coeffs = term["coeffs"][:]
-
-        tri = pick_smallest_interior_face_gt3(list_face_cycles(G))
-        if not tri or len(tri) != 3:
-            finalized.append(term)
-            continue
-
-        u, v, w = tri
-        collapsed = collapse_triangle_topology(G, u, v, w)
-        if collapsed is None:
-            finalized.append(term)
-            continue
-
-        G2, a, b, c, d, e, f = collapsed
-        coeffs.append(build_triangle_coeff(a, b, c, d, e, f))
-
-        # Clean up trivial structures formed by the collapse
-        new_term = {"graph": G2, "coeffs": coeffs}
-        new_term = reduce_all_loops(new_term)
-        new_term = reduce_all_degree2(new_term)
-        new_term = reduce_all_two_cycles(new_term)
-
-        finalized.append(new_term)
-    print(f"Reduced cycle to triangle and collapsed it.")
-    return finalized
-
 # ----------------------------------------------------------------
 # Global reduction: keep reducing while cycles of length > 2 exist
 # ----------------------------------------------------------------
@@ -635,57 +512,6 @@ def graph_signature(G):
         endpoints = frozenset([u, v])  # keep original node objects
         sig.add((endpoints, lbl, k))   # include key to distinguish parallel edges
     return frozenset(sig)
-
-
-# def reduce_all_cycles(glued_graph):
-#     """
-#     Fixpoint global reduction:
-#     - repeatedly run local reductions (loops, degree-2, digons),
-#     - then, if a cycle of length > 2 exists, reduce it to a triangle and collapse,
-#     - repeat until no changes occur.
-#     Returns a single term (graph, coeffs).
-#     """
-#     term = {"graph": glued_graph, "coeffs": []}
-
-#     max_iters = 10000  # safety cap to avoid accidental infinite loops
-#     for _ in range(max_iters):
-#         changed = False
-#         prev_sig = graph_signature(term["graph"])
-#         prev_coeff_count = len(term["coeffs"])
-
-#         # Local cleanups to fixpoint
-#         t = reduce_all_thetas(term)
-#         t = reduce_all_two_cycles(t)
-#         t = reduce_all_triangles(t)
-#         t = reduce_all_degree2(t)
-#         t = reduce_all_loops(t)
-
-#         # Check for local-change progress
-#         if graph_signature(t["graph"]) != prev_sig or len(t["coeffs"]) != prev_coeff_count:
-#             changed = True
-#         term = t
-
-#         # Check if any cycles remain
-#         cycles = list_face_cycles(term["graph"])
-#         C = pick_smallest_interior_face_gt3(cycles) if cycles else None
-
-#         if not C or len(C) <= 2:
-#             # No big cycles left; if no local changes happened, we are done
-#             if not changed:
-#                 return [term]
-#             # Otherwise, loop again to see if more local reductions are possible
-#             continue
-
-#         # Reduce one big cycle to a triangle and collapse
-#         reduced_terms = reduce_cycle_to_triangle(term, C)
-#         # We expect a single term; if multiple, take the first (we keep f symbolic)
-#         term = reduced_terms[0] if reduced_terms else term
-
-#         # After a batch, run local cleanups again next iteration
-#         # The loop continues; each triangle collapse reduces edges, guaranteeing progress
-
-#     # If we ever hit max_iters, return what we have (shouldn’t happen in well-formed inputs)
-#     return [term]
 
 def reduce_all_cycles(glued_graph):
     """

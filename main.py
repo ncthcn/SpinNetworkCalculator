@@ -5,7 +5,7 @@ from utils import check_triangular_condition
 from graph_reducer import reduce_all_cycles 
 from gluer import glue_open_edges
 from LaTeX_rendering import save_latex_pdf
-from norm_reducer import apply_kroneckers, expand_6j_symbolic, canonicalise_term
+from norm_reducer import canonicalise_terms, reconstruct_terms_from_canonical
 
 # Function to load a graph from a GraphML file
 def load_graph_from_file(file_path):
@@ -38,11 +38,14 @@ def print_norm_expression(terms, LaTeX=False):
     Print the norm expression in a readable format.
     """
     ORDER = {
-        "6j": 0,
-        "theta": 1,
-        "delta": 2,
-        "delta inverse": 3,
-        "Kronecker": 4,
+        "sum": 0,
+        "sign": 1,
+        "W6j": 2,
+        "6j": 3,
+        "theta": 4,
+        "delta": 5,
+        "delta inverse": 5,
+        "Kronecker": 6,
     }
 
     for term in terms:
@@ -60,26 +63,44 @@ def print_norm_expression(terms, LaTeX=False):
             typ = c.get("type")
             fixed = c.get("fixed", {})
 
-            if typ == "6j":
+            if typ == "sum":
+                f = c.get("index", "f")
+                rng = c.get("range2")
+                if rng:
+                    rng_str = (
+                        f"[{f}={rng['Fmin']/2},..., {rng['Fmax']/2}]"
+                    )
+                    factors.append(f"∑_{rng_str}")
+                else:
+                    factors.append(f"∑_{{f}}")
+
+            elif typ == "sign":
+                args = fixed.get("args", [])
+                arg_strs = []
+                for c, val in args:
+                    if c is not None: 
+                        arg_strs.append(f"{c}{val}")
+                    else:
+                        arg_strs.append(f"+{val}")
+                factors.append("(-1)^{{.join(arg_strs)}}")
+
+            elif typ == "W6j":
                 a = fixed.get("a", fixed.get("A"))
                 b = fixed.get("b", fixed.get("B"))
                 d = fixed.get("d", fixed.get("D"))
-                cc = fixed.get("c", fixed.get("C"))
+                c = fixed.get("c", fixed.get("C"))
                 e = fixed.get("e", fixed.get("E"))
+                f = fixed.get("f", fixed.get("F"))
+                factors.append(f"W6j({a},{b},{f},{c},{d},{e})")
 
-                rng = c.get("sum_range2")
-                if rng:
-                    f = c.get("sum_index", "f")
-                    rng_str = (
-                        f"[{f}={rng['Fmin']/2},\ldots, {rng['Fmax']/2} "
-                        # f"step 1, parity={rng['parity']}]"
-                    )
-                    factors.append(
-                        f"∑_{rng_str} 6j({a},{b},{f},{cc},{d},{e})"
-                    )
-                else:
-                    f = fixed.get("f", fixed.get("F"))
-                    factors.append(f"6j({a},{b},{f},{cc},{d},{e})")
+            elif typ == "6j":
+                a = fixed.get("a", fixed.get("A"))
+                b = fixed.get("b", fixed.get("B"))
+                d = fixed.get("d", fixed.get("D"))
+                c = fixed.get("c", fixed.get("C"))
+                e = fixed.get("e", fixed.get("E"))
+                f = fixed.get("f", fixed.get("F"))
+                factors.append(f"6j({a},{b},{f},{c},{d},{e})")
 
             elif typ == "theta":
                 a = fixed.get("a", fixed.get("A"))
@@ -89,11 +110,11 @@ def print_norm_expression(terms, LaTeX=False):
 
             elif typ == "delta":
                 j = fixed.get("j", fixed.get("J"))
-                factors.append(f"Δ({j})")
-
-            elif typ == "delta inverse":
-                j = fixed.get("j", fixed.get("J"))
-                factors.append(f"Δ^{{-1}}({j})")
+                power = fixed.get("power", 1)
+                if power != 1:
+                    factors.append(f"Δ({j})^{power}")
+                else:
+                    factors.append(f"Δ({j})")
 
             elif typ == "Kronecker":
                 c1 = fixed.get("c", fixed.get("C"))
@@ -172,20 +193,22 @@ if __name__ == "__main__":
 
     save_latex_pdf(terms, filename="norm_expression.pdf")
 
-    print("\nApplying Kronecker reductions...")
-    clean_terms = []
-    for T in terms:
-        t = apply_kroneckers(T)
-        if t is not None:
-            clean_terms.append(t)
+    # print("\nApplying Kronecker reductions...")
+    # clean_terms = []
+    # for T in terms:
+    #     t = apply_kroneckers(T)
+    #     if t is not None:
+    #         clean_terms.append(t)
     
-    for term in clean_terms:
-        new = []
-        for c in term["coeffs"]:
-            if c["type"] == "6j":
-                new.append(expand_6j_symbolic(c))
-            else:
-                new.append(c)
-        term["coeffs"] = new
+    # for term in clean_terms:
+    #     new = []
+    #     for c in term["coeffs"]:
+    #         if c["type"] == "6j":
+    #             new.append(expand_6j_symbolic(c))
+    #         else:
+    #             new.append(c)
+    #     term["coeffs"] = new
     
-    canon_terms = [ canonicalise_term(T) for T in clean_terms ]
+    canon_terms = canonicalise_terms(terms)
+    t = reconstruct_terms_from_canonical(canon_terms)
+    save_latex_pdf(t, filename="canon_norm_expression.pdf")
