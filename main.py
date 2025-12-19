@@ -210,5 +210,6 @@ if __name__ == "__main__":
     #     term["coeffs"] = new
     
     canon_terms = canonicalise_terms(terms)
+    save_latex_pdf(canon_terms, filename="canon_norm_expression.pdf")
     t = reconstruct_terms_from_canonical(canon_terms)
-    save_latex_pdf(t, filename="canon_norm_expression.pdf")
+    save_latex_pdf(t, filename="reconstructed_canon_norm_expression.pdf")
