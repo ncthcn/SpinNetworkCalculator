@@ -15,7 +15,7 @@ F_COUNTER = {"value": 0}
 
 def build_kronecker_delta_coeff(c, d):
     """
-    Kronecker delta recording the constraint c == d (stored even if equality is numeric and enforced).
+    Kronecker recording the constraint c == d (stored even if equality is numeric and enforced).
     args order [c, d]; doubles included if numeric.
     """
     fixed = {"c": c, "d": d}
@@ -23,31 +23,31 @@ def build_kronecker_delta_coeff(c, d):
         val = fixed[key]
         if is_numeric_label(val):
             fixed[key.upper()] = to_doubled(val)
-    print(f"Built Kronecker delta coeff with fixed labels:", c, d)
+    print(f"Built Kronecker coeff with fixed labels:", c, d)
     return {
-        "type": "Kronecker delta",
+        "type": "Kronecker",
         "list_order": ["c", "d"],
         "fixed": fixed,
         "sum_index": None
     }
 
-def build_big_delta_coeff(j, is_inverted=False):
+def build_delta_coeff(j, is_inverted=False):
     """
-    Big delta coefficient. is_inverted indicates whether this is Δ_j or Δ_j^{-1}.
+    delta coefficient. is_inverted indicates whether this is Δ_j or Δ_j^{-1}.
     """
     fixed = {"j": j}
     if is_numeric_label(j):
         fixed["J"] = to_doubled(j)
-    print(f"Built big delta coeff with fixed label:", j)
+    print(f"Built delta coeff with fixed label:", j)
     if is_inverted:
         return {
-            "type": "big delta inverse",
+            "type": "delta inverse",
             "list_order": ["j"],
             "fixed": fixed,
             "sum_index": None
         }
     return {
-        "type": "big delta",
+        "type": "delta",
         "list_order": ["j"],
         "fixed": fixed,
         "sum_index": None
@@ -242,14 +242,14 @@ def apply_degree2_reduction(term):
         a = d1.get("label", None)
         b = d2.get("label", None)
 
-        # Record Kronecker delta(a,b)
+        # Record Kronecker(a,b)
         coeffs.append(build_kronecker_delta_coeff(a, b))
 
         # Remove the vertex v (drops its two incident edges)
         if G.has_node(v):
             G.remove_node(v)
 
-        # Add the new edge between n1 and n2 labeled a (choice irrelevant due to Kronecker delta)
+        # Add the new edge between n1 and n2 labeled a (choice irrelevant due to Kronecker)
         add_edge_with_label(G, n1, n2, a)
         print(f"Applied degree-2 reduction on node:", v)
         # save_graph_snapshot(term["graph"], note="after degree-2 reduction")
@@ -275,7 +275,7 @@ def apply_loop_reduction(term):
                 data = G[u][u][k]
                 c = data.get("label", None)
                 # Record theta(c,c,0)
-                coeffs.append(build_big_delta_coeff(c))
+                coeffs.append(build_delta_coeff(c))
                 # Remove this loop edge
                 G.remove_edge(u, u, key=k)
                 print(f"Applied loop reduction on node:", u, "with label:", c)
@@ -301,12 +301,12 @@ def apply_two_cycle_reduction(term):
 
     a_node, u, v, b_node, a_lbl, int_lbl_1, int_lbl_2, b_lbl = cand
 
-    # Record Kronecker delta on the external edges
+    # Record Kronecker on the external edges
     coeffs.append(build_kronecker_delta_coeff(a_lbl, b_lbl))
 
     # Record theta: internal edge + external edges
     coeffs.append(build_theta_coeff(a_lbl, int_lbl_1, int_lbl_2))
-    coeffs.append(build_big_delta_coeff(a_lbl, is_inverted=True))
+    coeffs.append(build_delta_coeff(a_lbl, is_inverted=True))
 
     # Remove u, v
     if G.has_node(u):
@@ -410,7 +410,7 @@ def apply_triangle_reduction(term):
 
     coeffs.append(build_triangle_coeff(a, b, f, c, d, e))
     coeffs.append(build_theta_coeff(b, c, f))
-    coeffs.append(build_big_delta_coeff(f, is_inverted=True))
+    coeffs.append(build_delta_coeff(f, is_inverted=True))
 
     print(f"Applied triangle reduction to : ", u, v, w)
 

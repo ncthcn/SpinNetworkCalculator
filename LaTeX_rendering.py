@@ -19,9 +19,9 @@ def latex_formatting(terms):
     ORDER = {
         "6j": 0,
         "theta": 1,
-        "big delta": 2,
-        "big delta inverse": 3,
-        "Kronecker delta": 4,
+        "delta": 2,
+        "delta inverse": 3,
+        "Kronecker": 4,
     }
 
     factors = []  # <-- move factors out of loop so we can return all of them
@@ -65,15 +65,15 @@ def latex_formatting(terms):
                 cval = fixed.get("c", fixed.get("C"))
                 factors.append(rf"\Theta\left({a},{b},{cval}\right)")
 
-            elif typ == "big delta":
+            elif typ == "delta":
                 j = fixed.get("j", fixed.get("J"))
                 factors.append(rf"\Delta_{{{j}}}")
 
-            elif typ == "big delta inverse":
+            elif typ == "delta inverse":
                 j = fixed.get("j", fixed.get("J"))
                 factors.append(rf"\frac{{1}}{{\Delta_{{{j}}}}}")
 
-            elif typ == "Kronecker delta":
+            elif typ == "Kronecker":
                 c1 = fixed.get("c", fixed.get("C"))
                 d1 = fixed.get("d", fixed.get("D"))
                 factors.append(rf"\delta_{{{c1},{d1}}}")
@@ -83,23 +83,23 @@ def latex_formatting(terms):
 
     return factors
 
-def render_latex_expression(terms):
-    """
-    Render a list of factors (strings) as a LaTeX-style expression.
-    Factors should already be formatted like:
-        6j(a,b,f,c,d,e), θ(a,b,c), δ(c,d), etc.
-    """
-    factors = latex_formatting(terms)
-    expr_str = r" \cdot ".join(factors)
+# def render_latex_expression(terms):
+#     """
+#     Render a list of factors (strings) as a LaTeX-style expression.
+#     Factors should already be formatted like:
+#         6j(a,b,f,c,d,e), θ(a,b,c), δ(c,d), etc.
+#     """
+#     factors = latex_formatting(terms)
+#     expr_str = r" \cdot ".join(factors)
 
-    # Display in notebook using MathJax (works with full LaTeX)
-    display(Math(expr_str))
+#     # Display in notebook using MathJax (works with full LaTeX)
+#     display(Math(expr_str))
 
-    # Render as figure using matplotlib usetex
-    fig, ax = plt.subplots(figsize=(8, 1))
-    ax.axis('off')
-    ax.text(0.5, 0.5, f"${expr_str}$", ha='center', va='center', fontsize=16)
-    plt.show()
+#     # Render as figure using matplotlib usetex
+#     fig, ax = plt.subplots(figsize=(8, 1))
+#     ax.axis('off')
+#     ax.text(0.5, 0.5, f"${expr_str}$", ha='center', va='center', fontsize=16)
+#     plt.show()
 
 def save_latex_pdf(terms, filename="expression.pdf"):
     factors = latex_formatting(terms)

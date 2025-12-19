@@ -1,76 +1,11 @@
 import os
 import networkx as nx
 from drawing import draw_graph, compute_layout
-from utils import vertex_satisfies_triangular_conditions
-from reducer import reduce_all_cycles 
+from utils import check_triangular_condition
+from graph_reducer import reduce_all_cycles 
 from gluer import glue_open_edges
-from LaTeX_rendering import render_latex_expression, save_latex_pdf
-
-
-    # Function to check the triangular condition for all nodes
-def check_triangular_condition(graph):
-    """
-    Check the triangular condition for all nodes in the graph.
-    Skip nodes with non-numeric labels.
-    """
-    for node in graph.nodes:
-        neighbors = list(graph.neighbors(node))
-        if len(neighbors) == 3:  # Only check for nodes with exactly 3 edges
-            labels = []
-            for neighbor in neighbors:
-                edge_data = graph[node][neighbor]
-                for key, data in edge_data.items():
-                    label = data.get("label", None)
-                    if isinstance(label, (int, float)):  # Only consider numeric labels
-                        labels.append(label)
-            if len(labels) == 3 and not vertex_satisfies_triangular_conditions(labels):
-                raise ValueError(f"Triangular condition not satisfied at node {node}")
-
-# ------------------------
-# Preparing 6j evaluation batch for C++ backend
-# ------------------------
-
-def collect_6j_requests(terms):
-    """
-    From the term expansion [(graph, coeff_list)], extract unique 6j-argument tuples to compute.
-    Returns:
-    requests: list of unique 6j arg tuples in doubled int form
-    mapping: maps each term index -> list of (request_index, multiplicative factor index)
-    """
-    requests = []
-    req_index = {}
-    term_map = []
-
-    for t_idx, (G, coeffs) in enumerate(terms):
-        this_term_map = []
-        for c in coeffs:
-            if c["type"] == "6j":
-                args = tuple(c["args2"])
-                if args not in req_index:
-                    req_index[args] = len(requests)
-                    requests.append(args)
-                this_term_map.append(req_index[args])
-        term_map.append(this_term_map)
-
-    return requests, term_map
-
-
-def draw_curved_edge(x1, y1, x2, y2, curvature):
-    """
-    Draw a single curved edge between two points using a Bézier curve.
-    """
-    mid_x = (x1 + x2) / 2
-    mid_y = (y1 + y2) / 2
-    dx = y2 - y1
-    dy = x1 - x2
-    control_x = mid_x + curvature * dx
-    control_y = mid_y + curvature * dy
-
-    # Draw the Bézier curve
-    bezier_x = [x1, control_x, x2]
-    bezier_y = [y1, control_y, y2]
-    plt.plot(bezier_x, bezier_y, color="black")
-
+from LaTeX_rendering import save_latex_pdf
+from norm_reducer import apply_kroneckers, expand_6j_symbolic, canonicalise_term
 
 # Function to load a graph from a GraphML file
 def load_graph_from_file(file_path):
@@ -98,17 +33,6 @@ def load_graph_from_file(file_path):
         
     return graph
 
-def debug_graph_summary(G):
-    print("Node degrees:")
-    for v in G.nodes():
-        print(f"  {v}: degree={G.degree(v)}")
-    print("Parallel edges and labels:")
-    for u, v in nx.Graph(G).edges():
-        labels = [d.get("label") for k, d in G[u][v].items()]
-        print(f"  {u}-{v}: labels={labels}, count={len(labels)}")
-    cycles = nx.cycle_basis(nx.Graph(G))
-    print(f"Cycle basis ({len(cycles)}): lengths={[len(C) for C in cycles]}")
-
 def print_norm_expression(terms, LaTeX=False):
     """
     Print the norm expression in a readable format.
@@ -116,9 +40,9 @@ def print_norm_expression(terms, LaTeX=False):
     ORDER = {
         "6j": 0,
         "theta": 1,
-        "big delta": 2,
-        "big delta inverse": 3,
-        "Kronecker delta": 4,
+        "delta": 2,
+        "delta inverse": 3,
+        "Kronecker": 4,
     }
 
     for term in terms:
@@ -163,15 +87,15 @@ def print_norm_expression(terms, LaTeX=False):
                 cval = fixed.get("c", fixed.get("C"))
                 factors.append(f"θ({a},{b},{cval})")
 
-            elif typ == "big delta":
+            elif typ == "delta":
                 j = fixed.get("j", fixed.get("J"))
                 factors.append(f"Δ({j})")
 
-            elif typ == "big delta inverse":
+            elif typ == "delta inverse":
                 j = fixed.get("j", fixed.get("J"))
                 factors.append(f"Δ^{{-1}}({j})")
 
-            elif typ == "Kronecker delta":
+            elif typ == "Kronecker":
                 c1 = fixed.get("c", fixed.get("C"))
                 d1 = fixed.get("d", fixed.get("D"))
                 factors.append(f"δ({c1},{d1})")
@@ -186,7 +110,7 @@ def print_norm_expression(terms, LaTeX=False):
     print("|", product_str, "|")
 
 # -------------------------------
-# --- Main
+# ----------- Main --------------
 # -------------------------------
 
 if __name__ == "__main__":
@@ -247,3 +171,21 @@ if __name__ == "__main__":
     print_norm_expression(terms)
 
     save_latex_pdf(terms, filename="norm_expression.pdf")
+
+    print("\nApplying Kronecker reductions...")
+    clean_terms = []
+    for T in terms:
+        t = apply_kroneckers(T)
+        if t is not None:
+            clean_terms.append(t)
+    
+    for term in clean_terms:
+        new = []
+        for c in term["coeffs"]:
+            if c["type"] == "6j":
+                new.append(expand_6j_symbolic(c))
+            else:
+                new.append(c)
+        term["coeffs"] = new
+    
+    canon_terms = [ canonicalise_term(T) for T in clean_terms ]

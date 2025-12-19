@@ -14,6 +14,25 @@ def vertex_satisfies_triangular_conditions(labels):
         and abs(c - a) <= b <= c + a
     )
 
+    # Function to check the triangular condition for all nodes
+def check_triangular_condition(graph):
+    """
+    Check the triangular condition for all nodes in the graph.
+    Skip nodes with non-numeric labels.
+    """
+    for node in graph.nodes:
+        neighbors = list(graph.neighbors(node))
+        if len(neighbors) == 3:  # Only check for nodes with exactly 3 edges
+            labels = []
+            for neighbor in neighbors:
+                edge_data = graph[node][neighbor]
+                for key, data in edge_data.items():
+                    label = data.get("label", None)
+                    if isinstance(label, (int, float)):  # Only consider numeric labels
+                        labels.append(label)
+            if len(labels) == 3 and not vertex_satisfies_triangular_conditions(labels):
+                raise ValueError(f"Triangular condition not satisfied at node {node}")
+            
 # -----------------------
 # Helpers: cycles and topology
 # -----------------------
