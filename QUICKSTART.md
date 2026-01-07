@@ -29,17 +29,17 @@ pip install networkx matplotlib sympy pybind11 pywigxjpf
 source myenv/bin/activate
 
 # Draw your network
-python graph.py
+python scripts/graph.py
 # → Click to add nodes
 # → Right-click pairs to connect with edges
 # → Enter spin values
 # → Close window when done
 
 # Compute symbolic form (generates PDFs)
-python compute_norm.py
+python scripts/compute_norm.py
 
 # Evaluate numerically
-python evaluate_norm.py
+python scripts/evaluate_norm.py
 ```
 
 ### Option B: I have an existing GraphML file
@@ -49,8 +49,8 @@ python evaluate_norm.py
 source myenv/bin/activate
 
 # Compute and evaluate
-python compute_norm.py my_network.graphml
-python evaluate_norm.py my_network.graphml
+python scripts/compute_norm.py my_network.graphml
+python scripts/evaluate_norm.py my_network.graphml
 ```
 
 ## What You Get
@@ -72,7 +72,7 @@ This number is your result!
 ## Common Issues
 
 ### "File not found"
-→ Run `python graph.py` first to create a network
+→ Run `python scripts/graph.py` first to create a network
 
 ### "Triangular condition not satisfied"
 → Your edge spins don't satisfy |j₁-j₂| ≤ j₃ ≤ j₁+j₂ at some node

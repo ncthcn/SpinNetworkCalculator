@@ -83,7 +83,7 @@ If you see the success message, you're ready to go! 🎉
 Use the interactive graph drawing tool:
 
 ```bash
-python graph.py
+python scripts/graph.py
 ```
 
 **Instructions:**
@@ -96,7 +96,7 @@ python graph.py
 ### 2. Compute the Symbolic Norm
 
 ```bash
-python compute_norm.py
+python scripts/compute_norm.py
 ```
 
 **What it does:**
@@ -110,7 +110,7 @@ python compute_norm.py
 ### 3. Evaluate Numerically
 
 ```bash
-python evaluate_norm.py
+python scripts/evaluate_norm.py
 ```
 
 **What it does:**
@@ -134,7 +134,7 @@ python evaluate_norm.py
 #### Method 1: Interactive Drawing (Recommended for Beginners)
 
 ```bash
-python graph.py
+python scripts/graph.py
 ```
 
 1. Click to place nodes
@@ -147,8 +147,8 @@ python graph.py
 If you already have a `.graphml` file:
 
 ```bash
-python compute_norm.py my_network.graphml
-python evaluate_norm.py my_network.graphml
+python scripts/compute_norm.py my_network.graphml
+python scripts/evaluate_norm.py my_network.graphml
 ```
 
 ### Advanced Options
@@ -158,7 +158,7 @@ python evaluate_norm.py my_network.graphml
 If you have very large spin values, you can manually set the maximum:
 
 ```bash
-python evaluate_norm.py --max-j 50
+python scripts/evaluate_norm.py --max-j 50
 ```
 
 This pre-allocates memory for spins up to j=50.
@@ -166,7 +166,7 @@ This pre-allocates memory for spins up to j=50.
 #### Quiet Mode (Less Output)
 
 ```bash
-python evaluate_norm.py --quiet
+python scripts/evaluate_norm.py --quiet
 ```
 
 Only shows the final result, useful for scripting.
@@ -287,7 +287,7 @@ The **wigxjpf** library (Wigner symbols using prime factorization):
 Error: 'drawn_graph_with_labels.graphml' not found.
 ```
 
-**Solution:** First run `python graph.py` to create a spin network graph.
+**Solution:** First run `python scripts/graph.py` to create a spin network graph.
 
 ---
 
@@ -359,7 +359,7 @@ MemoryError: Cannot allocate wigxjpf tables
 
 **Solution:** Reduce the `--max-j` parameter or use smaller spin values:
 ```bash
-python evaluate_norm.py --max-j 100  # Limit to j ≤ 100
+python scripts/evaluate_norm.py --max-j 100  # Limit to j ≤ 100
 ```
 
 ---
@@ -368,21 +368,35 @@ python evaluate_norm.py --max-j 100  # Limit to j ≤ 100
 
 ```
 Spin_Networks_Project_full/
-├── README.md                    # This file
-├── graph.py                     # Interactive graph drawing tool
-├── compute_norm.py              # Symbolic computation (→ PDFs)
-├── evaluate_norm.py             # Numerical evaluation (→ result)
-├── main.py                      # Combined pipeline (symbolic + numerical)
 │
-├── drawing.py                   # Graph visualization utilities
-├── gluer.py                     # Graph gluing operations
-├── graph_reducer.py             # F-moves and triangle reductions
-├── norm_reducer.py              # Canonicalization and Regge symmetries
-├── spin_evaluator.py            # Numerical evaluation with wigxjpf
-├── LaTeX_rendering.py           # PDF generation
-├── utils.py                     # Utility functions
+├── 📄 Documentation
+│   ├── README.md                # This file - comprehensive guide
+│   ├── QUICKSTART.md            # 5-minute quick start
+│   └── requirements.txt         # Python dependencies
 │
-└── drawn_graph_with_labels.graphml  # Your spin network (created by graph.py)
+├── 📜 User Scripts (scripts/)
+│   ├── graph.py                 # Interactive graph drawing tool
+│   ├── compute_norm.py          # Symbolic computation (→ PDFs)
+│   └── evaluate_norm.py         # Numerical evaluation (→ result)
+│
+├── 🔧 Core Library (src/)
+│   ├── drawing.py               # Graph visualization utilities
+│   ├── gluer.py                 # Graph gluing operations
+│   ├── graph_reducer.py         # F-moves and triangle reductions
+│   ├── norm_reducer.py          # Canonicalization and Regge symmetries
+│   ├── spin_evaluator.py        # Numerical evaluation with wigxjpf
+│   ├── LaTeX_rendering.py       # PDF generation
+│   └── utils.py                 # Utility functions
+│
+├── 📊 Generated Files (ignored by git)
+│   ├── drawn_graph_with_labels.graphml
+│   ├── norm_expression.pdf
+│   ├── canon_norm_expression.pdf
+│   └── reconstructed_canon_norm_expression.pdf
+│
+└── 🔧 Other
+    ├── main.py                  # Legacy combined pipeline
+    └── .gitignore               # Git ignore rules
 ```
 
 ---
