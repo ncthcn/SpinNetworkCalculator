@@ -197,6 +197,79 @@ def expand_6j_symbolic(coeff):
 # Key functions for canonicalisation
 # -------------------------
 
+def canonicalise_sign(sign_coeff):
+    """
+    Canonicalise a sign coefficient by:
+    1. Summing all numeric terms
+    2. Collecting variable terms with their coefficients
+
+    Input: sign_coeff with args = [(coeff, val), ...]
+    Output: canonicalised sign_coeff with combined terms
+    """
+    args = sign_coeff.get("fixed", {}).get("args", [])
+
+    # Accumulate numeric sum and variable terms
+    numeric_sum = 0
+    var_terms = {}  # variable -> coefficient
+
+    for coeff_str, val in args:
+        # Parse coefficient (could be '-', '+', '2', etc.)
+        if coeff_str == '-':
+            coeff = -1
+        elif coeff_str == '+' or coeff_str is None:
+            coeff = 1
+        else:
+            try:
+                coeff = float(coeff_str)
+            except:
+                coeff = 1  # fallback
+
+        # Check if val is numeric or variable
+        if isinstance(val, (int, float)):
+            numeric_sum += coeff * val
+        else:
+            # Variable term
+            var_name = str(val)
+            var_terms[var_name] = var_terms.get(var_name, 0) + coeff
+
+    # If only numeric (no variables), simplify based on parity
+    if not var_terms or all(c == 0 for c in var_terms.values()):
+        # Check if numeric_sum is even or odd
+        if numeric_sum % 2 == 0:
+            return None  # (-1)^even = 1, remove the sign
+        else:
+            # (-1)^odd = -1, return a special marker
+            return {"type": "sign_value", "value": -1}
+
+    # Rebuild args list for mixed numeric/variable case
+    new_args = []
+
+    # Add numeric sum if non-zero
+    if numeric_sum != 0:
+        if numeric_sum > 0:
+            new_args.append(('+', numeric_sum))
+        else:
+            new_args.append(('-', -numeric_sum))
+
+    # Add variable terms sorted alphabetically
+    for var in sorted(var_terms.keys()):
+        coeff = var_terms[var]
+        if coeff == 0:
+            continue
+        elif coeff == 1:
+            new_args.append(('+', var))
+        elif coeff == -1:
+            new_args.append(('-', var))
+        elif coeff > 0:
+            new_args.append((f'+{coeff}', var))
+        else:
+            new_args.append((f'{coeff}', var))
+
+    return {
+        "type": "sign",
+        "fixed": {"args": new_args}
+    }
+
 def sort_mixed_args(args):
     """
     Sort arguments for canonical form.
@@ -253,7 +326,14 @@ def theta_key(c):
 
 def wigner_sixj_key(c):
     """
-    Canonical key for a W6j coefficient.
+    Canonical key for a W6j coefficient using correct Regge symmetries.
+
+    The Wigner 6j symbol {a b c; d e f} has 24 symmetries (tetrahedral group).
+    These come from:
+    - Even permutations of the 3 columns (6 permutations)
+    - Interchanging upper and lower rows in each column (×2 for each column)
+    - Combined: 6 × 4 = 24 total symmetries
+
     Accepts either:
       - dict with 'fixed'
       - tuple: ("W6j", args, power)
@@ -273,17 +353,36 @@ def wigner_sixj_key(c):
     else:
         raise TypeError(f"Unsupported W6j coeff type: {type(c)}")
 
-    a, b, e, c1, d, f = args
-    mats = [
-        (a, b, e, c1, d, f),
-        (b, c1, a, e, f, d),
-        (c1, a, b, f, d, e),
-        (d, e, f, a, b, c1),
-        (e, f, d, b, c1, a),
-        (f, d, e, c1, a, b),
+    a, b, c, d, e, f = args
+
+    # Generate all 24 Regge symmetries
+    # Start with 6 even column permutations, then apply row swaps
+    column_perms = [
+        (a, b, c, d, e, f),  # identity
+        (b, c, a, e, f, d),  # cycle (123)
+        (c, a, b, f, d, e),  # cycle (132)
+        (a, c, b, d, f, e),  # swap columns 2↔3
+        (c, b, a, f, e, d),  # swap columns 1↔3
+        (b, a, c, e, d, f),  # swap columns 1↔2
     ]
-    mats2 = mats + [(x[3], x[4], x[5], x[0], x[1], x[2]) for x in mats]
-    return ("W6j", min(mats2), power)
+
+    # For each column permutation, generate 4 variants by swapping rows in pairs
+    all_symmetries = []
+    for (j1, j2, j3, j4, j5, j6) in column_perms:
+        # Original
+        all_symmetries.append((j1, j2, j3, j4, j5, j6))
+        # Swap rows in columns 1&2
+        all_symmetries.append((j4, j5, j3, j1, j2, j6))
+        # Swap rows in columns 1&3
+        all_symmetries.append((j4, j2, j6, j1, j5, j3))
+        # Swap rows in columns 2&3
+        all_symmetries.append((j1, j5, j6, j4, j2, j3))
+
+    # Custom key for sorting mixed types (numbers first, then strings)
+    def sort_key(mat):
+        return tuple((0, x) if isinstance(x, (int, float)) else (1, str(x)) for x in mat)
+
+    return ("W6j", min(all_symmetries, key=sort_key), power)
 
 def canonicalise_terms(terms):
     """
@@ -294,31 +393,124 @@ def canonicalise_terms(terms):
     canon_terms = []
 
     for term in terms:
-        counter = {}
+        power_accumulator = {}  # maps (type, args) -> total_power
+        sign_coeffs = []  # collect all sign coefficients to merge
+        non_canonical_coeffs = []  # for coeffs that shouldn't be canonicalized
 
         for c in term["coeffs"]:
             typ = c[0] if isinstance(c, tuple) else c.get("type")
             if typ == "theta":
-                key = theta_key(c)
+                key = theta_key(c)  # returns ("theta", sorted_args, power)
+                typ_key = (key[0], key[1])  # (type, args) without power
+                power_accumulator[typ_key] = power_accumulator.get(typ_key, 0) + key[2]
             elif typ == "W6j":
-                key = wigner_sixj_key(c)
+                key = wigner_sixj_key(c)  # returns ("W6j", canonical_args, power)
+                typ_key = (key[0], key[1])  # (type, args) without power
+                power_accumulator[typ_key] = power_accumulator.get(typ_key, 0) + key[2]
+            elif typ == "delta":
+                # Accumulate delta powers by their index j
+                fixed = c.get("fixed", {})
+                j = fixed.get("j", fixed.get("J"))
+                power = c.get("power", 1)
+                typ_key = ("delta", j)
+                power_accumulator[typ_key] = power_accumulator.get(typ_key, 0) + power
+            elif typ == "sign":
+                # Collect sign coefficients to merge
+                sign_coeffs.append(c)
             else:
-                # keep other coefficients as-is
-                key = (typ, str(c))
-            counter[key] = counter.get(key, 0) + 1
+                # keep other coefficient types (sum, 6j, Kronecker) as-is
+                non_canonical_coeffs.append(c)
 
-        # reconstruct canonical coeffs
-        new_coeffs = []
-        for k, count in counter.items():
-            typ = k[0]
-            args = k[1]
-            power = k[2] if len(k) > 2 else count
-            if typ == "theta":
-                new_coeffs.append({"type": "theta", "args": args, "power": power})
-            elif typ == "W6j":
-                new_coeffs.append({"type": "W6j", "args": args, "power": power})
+        # Merge all sign coefficients into one
+        overall_sign = 1  # Track the overall sign multiplier
+        if sign_coeffs:
+            # Merge all signs by combining their args
+            merged_args = []
+            for sign_c in sign_coeffs:
+                args = sign_c.get("fixed", {}).get("args", [])
+                merged_args.extend(args)
+
+            # Create merged sign and canonicalize it
+            merged_sign = {"type": "sign", "fixed": {"args": merged_args}}
+            canonical_sign = canonicalise_sign(merged_sign)
+
+            # Handle the canonicalized sign result
+            if canonical_sign is None:
+                # Sign simplified to 1, no need to add it
+                sign_coeffs = []
+            elif canonical_sign.get("type") == "sign_value":
+                # Sign simplified to -1
+                overall_sign = canonical_sign.get("value", 1)
+                sign_coeffs = []
+            elif canonical_sign.get("fixed", {}).get("args"):
+                # Sign still has variable terms
+                sign_coeffs = [canonical_sign]
             else:
-                new_coeffs.append(args)  # fallback
+                sign_coeffs = []
+
+        # Reconstruct canonical coeffs
+        new_coeffs = []
+
+        # First, add the overall sign if it's -1
+        if overall_sign == -1:
+            new_coeffs.append({"type": "sign_value", "value": -1})
+
+        # Collect sum indices to identify which coefficients depend on summed variables
+        sum_indices = set()
+        for c in non_canonical_coeffs:
+            if isinstance(c, dict) and c.get("type") == "sum":
+                sum_indices.add(c.get("index"))
+
+        # Helper function to check if a coefficient contains a summed variable
+        def contains_summed_var(coeff):
+            if not isinstance(coeff, dict):
+                return False
+
+            # Check in args
+            args = coeff.get("args", ())
+            if any(str(arg) in sum_indices for arg in args):
+                return True
+
+            # Check in fixed
+            fixed = coeff.get("fixed", {})
+            for val in fixed.values():
+                if isinstance(val, str) and val in sum_indices:
+                    return True
+                elif isinstance(val, dict):
+                    for v in val.values():
+                        if isinstance(v, str) and v in sum_indices:
+                            return True
+            return False
+
+        # Separate coefficients into those without and with summed variables
+        coeffs_before_sum = []
+        coeffs_after_sum = []
+
+        for (typ, args), total_power in power_accumulator.items():
+            # Skip coefficients that cancel out (power = 0)
+            if total_power == 0:
+                continue
+
+            if typ == "theta":
+                coeff = {"type": "theta", "args": args, "power": total_power}
+            elif typ == "W6j":
+                coeff = {"type": "W6j", "args": args, "power": total_power}
+            elif typ == "delta":
+                coeff = {"type": "delta", "fixed": {"j": args}, "power": total_power}
+            else:
+                continue
+
+            if contains_summed_var(coeff):
+                coeffs_after_sum.append(coeff)
+            else:
+                coeffs_before_sum.append(coeff)
+
+        # Build final coefficient list: sign → non-summed → sign(with vars) → sum → summed coeffs
+        new_coeffs.extend(coeffs_before_sum)
+        new_coeffs.extend(sign_coeffs)  # Variable-dependent signs go before sum
+        new_coeffs.extend([c for c in non_canonical_coeffs if c.get("type") == "sum"])  # Sum
+        new_coeffs.extend(coeffs_after_sum)
+        new_coeffs.extend([c for c in non_canonical_coeffs if c.get("type") != "sum"])  # Other
 
         term["coeffs"] = new_coeffs
         canon_terms.append(term)

@@ -1,4 +1,22 @@
+#!/usr/bin/env python3
+"""
+Compute Spin Network Norm (Symbolic)
+
+This script computes the symbolic norm expression of a spin network from a GraphML file.
+It performs all graph reductions and produces LaTeX PDFs showing the canonical form.
+
+Usage:
+    python compute_norm.py [input_file.graphml]
+
+Output:
+    - norm_expression.pdf: Raw norm expression after graph reduction
+    - canon_norm_expression.pdf: Canonicalized expression with simplified coefficients
+
+The script does NOT perform numerical evaluation - use evaluate_norm.py for that.
+"""
+
 import os
+import sys
 import networkx as nx
 from drawing import draw_graph, compute_layout
 from utils import check_triangular_condition
@@ -6,9 +24,8 @@ from graph_reducer import reduce_all_cycles
 from gluer import glue_open_edges
 from LaTeX_rendering import save_latex_pdf
 from norm_reducer import canonicalise_terms, reconstruct_terms_from_canonical, apply_kroneckers, expand_6j_symbolic
-from spin_evaluator import evaluate_spin_network
 
-# Function to load a graph from a GraphML file
+
 def load_graph_from_file(file_path):
     """
     Load a graph from a GraphML file and ensure all nodes have valid positions.
@@ -31,10 +48,11 @@ def load_graph_from_file(file_path):
         else:
             # Otherwise, use the default position
             graph.nodes[node]["pos"] = pos[node]
-        
+
     return graph
 
-def print_norm_expression(terms, LaTeX=False):
+
+def print_norm_expression(terms):
     """
     Print the norm expression in a readable format.
     """
@@ -79,7 +97,7 @@ def print_norm_expression(terms, LaTeX=False):
                 args = fixed.get("args", [])
                 arg_strs = []
                 for c, val in args:
-                    if c is not None: 
+                    if c is not None:
                         arg_strs.append(f"{c}{val}")
                     else:
                         arg_strs.append(f"+{val}")
@@ -125,75 +143,80 @@ def print_norm_expression(terms, LaTeX=False):
             else:
                 factors.append(str(c))
 
-
     product_str = " * ".join(factors) if factors else "1"
 
     print("\nNorm of the spin network:\n")
     print("|", product_str, "|")
 
-# -------------------------------
-# ----------- Main --------------
-# -------------------------------
 
-if __name__ == "__main__":
-    filepath = "drawn_graph_with_labels.graphml"
+def main():
+    # Parse command line arguments
+    if len(sys.argv) > 1:
+        filepath = sys.argv[1]
+    else:
+        filepath = "drawn_graph_with_labels.graphml"
+
+    # Check if file exists
     if not os.path.exists(filepath):
         print(f"Error: '{filepath}' not found.")
-        exit(1)
+        print(f"\nUsage: python {sys.argv[0]} [input_file.graphml]")
+        sys.exit(1)
 
-    # Load MultiGraph from GraphML
-    # graph = nx.read_graphml(filepath, force_multigraph=True)
+    print("="*70)
+    print("SPIN NETWORK NORM COMPUTATION (Symbolic)")
+    print("="*70)
+    print(f"Input file: {filepath}\n")
+
+    # Load graph
+    print("Loading graph...")
     graph = load_graph_from_file(filepath)
-
-    # # Convert edge labels to float
-    # for u, v, k, data in graph.edges(keys=True, data=True):
-    #     data["label"] = float(data["label"])
+    print(f"  Loaded graph with {graph.number_of_nodes()} nodes and {graph.number_of_edges()} edges")
 
     # Check triangular condition
     try:
         check_triangular_condition(graph)
-        print("Triangular condition satisfied for all nodes.")
+        print("  ✓ Triangular condition satisfied for all nodes")
     except ValueError as e:
-        print(e)
-        exit(1)
+        print(f"  ✗ Error: {e}")
+        sys.exit(1)
 
     # Draw original graph
-    print("Original Graph:")
+    print("\nDrawing original graph...")
     edge_labels_orig = {(u, v, k): d["label"] for u, v, k, d in graph.edges(keys=True, data=True)}
     draw_graph(graph, edge_labels_orig)
 
     # Glue with copy
+    print("\nGluing open edges (creating theta graph)...")
     glued_graph = glue_open_edges(graph)
 
     # Compute layout for glued graph
     compute_layout(glued_graph, layout="auto")
 
     # Draw glued graph
-    print("Glued Graph (theta graph):")
+    print("Drawing glued graph...")
     edge_labels_glued = {(u, v, k): d["label"] for u, v, k, d in glued_graph.edges(keys=True, data=True)}
     draw_graph(glued_graph, edge_labels_glued)
 
     # Check planarity
     is_planar, embedding = nx.check_planarity(glued_graph)
     if is_planar:
-        print("The glued graph is planar.")
+        print("  ✓ The glued graph is planar")
     else:
-        print("The glued graph is not planar.")
+        print("  ✗ Warning: The glued graph is not planar")
 
-    # -------------------------------
-    # Call the cycle reducer (includes 2-cycle reductions and F-moves)
-    # -------------------------------
-
+    # Perform graph reduction
+    print("\nPerforming graph reduction (F-moves, triangle reductions)...")
     terms = reduce_all_cycles(glued_graph)
 
-    # -------------------------------
-    # Print result: formal product string
-    # -------------------------------   
-
+    # Print symbolic result
     print_norm_expression(terms)
 
+    # Save raw LaTeX
+    print("\nSaving raw norm expression...")
     save_latex_pdf(terms, filename="norm_expression.pdf")
+    print("  ✓ Saved: norm_expression.pdf")
 
+    # Apply Kronecker reductions
     print("\nApplying Kronecker reductions...")
     clean_terms = []
     for T in terms:
@@ -201,7 +224,8 @@ if __name__ == "__main__":
         if t is not None:
             clean_terms.append(t)
 
-    print("\nExpanding 6j symbols to W6j...")
+    # Expand 6j to W6j
+    print("Expanding 6j symbols to W6j...")
     for term in clean_terms:
         new = []
         for c in term["coeffs"]:
@@ -212,42 +236,26 @@ if __name__ == "__main__":
                 new.append(c)
         term["coeffs"] = new
 
+    # Canonicalize
+    print("Canonicalizing expression...")
     canon_terms = canonicalise_terms(clean_terms)
+
+    # Save canonical LaTeX
+    print("\nSaving canonical norm expression...")
     save_latex_pdf(canon_terms, filename="canon_norm_expression.pdf")
+    print("  ✓ Saved: canon_norm_expression.pdf")
+
+    # Also save reconstructed form
     t = reconstruct_terms_from_canonical(canon_terms)
     save_latex_pdf(t, filename="reconstructed_canon_norm_expression.pdf")
-
-    # -------------------------------
-    # Numerical Evaluation
-    # -------------------------------
-    print("\n" + "="*70)
-    print("NUMERICAL EVALUATION")
-    print("="*70)
-
-    # Determine max spin value from the canonical terms
-    max_spin = 0
-    for term in canon_terms:
-        for coeff in term.get("coeffs", []):
-            if isinstance(coeff, dict):
-                # Check args
-                for arg in coeff.get("args", ()):
-                    if isinstance(arg, (int, float)):
-                        max_spin = max(max_spin, int(arg))
-                # Check fixed values
-                for val in coeff.get("fixed", {}).values():
-                    if isinstance(val, (int, float)):
-                        max_spin = max(max_spin, int(val))
-                # Check range
-                range_info = coeff.get("range2", {})
-                if range_info:
-                    max_spin = max(max_spin, range_info.get("Fmax", 0) // 2)
-
-    max_two_j = max(100, max_spin * 2 + 10)  # Add buffer
-    print(f"Detected max spin value: {max_spin}")
-    print(f"Using max_two_j = {max_two_j}")
-
-    numerical_result = evaluate_spin_network(canon_terms, max_two_j=max_two_j)
+    print("  ✓ Saved: reconstructed_canon_norm_expression.pdf")
 
     print("\n" + "="*70)
-    print(f"✨ SPIN NETWORK NORM = {numerical_result:.15e}")
+    print("SYMBOLIC COMPUTATION COMPLETE")
     print("="*70)
+    print("\nNext step: Use 'python evaluate_norm.py' to compute numerical value")
+    print("(Make sure canon_norm_expression.pdf was generated successfully)")
+
+
+if __name__ == "__main__":
+    main()

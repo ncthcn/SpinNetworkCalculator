@@ -53,11 +53,8 @@ def latex_formatting(terms):
     for term in terms:
         coeffs = term.get("coeffs", [])
 
-        # sort coeff list by type priority
-        coeffs = sorted(
-            coeffs,
-            key=lambda c: ORDER.get(c.get("type") if isinstance(c, dict) else "", 999)
-        )
+        # Don't sort - coefficients are already ordered by canonicalization
+        # (keeping ORDER dict for potential future use)
 
         factors = []
 
@@ -79,11 +76,20 @@ def latex_formatting(terms):
                 else:
                     factors.append(rf"\sum_{{{f}}}")
 
+            elif typ == "sign_value":
+                # Simple sign value (e.g., -1)
+                value = c.get("value", 1)
+                if value == -1:
+                    factors.append(r"-1")
+                elif value != 1:
+                    factors.append(str(value))
+                # If value == 1, don't add anything
+
             elif typ == "sign":
                 args = fixed.get("args", [])
                 arg_strs = []
                 for sgn, val in args:
-                    if sgn is not None: 
+                    if sgn is not None:
                         arg_strs.append(f"{sgn}{val}")
                     else:
                         arg_strs.append(f"+{val}")
@@ -104,7 +110,7 @@ def latex_formatting(terms):
                 a, b, fval, cval, d, e = args
                 power = fixed.get("power", 1)
                 if power != 1:
-                    factors.append(rf"\left{latex_6j(a,b,fval,cval,d,e)}\right)^{{{power}}}")
+                    factors.append(rf"\left{latex_6j(a,b,fval,cval,d,e)}\right^{{{power}}}")
                 else:
                     factors.append(latex_6j(a,b,fval,cval,d,e))
                 
@@ -122,7 +128,10 @@ def latex_formatting(terms):
                     )
                 a, b, e, cval, d, fval = args
                 power = fixed.get("power", 1)
-                factors.append(rf"\left{latex_6j(a,b,e,cval,d,fval)}\right^{{{power}}}_{{{W}}}")
+                if power != 1:
+                    factors.append(rf"\left{latex_6j(a,b,e,cval,d,fval)}\right^{{{power}}}_{{\mathrm{{W}}}}")
+                else:
+                    factors.append(rf"{latex_6j(a,b,e,cval,d,fval)}_{{\mathrm{{W}}}}")
 
             elif typ == "theta":
                 args = c.get("args")
