@@ -29,6 +29,7 @@ drawn_graph_with_labels.graphml
 norm_expression.pdf
 canon_norm_expression.pdf
 reconstructed_canon_norm_expression.pdf
+*.pdf
 
 # Matplotlib cache
 .matplotlib/
