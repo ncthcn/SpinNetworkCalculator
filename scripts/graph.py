@@ -74,17 +74,17 @@ class GraphEditor:
         util_frame.pack(side=tk.RIGHT, padx=10)
 
         undo_btn = tk.Button(util_frame, text="↶ Undo (Z)", width=12, height=1,
-                           command=self.undo, bg="#95a5a6", fg="white",
-                           font=("Arial", 10), cursor="hand2")
+                           command=self.undo, fg="black",
+                           font=("Arial", 10, "bold"), cursor="hand2")
         undo_btn.grid(row=0, column=0, padx=3)
 
         clear_btn = tk.Button(util_frame, text="Clear All", width=12, height=1,
-                            command=self.clear_all, bg="#7f8c8d", fg="white",
-                            font=("Arial", 10), cursor="hand2")
+                            command=self.clear_all, fg="black",
+                            font=("Arial", 10, "bold"), cursor="hand2")
         clear_btn.grid(row=0, column=1, padx=3)
 
-        save_btn = tk.Button(util_frame, text="💾 Save & Exit", width=12, height=1,
-                           command=self.save_graph, bg="#16a085", fg="white",
+        save_btn = tk.Button(util_frame, text="Save & Exit", width=12, height=1,
+                           command=self.save_graph, fg="black",
                            font=("Arial", 10, "bold"), cursor="hand2")
         save_btn.grid(row=0, column=2, padx=3)
 
