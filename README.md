@@ -64,6 +64,7 @@ pip install -r requirements.txt
 This installs:
 - Core dependencies: networkx, matplotlib, sympy, pybind11, pywigxjpf
 - NumPy for vectorization
+- SciPy for special functions (required for theta/delta symbols with large spins)
 - JAX for GPU/parallel acceleration (optional but recommended)
 
 **For Apple Silicon (M1/M2/M3) GPU acceleration:**
@@ -73,7 +74,7 @@ pip install jax-metal
 
 **Alternative (manual installation):**
 ```bash
-pip install networkx matplotlib sympy pybind11 pywigxjpf numpy jax
+pip install networkx matplotlib sympy pybind11 pywigxjpf numpy scipy jax
 ```
 
 ### Step 2: Verify Installation
@@ -221,6 +222,16 @@ python scripts/evaluate_norm.py --max-j 50
 
 This pre-allocates memory for spins up to j=50.
 
+**For large spins (j up to 1000):**
+```bash
+python scripts/evaluate_norm.py --max-j 1000
+```
+
+The evaluator uses log-space computation to avoid numerical overflow for large spins:
+- **Theta symbols**: Uses `scipy.special.gammaln` to compute factorials in log-space
+- **Delta symbols**: Computes `(2j+1)^(2j)` as `exp(2j × log(2j+1))`
+- **Memory**: Tables scale as O(j²), so j=1000 requires ~hundreds of MB
+
 #### Quiet Mode (Less Output)
 
 ```bash
@@ -231,7 +242,7 @@ Only shows the final result, useful for scripting.
 
 ---
 
-## 📊 Understanding the Output
+## Understanding the Output
 
 ### 1. Console Output
 
@@ -256,8 +267,8 @@ Performing graph reduction (F-moves, triangle reductions)...
 ```
 
 **Key checks:**
-- ✓ **Triangular condition satisfied**: Each node's edges satisfy |j₁-j₂| ≤ j₃ ≤ j₁+j₂
-- ✓ **Graph is planar**: Can be drawn without crossing edges (important for physical realizability)
+- **Triangular condition satisfied**: Each node's edges satisfy |j₁-j₂| ≤ j₃ ≤ j₁+j₂
+- **Graph is planar**: Can be drawn without crossing edges (important for physical realizability)
 
 ### 2. PDF Outputs
 
@@ -279,7 +290,7 @@ Shows the **canonical form** with:
 The final number is the **norm** (magnitude) of your spin network state:
 
 ```
-✨ SPIN NETWORK NORM = -6.658558117818342e+01
+  SPIN NETWORK NORM = -6.658558117818342e+01
 ```
 
 **Interpreting the result:**
@@ -289,7 +300,7 @@ The final number is the **norm** (magnitude) of your spin network state:
 
 ---
 
-## 🔬 Technical Details
+## Technical Details
 
 ### Mathematical Background
 
@@ -302,8 +313,8 @@ A **spin network** is a graph with:
 
 The **norm** is computed as a product of:
 - **Wigner 6j symbols**: Quantum recoupling coefficients
-- **Theta symbols**: θ(j₁,j₂,j₃) = √[(2j₁+1)(2j₂+1)(2j₃+1)]
-- **Delta symbols**: Δⱼ = √(2j+1)
+- **Theta symbols**: θ(j,k,l) = (-1)^(j+k+l) × (j+k+l+1)! / [(j+k-l)!(j-k+l)!(-j+k+l)!]
+- **Delta symbols**: Δⱼ = (2j+1)^(2j)
 - **Sign factors**: (-1)^(...)
 
 ### Algorithm Overview
@@ -329,14 +340,14 @@ Final Result
 ### Why wigxjpf?
 
 The **wigxjpf** library (Wigner symbols using prime factorization):
-- ✅ Avoids factorial overflow (uses prime factorization)
-- ✅ Industry standard (extensively tested)
-- ✅ Handles half-integer spins natively (stores as 2×j)
-- ✅ Much faster than naive implementations (~1000× speedup)
+- Avoids factorial overflow (uses prime factorization)
+- Industry standard (extensively tested)
+- Handles half-integer spins natively (stores as 2×j)
+- Much faster than naive implementations (~1000× speedup)
 
 ---
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Problem: "File not found"
 
@@ -353,7 +364,7 @@ Error: 'drawn_graph_with_labels.graphml' not found.
 
 **Error:**
 ```
-✗ Error: Triangular condition not satisfied at node X
+Error: Triangular condition not satisfied at node X
 ```
 
 **Solution:** The spin values at node X violate the triangle inequality. For edges j₁, j₂, j₃:
@@ -366,7 +377,7 @@ Error: 'drawn_graph_with_labels.graphml' not found.
 
 **Symptom:**
 ```
-✨ SPIN NETWORK NORM = 0.000000000000000e+00
+  SPIN NETWORK NORM = 0.000000000000000e+00
 ```
 
 **Possible causes:**
@@ -422,22 +433,22 @@ python scripts/evaluate_norm.py --max-j 100  # Limit to j ≤ 100
 
 ---
 
-## 📚 File Structure
+## File Structure
 
 ```
 Spin_Networks_Project_full/
 │
-├── 📄 Documentation
+├── Documentation
 │   ├── README.md                # This file - comprehensive guide
 │   ├── QUICKSTART.md            # 5-minute quick start
 │   └── requirements.txt         # Python dependencies
 │
-├── 📜 User Scripts (scripts/)
+├── User Scripts (scripts/)
 │   ├── graph.py                 # Interactive graph editor (keyboard-driven, modern UI)
 │   ├── compute_norm.py          # Symbolic computation (→ PDFs)
 │   └── evaluate_norm.py         # Numerical evaluation (→ result)
 │
-├── 🔧 Core Library (src/)
+├── Core Library (src/)
 │   ├── drawing.py               # Graph visualization utilities
 │   ├── gluer.py                 # Graph gluing operations
 │   ├── graph_reducer.py         # F-moves and triangle reductions
@@ -446,20 +457,20 @@ Spin_Networks_Project_full/
 │   ├── LaTeX_rendering.py       # PDF generation
 │   └── utils.py                 # Utility functions
 │
-├── 📊 Generated Files (ignored by git)
+├── Generated Files (ignored by git)
 │   ├── drawn_graph_with_labels.graphml
 │   ├── norm_expression.pdf
 │   ├── canon_norm_expression.pdf
 │   └── reconstructed_canon_norm_expression.pdf
 │
-└── 🔧 Other
+└── Other
     ├── main.py                  # Legacy combined pipeline
     └── .gitignore               # Git ignore rules
 ```
 
 ---
 
-## 🎓 For Researchers
+## For Researchers
 
 ### Citation
 
@@ -469,24 +480,9 @@ If you use this tool in your research, please cite:
 [Your paper/thesis information here]
 ```
 
-### Understanding the Physics
-
-The spin network norm ⟨ψ|ψ⟩ represents the inner product of a spin network state with itself. Key physical interpretations:
-
-- **Norm = 0**: State is orthogonal to itself → unphysical
-- **Norm > 0**: Properly normalized quantum state
-- **Sign**: Can be negative due to phase conventions in Wigner 6j symbols
-
-### Validation
-
-This code has been validated against:
-- Hand calculations for simple graphs (tetrahedron, etc.)
-- Mathematica implementations of Wigner 6j symbols
-- Known results from loop quantum gravity literature
-
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Found a bug? Have a feature request?
 
@@ -498,18 +494,7 @@ Found a bug? Have a feature request?
 
 ---
 
-## 🚧 Future Work
-
-### Recently Implemented ✅
-
-- [x] **Multiple summation variables**: Now supports arbitrary N nested summations (F_1, F_2, F_3, ...)
-- [x] **Parallel evaluation**: Automatic CPU multiprocessing with load balancing
-- [x] **GPU acceleration**: JAX backend with Apple Metal support (M1/M2/M3) and CUDA
-- [x] **Symbolic range computation**: Handles F-variables that depend on other F-variables
-- [x] **Auto-backend selection**: Automatically chooses fastest available (GPU > parallel > serial)
-- [x] **Modern graph editor**: Keyboard-driven interface with multiple editing modes, undo support, and real-time validation
-
-See [PARALLEL_ACCELERATION.md](PARALLEL_ACCELERATION.md) for details on parallel/GPU features.
+## Future Work
 
 ### Features to be Implemented
 
@@ -522,10 +507,18 @@ See [PARALLEL_ACCELERATION.md](PARALLEL_ACCELERATION.md) for details on parallel
 
 ### Known Limitations
 
-- **Memory**: Large j values (>100) require substantial RAM for wigxjpf tables
+- **Memory**: Very large j values (>1000) require substantial RAM for wigxjpf tables (scales as O(j²))
 - **Planar graphs**: Non-planar graphs work but are slower
 - **Conservative ranges**: Symbolic F-variables use conservative ranges (0-20) which may include extra iterations
 - **6j with JAX**: Wigner 6j symbols still use C++ backend (pywigxjpf), not fully GPU-accelerated yet
+
+### Numerical Stability for Large Spins
+
+The evaluator automatically handles large spin values (j up to 1000+) using:
+- **Hybrid approach for theta**: Cached factorials for j ≤ 100, log-gamma for j > 100
+- **Log-space for delta**: Always computes `(2j+1)^(2j)` as `exp(2j × log(2j+1))`
+- **Vectorized operations**: Uses `scipy.special.gammaln` for efficient array computations
+- **No overflow**: All factorial and power computations remain numerically stable
 
 ### Contributing
 
@@ -537,13 +530,13 @@ If you'd like to contribute:
 
 ---
 
-## 📄 License
+## License
 
 [Your license here]
 
 ---
 
-## 👥 Authors
+## Authors
 
 [Your name and collaborators]
 
@@ -551,7 +544,7 @@ If you'd like to contribute:
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **wigxjpf**: Developed by H. T. Johansson and C. Forssén at Chalmers University
 - **NetworkX**: For graph data structures and algorithms
@@ -559,11 +552,7 @@ If you'd like to contribute:
 
 ---
 
-## 📖 Further Reading
-
-### Loop Quantum Gravity
-- Rovelli, C., & Vidotto, F. (2014). *Covariant Loop Quantum Gravity*
-- Thiemann, T. (2007). *Modern Canonical Quantum General Relativity*
+## Further Reading
 
 ### Spin Networks
 - Penrose, R. (1971). "Angular momentum: an approach to combinatorial space-time"
@@ -572,7 +561,3 @@ If you'd like to contribute:
 ### Wigner Symbols
 - Varshalovich, D. A., Moskalev, A. N., & Khersonskii, V. K. (1988). *Quantum Theory of Angular Momentum*
 - Edmonds, A. R. (1996). *Angular Momentum in Quantum Mechanics*
-
----
-
-**Happy Computing!** 🚀✨

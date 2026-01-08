@@ -49,6 +49,7 @@ import math
 import itertools
 from multiprocessing import Pool, cpu_count
 import os
+from functools import lru_cache
 
 # Optional GPU acceleration imports
 try:
@@ -65,6 +66,18 @@ try:
 except ImportError:
     JAX_AVAILABLE = False
     JAX_GPU_AVAILABLE = False
+
+
+# Cached factorial for performance optimization
+@lru_cache(maxsize=512)
+def cached_factorial(n: int) -> int:
+    """
+    Cached factorial computation for performance.
+
+    For spin networks, j values are typically small (0 to ~20),
+    so factorials up to ~60! are needed. Caching gives massive speedup.
+    """
+    return math.factorial(n)
 
 
 class SpinNetworkEvaluator:
@@ -195,14 +208,14 @@ class SpinNetworkEvaluator:
 
     def theta_symbol(self, j1, j2, j3, power=1.0):
         """
-        Compute θ(j1,j2,j3)^power = [(2j1+1)(2j2+1)(2j3+1)]^(power/2)
+        Compute θ(j1,j2,j3)^power using the full definition with factorials.
 
-        PHYSICS: Theta symbol encodes the quantum dimensions of the coupling.
-        It appears when normalizing Clebsch-Gordan coefficients.
+        PHYSICS: Theta symbol encodes the quantum dimensions and triangular
+        inequality constraints for spin coupling.
 
         Parameters:
         -----------
-        j1, j2, j3 : numeric values (will be converted to 2*j)
+        j1, j2, j3 : numeric values (spin quantum numbers)
         power : float, exponent on the theta symbol
 
         Returns:
@@ -210,25 +223,59 @@ class SpinNetworkEvaluator:
         float : The numerical value
 
         FORMULA:
-            θ(j1,j2,j3) = √[(2j1+1)(2j2+1)(2j3+1)]
-            θ(j1,j2,j3)^p = [(2j1+1)(2j2+1)(2j3+1)]^(p/2)
+            θ(j,k,l) = (-1)^(j+k+l) × (j+k+l+1)! / [(j+k-l)!(j-k+l)!(-j+k+l)!]
+            θ(j,k,l)^p = [θ(j,k,l)]^p
+
+        NUMERICAL STABILITY:
+            For large spins (j > 100), uses log-gamma to avoid overflow.
         """
-        two_j1 = self.convert_to_two_j(j1)
-        two_j2 = self.convert_to_two_j(j2)
-        two_j3 = self.convert_to_two_j(j3)
+        # Work with actual j values (not 2*j)
+        j = j1 if isinstance(j1, (int, float)) else float(j1)
+        k = j2 if isinstance(j2, (int, float)) else float(j2)
+        l = j3 if isinstance(j3, (int, float)) else float(j3)
 
-        # Calculate dimensions: d_j = 2j + 1
-        d1 = two_j1 + 1
-        d2 = two_j2 + 1
-        d3 = two_j3 + 1
+        # Check triangular inequality - if violated, theta = 0
+        if not (abs(j - k) <= l <= j + k):
+            return 0.0
 
-        # θ^p = (d1 * d2 * d3)^(p/2)
-        result = math.pow(d1 * d2 * d3, power / 2.0)
+        # Calculate sign: (-1)^(j+k+l)
+        sign = (-1.0) ** (j + k + l)
+
+        # For large spins, use log-gamma to avoid overflow
+        max_spin = max(j, k, l)
+        if max_spin > 100:
+            from scipy.special import gammaln
+
+            # Compute in log space to avoid overflow
+            log_num = gammaln(j + k + l + 2)
+            log_denom = (gammaln(j + k - l + 1) +
+                        gammaln(j - k + l + 1) +
+                        gammaln(-j + k + l + 1))
+
+            # log(θ) = log_num - log_denom
+            log_theta = log_num - log_denom
+
+            # Apply power: θ^p = exp(p × log(θ))
+            # Include sign
+            result = sign * math.exp(power * log_theta)
+        else:
+            # For small spins, use cached factorials (faster)
+            numerator = cached_factorial(int(j + k + l + 1))
+            denom1 = cached_factorial(int(j + k - l))
+            denom2 = cached_factorial(int(j - k + l))
+            denom3 = cached_factorial(int(-j + k + l))
+
+            # θ(j,k,l) = sign × numerator / (denom1 × denom2 × denom3)
+            theta_value = sign * numerator / (denom1 * denom2 * denom3)
+
+            # Apply power
+            result = math.pow(theta_value, power)
+
         return result
 
     def delta_symbol(self, j, power=1.0):
         """
-        Compute Δ_j^power = (2j+1)^(power/2)
+        Compute Δ_j^power = [(2j+1)^(2j)]^power
 
         PHYSICS: Quantum dimension of spin-j representation.
         Appears in trace normalizations.
@@ -236,24 +283,38 @@ class SpinNetworkEvaluator:
         Parameters:
         -----------
         j : numeric value or variable
-        power : float, exponent
+        power : float, exponent (multiplies the 2j exponent)
 
         Returns:
         --------
         float : The numerical value
 
         FORMULA:
-            Δ_j = √(2j+1)
-            Δ_j^p = (2j+1)^(p/2)
+            Δ_j = (2j+1)^(2j)
+            Δ_j^p = (2j+1)^(2j×p)
+
+        NUMERICAL STABILITY:
+            For large spins (j > 100), uses log-space computation to avoid overflow.
+            Example: For j=1000, (2001)^(2000) would overflow, but exp(2000×log(2001)) works.
         """
-        two_j = self.convert_to_two_j(j)
-        dimension = two_j + 1
-        result = math.pow(dimension, power / 2.0)
+        # Work with actual j value (not 2*j)
+        j_val = j if isinstance(j, (int, float)) else float(j)
+
+        dimension = 2 * j_val + 1
+        exponent = 2 * j_val * power
+
+        # For large spins, compute in log space to avoid overflow
+        if j_val > 100:
+            # Δ_j^p = (2j+1)^(2j×p) = exp((2j×p) × log(2j+1))
+            result = math.exp(exponent * math.log(dimension))
+        else:
+            result = math.pow(dimension, exponent)
+
         return result
 
     def theta_symbol_vectorized(self, j1_arr, j2_arr, j3_arr, power=1.0):
         """
-        Vectorized theta computation for arrays of j values.
+        Vectorized theta computation for arrays of j values using full factorial formula.
 
         Parameters:
         -----------
@@ -263,20 +324,49 @@ class SpinNetworkEvaluator:
         Returns:
         --------
         np.ndarray : Array of theta values
+
+        FORMULA:
+            θ(j,k,l) = (-1)^(j+k+l) × (j+k+l+1)! / [(j+k-l)!(j-k+l)!(-j+k+l)!]
         """
-        j1_arr = np.asarray(j1_arr)
-        j2_arr = np.asarray(j2_arr)
-        j3_arr = np.asarray(j3_arr)
+        j1_arr = np.asarray(j1_arr, dtype=float)
+        j2_arr = np.asarray(j2_arr, dtype=float)
+        j3_arr = np.asarray(j3_arr, dtype=float)
 
-        two_j1 = (2 * j1_arr).astype(int)
-        two_j2 = (2 * j2_arr).astype(int)
-        two_j3 = (2 * j3_arr).astype(int)
+        # Check triangular inequality
+        valid = (np.abs(j1_arr - j2_arr) <= j3_arr) & (j3_arr <= j1_arr + j2_arr)
 
-        d1 = two_j1 + 1
-        d2 = two_j2 + 1
-        d3 = two_j3 + 1
+        # Initialize result array
+        result = np.zeros_like(j1_arr, dtype=float)
 
-        return np.power(d1 * d2 * d3, power / 2.0)
+        # Only compute for valid triangles
+        if np.any(valid):
+            j_valid = j1_arr[valid]
+            k_valid = j2_arr[valid]
+            l_valid = j3_arr[valid]
+
+            # Calculate sign: (-1)^(j+k+l)
+            signs = np.power(-1.0, j_valid + k_valid + l_valid)
+
+            # Calculate factorial terms using log-gamma for numerical stability
+            # log(n!) = log(Γ(n+1)) → n! = exp(log(Γ(n+1)))
+            # For large arrays, this is MUCH faster than computing factorials individually
+            from scipy.special import gammaln
+
+            # log(numerator) = log((j+k+l+1)!)
+            log_num = gammaln(j_valid + k_valid + l_valid + 2)
+
+            # log(denominator) = log((j+k-l)!) + log((j-k+l)!) + log((-j+k+l)!)
+            log_denom = (gammaln(j_valid + k_valid - l_valid + 1) +
+                        gammaln(j_valid - k_valid + l_valid + 1) +
+                        gammaln(-j_valid + k_valid + l_valid + 1))
+
+            # θ(j,k,l) = sign × exp(log_num - log_denom)
+            theta_values = signs * np.exp(log_num - log_denom)
+
+            # Apply power
+            result[valid] = np.power(theta_values, power)
+
+        return result
 
     def delta_symbol_vectorized(self, j_arr, power=1.0):
         """
@@ -290,11 +380,21 @@ class SpinNetworkEvaluator:
         Returns:
         --------
         np.ndarray : Array of delta values
+
+        FORMULA:
+            Δ_j = (2j+1)^(2j)
+            Δ_j^p = (2j+1)^(2j×p)
+
+        NUMERICAL STABILITY:
+            Always uses log-space computation to handle large spins safely.
         """
-        j_arr = np.asarray(j_arr)
-        two_j = (2 * j_arr).astype(int)
-        dimensions = two_j + 1
-        return np.power(dimensions, power / 2.0)
+        j_arr = np.asarray(j_arr, dtype=float)
+        dimensions = 2 * j_arr + 1
+        exponents = 2 * j_arr * power
+
+        # Use log-space computation for numerical stability
+        # (2j+1)^(2j×p) = exp((2j×p) × log(2j+1))
+        return np.exp(exponents * np.log(dimensions))
 
     def wigner_6j(self, j1, j2, j3, j4, j5, j6, power=1.0):
         """

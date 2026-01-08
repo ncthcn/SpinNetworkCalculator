@@ -6,11 +6,16 @@ This script computes the symbolic norm expression of a spin network from a Graph
 It performs all graph reductions and produces LaTeX PDFs showing the canonical form.
 
 Usage:
-    python compute_norm.py [input_file.graphml]
+    python compute_norm.py [input_file.graphml] [--animate]
+
+Options:
+    --animate : Generate animated GIF and PDF slideshow of reduction process
 
 Output:
     - norm_expression.pdf: Raw norm expression after graph reduction
     - canon_norm_expression.pdf: Canonicalized expression with simplified coefficients
+    - reduction.gif (if --animate): Animated visualization of reduction steps
+    - reduction_slides.pdf (if --animate): PDF slideshow of all steps
 
 The script does NOT perform numerical evaluation - use evaluate_norm.py for that.
 """
@@ -26,6 +31,7 @@ from src.graph_reducer import reduce_all_cycles
 from src.gluer import glue_open_edges
 from src.LaTeX_rendering import save_latex_pdf
 from src.norm_reducer import canonicalise_terms, reconstruct_terms_from_canonical, apply_kroneckers, expand_6j_symbolic
+from src.reduction_animator import ReductionAnimator
 
 
 def load_graph_from_file(file_path):
@@ -153,21 +159,34 @@ def print_norm_expression(terms):
 
 def main():
     # Parse command line arguments
-    if len(sys.argv) > 1:
-        filepath = sys.argv[1]
-    else:
-        filepath = "drawn_graph_with_labels.graphml"
+    filepath = "drawn_graph_with_labels.graphml"
+    animate = False
+
+    for arg in sys.argv[1:]:
+        if arg == "--animate":
+            animate = True
+        elif not arg.startswith("--"):
+            filepath = arg
 
     # Check if file exists
     if not os.path.exists(filepath):
         print(f"Error: '{filepath}' not found.")
-        print(f"\nUsage: python {sys.argv[0]} [input_file.graphml]")
+        print(f"\nUsage: python {sys.argv[0]} [input_file.graphml] [--animate]")
         sys.exit(1)
 
     print("="*70)
     print("SPIN NETWORK NORM COMPUTATION (Symbolic)")
     print("="*70)
-    print(f"Input file: {filepath}\n")
+    print(f"Input file: {filepath}")
+    if animate:
+        print("Animation: ENABLED 🎬")
+    print()
+
+    # Initialize animator if requested
+    animator = None
+    if animate:
+        animator = ReductionAnimator(output_dir="reduction_steps")
+        print("📹 Animation mode: Capturing reduction steps...")
 
     # Load graph
     print("Loading graph...")
@@ -187,6 +206,15 @@ def main():
     edge_labels_orig = {(u, v, k): d["label"] for u, v, k, d in graph.edges(keys=True, data=True)}
     draw_graph(graph, edge_labels_orig)
 
+    # Capture original graph
+    if animator:
+        animator.add_step(
+            graph,
+            title="Original Spin Network",
+            description=f"Input graph with {graph.number_of_nodes()} nodes and {graph.number_of_edges()} edges before any transformations.",
+            operation="initial"
+        )
+
     # Glue with copy
     print("\nGluing open edges (creating theta graph)...")
     glued_graph = glue_open_edges(graph)
@@ -199,6 +227,15 @@ def main():
     edge_labels_glued = {(u, v, k): d["label"] for u, v, k, d in glued_graph.edges(keys=True, data=True)}
     draw_graph(glued_graph, edge_labels_glued)
 
+    # Capture glued graph
+    if animator:
+        animator.add_step(
+            glued_graph,
+            title="After Gluing Open Edges",
+            description=f"Open edges glued to form theta graph. Now has {glued_graph.number_of_nodes()} nodes and {glued_graph.number_of_edges()} edges.",
+            operation="glue"
+        )
+
     # Check planarity
     is_planar, embedding = nx.check_planarity(glued_graph)
     if is_planar:
@@ -208,7 +245,9 @@ def main():
 
     # Perform graph reduction
     print("\nPerforming graph reduction (F-moves, triangle reductions)...")
-    terms = reduce_all_cycles(glued_graph)
+    if animate:
+        print("  (Capturing intermediate steps for animation...)")
+    terms = reduce_all_cycles(glued_graph, animator=animator)
 
     # Print symbolic result
     print_norm_expression(terms)
@@ -252,11 +291,39 @@ def main():
     # save_latex_pdf(t, filename="reconstructed_canon_norm_expression.pdf")
     # print("  ✓ Saved: reconstructed_canon_norm_expression.pdf")
 
+    # Generate animations if requested
+    if animator:
+        print("\n" + "="*70)
+        print("GENERATING ANIMATIONS")
+        print("="*70)
+
+        # Show summary
+        animator.summary()
+
+        # Save GIF
+        print("\nGenerating animated GIF...")
+        animator.save_gif("reduction.gif", duration=2.0)
+
+        # Save PDF slideshow
+        print("\nGenerating PDF slideshow...")
+        animator.save_slides_pdf("reduction_slides.pdf")
+
+        print("\n" + "="*70)
+        print("ANIMATION FILES CREATED")
+        print("="*70)
+        print("  📊 Individual frames: reduction_steps/step_*.png")
+        print("  🎬 Animated GIF: reduction.gif")
+        print("  📄 PDF Slideshow: reduction_slides.pdf")
+
     print("\n" + "="*70)
     print("SYMBOLIC COMPUTATION COMPLETE")
     print("="*70)
     print("\nNext step: Use 'python evaluate_norm.py' to compute numerical value")
     print("(Make sure canon_norm_expression.pdf was generated successfully)")
+    if animate:
+        print("\nTo view the animation:")
+        print("  - Open reduction.gif in any image viewer")
+        print("  - Open reduction_slides.pdf to see all steps as slides")
 
 
 if __name__ == "__main__":

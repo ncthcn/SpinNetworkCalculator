@@ -524,16 +524,32 @@ def graph_signature(G):
         sig.add((endpoints, lbl, k))   # include key to distinguish parallel edges
     return frozenset(sig)
 
-def reduce_all_cycles(glued_graph):
+def reduce_all_cycles(glued_graph, animator=None):
     """
     Global reduction loop:
       - repeatedly apply local reductions,
       - if a cycle of length > 3 exists, apply a single F-move to shrink it,
       - repeat until no cycles > 3 remain and no changes occur.
     Returns a single final term.
+
+    Parameters:
+    -----------
+    glued_graph : nx.MultiGraph
+        The graph to reduce
+    animator : ReductionAnimator, optional
+        If provided, captures visualization steps during reduction
     """
 
     term = {"graph": glued_graph, "coeffs": []}
+
+    # Capture initial state
+    if animator:
+        animator.add_step(
+            term["graph"],
+            title="Initial Glued Graph",
+            description="Starting graph after gluing open edges. Ready to begin reduction.",
+            operation="initial"
+        )
 
     max_iters = 10000
     for _ in range(max_iters):
@@ -542,6 +558,7 @@ def reduce_all_cycles(glued_graph):
         # ---- 1) LOCAL FIXPOINT CLEANUP ----
         #
         changed = False
+        cleanup_count = 0
         while True:
             prev_sig   = graph_signature(term["graph"])
             prev_coeff = len(term["coeffs"])
@@ -556,6 +573,16 @@ def reduce_all_cycles(glued_graph):
             if graph_signature(term["graph"]) == prev_sig and len(term["coeffs"]) == prev_coeff:
                 break
             changed = True
+            cleanup_count += 1
+
+            # Capture cleanup steps (but not every single one to avoid too many frames)
+            if animator and cleanup_count % 3 == 0:
+                animator.add_step(
+                    term["graph"],
+                    title=f"Local Reductions (pass {cleanup_count})",
+                    description="Applying theta, 2-cycle, triangle, degree-2, and loop reductions.",
+                    operation="triangle"
+                )
 
 
         #
@@ -567,6 +594,14 @@ def reduce_all_cycles(glued_graph):
         # no more large faces -> terminate if nothing else changes
         if not C or len(C) <= 3:
             if not changed:
+                # Final state
+                if animator:
+                    animator.add_step(
+                        term["graph"],
+                        title="Final Reduced Graph",
+                        description="All cycles reduced. Graph is now fully simplified!",
+                        operation="triangle"
+                    )
                 return [term]
             continue
 
@@ -575,9 +610,34 @@ def reduce_all_cycles(glued_graph):
 
         if new_term is None:
             # face exists, but F–move not applicable -> we are stuck
+            if animator:
+                animator.add_step(
+                    term["graph"],
+                    title="Reduction Complete (stuck)",
+                    description=f"Cannot apply F-move on face {C}. Reduction terminates here.",
+                    highlight_nodes=list(C),
+                    operation="f-move"
+                )
             return [term]
+
+        # Capture F-move step
+        if animator:
+            animator.add_step(
+                new_term["graph"],
+                title=f"F-move Applied on {len(C)}-cycle",
+                description=f"Applied F-move recoupling on face {C}. Inserted new internal node and 6j symbol.",
+                highlight_nodes=list(C),
+                operation="f-move"
+            )
 
         term = new_term
 
     # safety cap
+    if animator:
+        animator.add_step(
+            term["graph"],
+            title="Maximum Iterations Reached",
+            description="Safety cap: Maximum iteration limit reached. Stopping reduction.",
+            operation="triangle"
+        )
     return [term]

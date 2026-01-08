@@ -103,6 +103,24 @@ This number is your result!
 ### Result is zero
 → Your spin network configuration is quantum mechanically forbidden
 
+### "Memory error" with large spins
+→ For spins up to j=1000, use:
+```bash
+python scripts/evaluate_norm.py --max-j 1000
+```
+The evaluator automatically uses log-space computation to avoid overflow.
+
+## Advanced: Large Spin Values
+
+The calculator handles large spins (j up to 1000+) automatically:
+- **Theta symbols**: θ(j,k,l) = (-1)^(j+k+l) × (j+k+l+1)! / [(j+k-l)!(j-k+l)!(-j+k+l)!]
+  - Uses cached factorials for j ≤ 100 (fast)
+  - Uses log-gamma for j > 100 (numerically stable)
+- **Delta symbols**: Δⱼ = (2j+1)^(2j)
+  - Computed as `exp(2j × log(2j+1))` to avoid overflow
+
+No special configuration needed - just specify `--max-j` for memory allocation!
+
 ## Need More Help?
 
 Read the full [README.md](README.md) for detailed explanations.

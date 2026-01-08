@@ -11,6 +11,12 @@ pywigxjpf>=1.11
 # NumPy for vectorization (required)
 numpy>=1.20.0
 
+# SciPy for special functions (required for theta symbols)
+scipy>=1.7.0
+
+# Pillow for GIF animation (required for visualization)
+Pillow>=9.0.0
+
 # Optional: JAX for GPU acceleration (Apple Metal, CUDA, or CPU)
 # For Apple Silicon (M1/M2/M3):
 #   pip install jax-metal
