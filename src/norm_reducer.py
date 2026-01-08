@@ -471,7 +471,7 @@ def canonicalise_terms(terms):
             if any(str(arg) in sum_indices for arg in args):
                 return True
 
-            # Check in fixed
+            # Check in fixed (including nested structures for sign coefficients)
             fixed = coeff.get("fixed", {})
             for val in fixed.values():
                 if isinstance(val, str) and val in sum_indices:
@@ -479,6 +479,16 @@ def canonicalise_terms(terms):
                 elif isinstance(val, dict):
                     for v in val.values():
                         if isinstance(v, str) and v in sum_indices:
+                            return True
+                elif isinstance(val, (list, tuple)):
+                    # For sign coefficients: {"args": [('-', 'F_1'), ('+', 'F_2'), ...]}
+                    for item in val:
+                        if isinstance(item, (list, tuple)):
+                            # Each item is (sign, value) tuple
+                            for sub_item in item:
+                                if isinstance(sub_item, str) and sub_item in sum_indices:
+                                    return True
+                        elif isinstance(item, str) and item in sum_indices:
                             return True
             return False
 
@@ -505,10 +515,21 @@ def canonicalise_terms(terms):
             else:
                 coeffs_before_sum.append(coeff)
 
-        # Build final coefficient list: sign → non-summed → sign(with vars) → sum → summed coeffs
+        # Build final coefficient list: non-summed → sum → summed coeffs (including signs)
         new_coeffs.extend(coeffs_before_sum)
-        new_coeffs.extend(sign_coeffs)  # Variable-dependent signs go before sum
-        new_coeffs.extend([c for c in non_canonical_coeffs if c.get("type") == "sum"])  # Sum
+
+        # Check if sign coefficients contain summed variables
+        sign_before_sum = []
+        sign_after_sum = []
+        for sign_c in sign_coeffs:
+            if contains_summed_var(sign_c):
+                sign_after_sum.append(sign_c)
+            else:
+                sign_before_sum.append(sign_c)
+
+        new_coeffs.extend(sign_before_sum)  # Signs without summed variables go before sum
+        new_coeffs.extend([c for c in non_canonical_coeffs if c.get("type") == "sum"])  # Sum symbols
+        new_coeffs.extend(sign_after_sum)  # Signs with summed variables go after sum
         new_coeffs.extend(coeffs_after_sum)
         new_coeffs.extend([c for c in non_canonical_coeffs if c.get("type") != "sum"])  # Other
 

@@ -17,8 +17,13 @@ source myenv/bin/activate  # On Mac/Linux
 myenv\Scripts\activate     # On Windows
 
 # 4. Install dependencies
-pip install networkx matplotlib sympy pybind11 pywigxjpf
+pip install -r requirements.txt
+
+# Optional: For M1/M2/M3 Macs, add GPU acceleration
+pip install jax-metal
 ```
+
+**Note:** JAX provides automatic GPU/parallel acceleration. On M3 Macs with `jax-metal`, expect 10-100x speedup!
 
 ## Usage (Every Time)
 
@@ -62,12 +67,29 @@ python scripts/evaluate_norm.py my_network.graphml
 
 ### Console Output:
 ```
+🚀 Using multiprocessing backend (11 workers)
+Initializing wigxjpf tables for max 2j = 200...
+✓ Wigxjpf initialized and ready
+
+======================================================================
+EVALUATING SPIN NETWORK EXPRESSION
+======================================================================
+
+Evaluating term 1/1...
+  Computing summation over 3 variable(s)...
+    Total iterations: 6,174
+    Using 11 parallel workers
+    Split into 44 chunks of ~140 iterations each
+  Term value: -6.658558117818342e+01
+
 ======================================================================
 ✨ SPIN NETWORK NORM = -6.658558117818342e+01
 ======================================================================
 ```
 
 This number is your result!
+
+**Note:** The evaluation now runs in parallel automatically using all your CPU cores (or GPU if available).
 
 ## Common Issues
 

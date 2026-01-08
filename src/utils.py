@@ -175,3 +175,96 @@ def f_range_symbolic(a, b, d, c):
     if parity_ac != parity_bd:
         return None  # inconsistent: no allowed f values
     return {"Fmin": Fmin, "Fmax": Fmax, "parity": parity_ac}
+
+
+def f_range_with_symbolic(a, b, d, c):
+    """
+    Compute range for F summation, handling both numeric and symbolic edge labels.
+
+    When all labels are numeric: returns exact {Fmin, Fmax, parity}
+    When some labels are symbolic (e.g., F_1): returns symbolic expressions
+
+    Parameters:
+    -----------
+    a, b, d, c : edge labels (numeric or symbolic strings like "F_1")
+
+    Returns:
+    --------
+    dict with keys:
+        - "Fmin": int or symbolic expression (string)
+        - "Fmax": int or symbolic expression (string)
+        - "parity": int or symbolic expression (string)
+        - "symbolic": bool (True if any label is symbolic)
+
+    For symbolic ranges, we use conservative bounds that will be resolved
+    during numerical evaluation when the F-variables are substituted.
+    """
+    # Check if all labels are numeric
+    all_numeric = all(map(is_numeric_label, [a, b, d, c]))
+
+    if all_numeric:
+        # Use existing function for pure numeric case
+        rng = f_range_symbolic(a, b, d, c)
+        if rng is not None:
+            rng["symbolic"] = False
+            return rng
+        else:
+            return None
+
+    # At least one label is symbolic (e.g., F_1, F_2, ...)
+    # We need to create a symbolic range expression
+
+    # Collect numeric and symbolic labels
+    labels = {'a': a, 'b': b, 'd': d, 'c': c}
+    symbolic_labels = [lbl for lbl in [a, b, d, c] if not is_numeric_label(lbl)]
+
+    if not symbolic_labels:
+        # Should not reach here, but fallback
+        return None
+
+    # For symbolic ranges, we use expressions that will be evaluated later
+    # Triangle inequality: |b-d| <= F <= b+d  AND  |a-c| <= F <= a+c
+    # So: Fmin = max(|b-d|, |a-c|)  and  Fmax = min(b+d, a+c)
+
+    # Build symbolic expressions as strings
+    def build_expr(op, x, y):
+        """Build expression string like 'max(|b-d|, |a-c|)'"""
+        x_str = str(x) if is_numeric_label(x) else str(x)
+        y_str = str(y) if is_numeric_label(y) else str(y)
+
+        if op == 'abs_diff':
+            return f"abs({x_str} - {y_str})"
+        elif op == 'sum':
+            return f"{x_str} + {y_str}"
+        elif op == 'max':
+            return f"max({x_str}, {y_str})"
+        elif op == 'min':
+            return f"min({x_str}, {y_str})"
+        else:
+            return f"{op}({x_str}, {y_str})"
+
+    # Fmin = max(|b-d|, |a-c|)
+    bd_diff = build_expr('abs_diff', b, d) if not is_numeric_label(b) or not is_numeric_label(d) else str(abs(to_doubled(b) - to_doubled(d)))
+    ac_diff = build_expr('abs_diff', a, c) if not is_numeric_label(a) or not is_numeric_label(c) else str(abs(to_doubled(a) - to_doubled(c)))
+
+    fmin_expr = build_expr('max', bd_diff, ac_diff)
+
+    # Fmax = min(b+d, a+c)
+    bd_sum = build_expr('sum', b, d) if not is_numeric_label(b) or not is_numeric_label(d) else str(to_doubled(b) + to_doubled(d))
+    ac_sum = build_expr('sum', a, c) if not is_numeric_label(a) or not is_numeric_label(c) else str(to_doubled(a) + to_doubled(c))
+
+    fmax_expr = build_expr('min', bd_sum, ac_sum)
+
+    # For now, we'll use a conservative default range
+    # The actual range will be computed during numerical evaluation
+    # Use a reasonable default: 0 to max_expected_j (we'll use 20 as conservative upper bound)
+
+    return {
+        "Fmin": 0,  # Conservative lower bound (will be tightened during evaluation)
+        "Fmax": 40,  # Conservative upper bound (2*j for j=20, will be tightened)
+        "parity": 0,  # Will be checked during evaluation
+        "symbolic": True,
+        "symbolic_Fmin": fmin_expr,
+        "symbolic_Fmax": fmax_expr,
+        "depends_on": symbolic_labels
+    }

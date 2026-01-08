@@ -247,10 +247,10 @@ def main():
     save_latex_pdf(canon_terms, filename="canon_norm_expression.pdf")
     print("  ✓ Saved: canon_norm_expression.pdf")
 
-    # Also save reconstructed form
-    t = reconstruct_terms_from_canonical(canon_terms)
-    save_latex_pdf(t, filename="reconstructed_canon_norm_expression.pdf")
-    print("  ✓ Saved: reconstructed_canon_norm_expression.pdf")
+    # # Also save reconstructed form
+    # t = reconstruct_terms_from_canonical(canon_terms)
+    # save_latex_pdf(t, filename="reconstructed_canon_norm_expression.pdf")
+    # print("  ✓ Saved: reconstructed_canon_norm_expression.pdf")
 
     print("\n" + "="*70)
     print("SYMBOLIC COMPUTATION COMPLETE")

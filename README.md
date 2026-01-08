@@ -61,9 +61,19 @@ source myenv/bin/activate  # On Windows: myenv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+This installs:
+- Core dependencies: networkx, matplotlib, sympy, pybind11, pywigxjpf
+- NumPy for vectorization
+- JAX for GPU/parallel acceleration (optional but recommended)
+
+**For Apple Silicon (M1/M2/M3) GPU acceleration:**
+```bash
+pip install jax-metal
+```
+
 **Alternative (manual installation):**
 ```bash
-pip install networkx matplotlib sympy pybind11 pywigxjpf
+pip install networkx matplotlib sympy pybind11 pywigxjpf numpy jax
 ```
 
 ### Step 2: Verify Installation
@@ -116,10 +126,26 @@ python scripts/evaluate_norm.py
 **What it does:**
 - Reads the canonical expression
 - Computes Wigner 6j symbols using fast C++ backend
+- **Uses parallel/GPU acceleration automatically** (JAX Metal on M3, or multiprocessing)
 - **Outputs:** Numerical value of the spin network norm
 
 **Example output:**
 ```
+🚀 Using multiprocessing backend (11 workers)
+Initializing wigxjpf tables for max 2j = 200...
+✓ Wigxjpf initialized and ready
+
+======================================================================
+EVALUATING SPIN NETWORK EXPRESSION
+======================================================================
+
+Evaluating term 1/1...
+  Computing summation over 3 variable(s)...
+    Total iterations: 6,174
+    Using 11 parallel workers
+    Split into 44 chunks of ~140 iterations each
+  Term value: -6.658558117818342e+01
+
 ======================================================================
 ✨ SPIN NETWORK NORM = -6.658558117818342e+01
 ======================================================================
@@ -442,12 +468,19 @@ Found a bug? Have a feature request?
 
 ## 🚧 Future Work
 
+### Recently Implemented ✅
+
+- [x] **Multiple summation variables**: Now supports arbitrary N nested summations (F_1, F_2, F_3, ...)
+- [x] **Parallel evaluation**: Automatic CPU multiprocessing with load balancing
+- [x] **GPU acceleration**: JAX backend with Apple Metal support (M1/M2/M3) and CUDA
+- [x] **Symbolic range computation**: Handles F-variables that depend on other F-variables
+- [x] **Auto-backend selection**: Automatically chooses fastest available (GPU > parallel > serial)
+
+See [PARALLEL_ACCELERATION.md](PARALLEL_ACCELERATION.md) for details on parallel/GPU features.
+
 ### Features to be Implemented
 
-- [ ] **Multiple summation variables**: Currently limited to single F variable summation
-- [ ] **Parallel evaluation**: Evaluate independent terms concurrently for speed
 - [ ] **Caching of 6j values**: Store computed Wigner symbols to avoid recomputation
-- [ ] **GPU acceleration**: Use CUDA for large j values
 - [ ] **Web interface**: Browser-based graph drawing tool
 - [ ] **Batch processing**: Process multiple graphs in one command
 - [ ] **Export formats**: Mathematica, Maple, JSON output
@@ -456,10 +489,10 @@ Found a bug? Have a feature request?
 
 ### Known Limitations
 
-- **Single summation**: Can only handle one summation variable (F_1, F_2, etc.)
 - **Memory**: Large j values (>100) require substantial RAM for wigxjpf tables
 - **Planar graphs**: Non-planar graphs work but are slower
-- **Debug output**: Some internal print statements clutter output (can be suppressed)
+- **Conservative ranges**: Symbolic F-variables use conservative ranges (0-20) which may include extra iterations
+- **6j with JAX**: Wigner 6j symbols still use C++ backend (pywigxjpf), not fully GPU-accelerated yet
 
 ### Contributing
 

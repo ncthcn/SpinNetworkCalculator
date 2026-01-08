@@ -418,9 +418,20 @@ def f_move_recouple_term(term, cycle_nodes, i):
 
     add_edge_with_label(G, u_node, v_node, f_symbol)
 
-    rng = f_range_symbolic(a_label, b_label, c_label, d_label)
+    # CRITICAL FIX: Always create summation coefficient for F-variables
+    # Use f_range_with_symbolic to handle both numeric and symbolic edge labels
+    from src.utils import f_range_with_symbolic
+
+    rng = f_range_with_symbolic(a_label, b_label, d_label, c_label)
     if rng is not None:
-        coeffs.append(build_sum_coeff(f_symbol, rng))  # numeric sum over f
+        coeffs.append(build_sum_coeff(f_symbol, rng))  # summation over f
+        print(f"  → Created summation: {f_symbol} with range {rng.get('Fmin')//2} to {rng.get('Fmax')//2}" +
+              (" (symbolic)" if rng.get('symbolic') else ""))
+    else:
+        # Fallback: even if range computation fails, create summation with default range
+        # This ensures F-variables always have summation symbols
+        print(f"  ⚠️  Could not compute range for {f_symbol}, using conservative default [0, 20]")
+        coeffs.append(build_sum_coeff(f_symbol, {"Fmin": 0, "Fmax": 40, "parity": 0}))
 
     # Record the 6j with correct mapping [a, b, f, d, c, e]
     coeffs.append(build_6j_coeff(a=a_label, b=b_label, f=f_symbol, c=c_label, d=d_label, e=e_label))

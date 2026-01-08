@@ -1,8 +1,21 @@
 # Python dependencies for Spin Networks Calculator
 # Install with: pip install -r requirements.txt
 
+# Core dependencies
 networkx>=2.6
 matplotlib>=3.3.0
 sympy>=1.8
 pybind11>=2.6.0
 pywigxjpf>=1.11
+
+# NumPy for vectorization (required)
+numpy>=1.20.0
+
+# Optional: JAX for GPU acceleration (Apple Metal, CUDA, or CPU)
+# For Apple Silicon (M1/M2/M3):
+#   pip install jax-metal
+# For CUDA GPUs:
+#   pip install jax[cuda]
+# For CPU only:
+#   pip install jax
+jax>=0.4.0
