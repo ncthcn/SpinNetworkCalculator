@@ -4,14 +4,14 @@ A computational tool for calculating spin network norms in loop quantum gravity.
 
 ---
 
-## 📂 Documentation Quick Links
+## Documentation Quick Links
 
-- 🚀 **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes (for collaborators)
-- 📖 **This README** - Comprehensive documentation (you're reading it!)
+- **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes (for collaborators)
+- **This README** - Comprehensive documentation (you're reading it!)
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [What is this?](#what-is-this)
 - [Installation](#installation)
@@ -23,7 +23,7 @@ A computational tool for calculating spin network norms in loop quantum gravity.
 
 ---
 
-## 🎯 What is this?
+## What is this?
 
 **Spin networks** are mathematical structures used in loop quantum gravity to describe quantum states of space. This tool:
 
@@ -43,7 +43,7 @@ A computational tool for calculating spin network norms in loop quantum gravity.
 
 ---
 
-## 🚀 Installation
+## Installation
 
 ### Prerequisites
 
@@ -87,7 +87,7 @@ If you see the success message, you're ready to go! 🎉
 
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
 ### 1. Draw Your Spin Network
 
@@ -142,7 +142,7 @@ python scripts/evaluate_norm.py
 
 **Example output:**
 ```
-🚀 Using multiprocessing backend (11 workers)
+Using multiprocessing backend (11 workers)
 Initializing wigxjpf tables for max 2j = 200...
 ✓ Wigxjpf initialized and ready
 
@@ -158,13 +158,13 @@ Evaluating term 1/1...
   Term value: -6.658558117818342e+01
 
 ======================================================================
-✨ SPIN NETWORK NORM = -6.658558117818342e+01
+ SPIN NETWORK NORM = -6.658558117818342e+01
 ======================================================================
 ```
 
 ---
 
-## 📖 Usage Guide
+## Usage Guide
 
 ### Creating a Spin Network from Scratch
 
