@@ -35,10 +35,11 @@ source myenv/bin/activate
 
 # Draw your network
 python scripts/graph.py
-# → Click to add nodes
-# → Right-click pairs to connect with edges
-# → Enter spin values
-# → Close window when done
+# → Press N to add nodes (click anywhere)
+# → Press E to add edges (click two nodes, enter spin value)
+# → Press M to move nodes (drag them)
+# → Press D to delete nodes, X to delete edges
+# → Press S to save and exit
 
 # Compute symbolic form (generates PDFs)
 python scripts/compute_norm.py

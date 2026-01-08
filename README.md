@@ -96,12 +96,22 @@ Use the interactive graph drawing tool:
 python scripts/graph.py
 ```
 
-**Instructions:**
-- **Left click** to add nodes
-- **Right click** on two nodes to connect them with an edge
-- Enter the spin value (numerical label) for each edge
-- **Close the window** when done
-- The graph is saved as `drawn_graph_with_labels.graphml`
+**Instructions (Keyboard-Driven Interface):**
+- **Press N** - Add Node mode → Click anywhere to add nodes
+- **Press E** - Add Edge mode → Click two nodes, then enter spin value
+- **Press M** - Move Node mode → Click and drag nodes to reposition
+- **Press D** - Delete Node mode → Click nodes to delete them
+- **Press X** - Delete Edge mode → Click edges to delete them
+- **Press Z** - Undo last action
+- **Press S** - Save and exit
+
+The graph is saved as `drawn_graph_with_labels.graphml`
+
+**Visual Feedback:**
+- Current mode shown in right panel with color coding
+- Selected nodes turn blue
+- Dragging nodes turn orange
+- Hover over edges to see them highlighted in red (delete mode)
 
 ### 2. Compute the Symbolic Norm
 
@@ -157,16 +167,38 @@ Evaluating term 1/1...
 
 ### Creating a Spin Network from Scratch
 
-#### Method 1: Interactive Drawing (Recommended for Beginners)
+#### Method 1: Interactive Graph Editor (Recommended)
 
 ```bash
 python scripts/graph.py
 ```
 
-1. Click to place nodes
-2. Right-click on pairs of nodes to create edges
-3. Enter spin values when prompted
-4. Close the window to save
+**The graph editor provides a modern, keyboard-driven interface:**
+
+**Modes (switch with keyboard):**
+1. **Add Node (N)**: Click anywhere on canvas to add nodes
+2. **Add Edge (E)**: Click two nodes sequentially, enter spin value when prompted
+3. **Move Node (M)**: Click and drag nodes to reposition them
+4. **Delete Node (D)**: Click a node to delete it (and connected edges)
+5. **Delete Edge (X)**: Click near an edge to delete it
+
+**Additional Controls:**
+- **Z** - Undo last action (up to 50 steps)
+- **S** - Save graph and exit
+- **Undo/Clear/Save buttons** - Available in top toolbar
+
+**Interface Features:**
+- **Right panel** shows current mode with instructions
+- **Graph statistics** display node and edge counts
+- **Edge curvature slider** adjusts parallel edge spacing
+- **Hover feedback** - elements highlight when mouse hovers
+- **Constraint validation** - Checks triangular inequality at nodes with 3 edges
+
+**Tips:**
+- Nodes can only have up to 3 edges (valence-3 constraint)
+- Spin values must be integers or half-integers (0, 0.5, 1, 1.5, ...)
+- Symbolic labels (like F_1, F_2) are supported for summation variables
+- The editor validates triangular conditions: |j₁-j₂| ≤ j₃ ≤ j₁+j₂
 
 #### Method 2: Use Existing GraphML File
 
@@ -401,7 +433,7 @@ Spin_Networks_Project_full/
 │   └── requirements.txt         # Python dependencies
 │
 ├── 📜 User Scripts (scripts/)
-│   ├── graph.py                 # Interactive graph drawing tool
+│   ├── graph.py                 # Interactive graph editor (keyboard-driven, modern UI)
 │   ├── compute_norm.py          # Symbolic computation (→ PDFs)
 │   └── evaluate_norm.py         # Numerical evaluation (→ result)
 │
@@ -475,6 +507,7 @@ Found a bug? Have a feature request?
 - [x] **GPU acceleration**: JAX backend with Apple Metal support (M1/M2/M3) and CUDA
 - [x] **Symbolic range computation**: Handles F-variables that depend on other F-variables
 - [x] **Auto-backend selection**: Automatically chooses fastest available (GPU > parallel > serial)
+- [x] **Modern graph editor**: Keyboard-driven interface with multiple editing modes, undo support, and real-time validation
 
 See [PARALLEL_ACCELERATION.md](PARALLEL_ACCELERATION.md) for details on parallel/GPU features.
 
