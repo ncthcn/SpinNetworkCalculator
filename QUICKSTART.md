@@ -116,8 +116,8 @@ The calculator handles large spins (j up to 1000+) automatically:
 - **Theta symbols**: θ(j,k,l) = (-1)^(j+k+l) × (j+k+l+1)! / [(j+k-l)!(j-k+l)!(-j+k+l)!]
   - Uses cached factorials for j ≤ 100 (fast)
   - Uses log-gamma for j > 100 (numerically stable)
-- **Delta symbols**: Δⱼ = (2j+1)^(2j)
-  - Computed as `exp(2j × log(2j+1))` to avoid overflow
+- **Delta symbols**: Δⱼ = (-1)^(2j) × (2j+1)
+  - Simple formula, no overflow issues
 
 No special configuration needed - just specify `--max-j` for memory allocation!
 

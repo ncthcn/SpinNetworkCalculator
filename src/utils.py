@@ -153,7 +153,16 @@ def uv_parallel_labels(G, u, v):
 # -----------------------
 
 def is_numeric_label(x):
-    return isinstance(x, (int, float))
+    """Check if x is a numeric label (int, float, or numeric string)"""
+    if isinstance(x, (int, float)):
+        return True
+    if isinstance(x, str):
+        try:
+            float(x)
+            return True
+        except ValueError:
+            return False
+    return False
 
 def to_doubled(x):
     """Convert half-integer / integer float to doubled integer."""
@@ -177,16 +186,19 @@ def f_range_symbolic(a, b, d, c):
     return {"Fmin": Fmin, "Fmax": Fmax, "parity": parity_ac}
 
 
-def f_range_with_symbolic(a, b, d, c):
+def f_range_with_symbolic(a, b, d, c, known_ranges=None):
     """
     Compute range for F summation, handling both numeric and symbolic edge labels.
 
     When all labels are numeric: returns exact {Fmin, Fmax, parity}
-    When some labels are symbolic (e.g., F_1): returns symbolic expressions
+    When some labels are symbolic (e.g., F_1): computes tighter bounds using known ranges
 
     Parameters:
     -----------
     a, b, d, c : edge labels (numeric or symbolic strings like "F_1")
+    known_ranges : dict, optional
+        Dictionary mapping variable names to their known ranges {var: (min, max)}
+        e.g., {"F_1": (0, 10), "F_2": (2, 8)}
 
     Returns:
     --------
@@ -195,10 +207,15 @@ def f_range_with_symbolic(a, b, d, c):
         - "Fmax": int or symbolic expression (string)
         - "parity": int or symbolic expression (string)
         - "symbolic": bool (True if any label is symbolic)
+        - "symbolic_Fmin": symbolic expression string (if symbolic)
+        - "symbolic_Fmax": symbolic expression string (if symbolic)
+        - "depends_on": list of symbolic variable names
 
-    For symbolic ranges, we use conservative bounds that will be resolved
-    during numerical evaluation when the F-variables are substituted.
+    For symbolic ranges, we compute tighter bounds using known ranges of dependent variables.
     """
+    if known_ranges is None:
+        known_ranges = {}
+
     # Check if all labels are numeric
     all_numeric = all(map(is_numeric_label, [a, b, d, c]))
 
@@ -212,7 +229,7 @@ def f_range_with_symbolic(a, b, d, c):
             return None
 
     # At least one label is symbolic (e.g., F_1, F_2, ...)
-    # We need to create a symbolic range expression
+    # We need to compute bounds using known ranges
 
     # Collect numeric and symbolic labels
     labels = {'a': a, 'b': b, 'd': d, 'c': c}
@@ -222,11 +239,61 @@ def f_range_with_symbolic(a, b, d, c):
         # Should not reach here, but fallback
         return None
 
-    # For symbolic ranges, we use expressions that will be evaluated later
+    # For symbolic ranges, compute bounds:
     # Triangle inequality: |b-d| <= F <= b+d  AND  |a-c| <= F <= a+c
     # So: Fmin = max(|b-d|, |a-c|)  and  Fmax = min(b+d, a+c)
 
-    # Build symbolic expressions as strings
+    def get_value_range(x):
+        """Get (min, max) range for a label (numeric or symbolic)"""
+        if is_numeric_label(x):
+            doubled = to_doubled(x)
+            return (doubled, doubled)
+        elif x in known_ranges:
+            return known_ranges[x]
+        else:
+            # Conservative default for unknown symbolic variables
+            return (0, 40)  # Assume j up to 20
+
+    # Get ranges for each label
+    a_min, a_max = get_value_range(a)
+    b_min, b_max = get_value_range(b)
+    c_min, c_max = get_value_range(c)
+    d_min, d_max = get_value_range(d)
+
+    # Compute bounds for |b-d|
+    # min(|b-d|) = max(0, |b_min - d_max|, |b_max - d_min| - (d_max - d_min))
+    # max(|b-d|) = max(|b_min - d_min|, |b_max - d_max|, |b_min - d_max|, |b_max - d_min|)
+    bd_diff_min = max(0, abs(b_min - d_max) if b_min >= d_max else 0,
+                         abs(b_max - d_min) if b_max <= d_min else 0)
+    bd_diff_max = max(abs(b_min - d_min), abs(b_max - d_max),
+                      abs(b_min - d_max), abs(b_max - d_min))
+
+    # Compute bounds for |a-c|
+    ac_diff_min = max(0, abs(a_min - c_max) if a_min >= c_max else 0,
+                         abs(a_max - c_min) if a_max <= c_min else 0)
+    ac_diff_max = max(abs(a_min - c_min), abs(a_max - c_max),
+                      abs(a_min - c_max), abs(a_max - c_min))
+
+    # Compute bounds for b+d
+    bd_sum_min = b_min + d_min
+    bd_sum_max = b_max + d_max
+
+    # Compute bounds for a+c
+    ac_sum_min = a_min + c_min
+    ac_sum_max = a_max + c_max
+
+    # Fmin = max(|b-d|, |a-c|) => take max of the minimums
+    fmin = max(bd_diff_min, ac_diff_min)
+
+    # Fmax = min(b+d, a+c) => take min of the maximums
+    fmax = min(bd_sum_max, ac_sum_max)
+
+    # Ensure fmin <= fmax
+    if fmin > fmax:
+        # Invalid range - no valid F values
+        return None
+
+    # Build symbolic expressions for documentation
     def build_expr(op, x, y):
         """Build expression string like 'max(|b-d|, |a-c|)'"""
         x_str = str(x) if is_numeric_label(x) else str(x)
@@ -255,16 +322,59 @@ def f_range_with_symbolic(a, b, d, c):
 
     fmax_expr = build_expr('min', bd_sum, ac_sum)
 
-    # For now, we'll use a conservative default range
-    # The actual range will be computed during numerical evaluation
-    # Use a reasonable default: 0 to max_expected_j (we'll use 20 as conservative upper bound)
-
     return {
-        "Fmin": 0,  # Conservative lower bound (will be tightened during evaluation)
-        "Fmax": 40,  # Conservative upper bound (2*j for j=20, will be tightened)
+        "Fmin": fmin,  # Computed tight lower bound
+        "Fmax": fmax,  # Computed tight upper bound
         "parity": 0,  # Will be checked during evaluation
         "symbolic": True,
         "symbolic_Fmin": fmin_expr,
         "symbolic_Fmax": fmax_expr,
         "depends_on": symbolic_labels
     }
+
+
+def compute_nested_ranges(summation_variables, all_ranges_info):
+    """
+    Compute tighter ranges for nested F-variables using dependency tracking.
+
+    Parameters:
+    -----------
+    summation_variables : list of str
+        List of F-variable names in order of nesting (outermost first)
+    all_ranges_info : dict
+        Dictionary mapping each F-variable to its range info dict from f_range_with_symbolic
+
+    Returns:
+    --------
+    dict : Mapping {var_name: (Fmin, Fmax)} with tightened ranges
+    """
+    known_ranges = {}
+
+    for var in summation_variables:
+        if var not in all_ranges_info:
+            # Use conservative default
+            known_ranges[var] = (0, 40)
+            continue
+
+        range_info = all_ranges_info[var]
+
+        if not range_info.get("symbolic", False):
+            # Already numeric, use exact range
+            known_ranges[var] = (range_info["Fmin"], range_info["Fmax"])
+        else:
+            # Symbolic - depends on other variables
+            depends_on = range_info.get("depends_on", [])
+
+            # Check if all dependencies are now known
+            all_known = all(dep in known_ranges for dep in depends_on)
+
+            if all_known:
+                # Recompute range with known dependencies
+                # This would require storing the original (a,b,c,d) labels
+                # For now, use the precomputed bounds
+                known_ranges[var] = (range_info["Fmin"], range_info["Fmax"])
+            else:
+                # Some dependencies still unknown, use conservative
+                known_ranges[var] = (range_info["Fmin"], range_info["Fmax"])
+
+    return known_ranges

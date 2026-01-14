@@ -314,7 +314,7 @@ A **spin network** is a graph with:
 The **norm** is computed as a product of:
 - **Wigner 6j symbols**: Quantum recoupling coefficients
 - **Theta symbols**: θ(j,k,l) = (-1)^(j+k+l) × (j+k+l+1)! / [(j+k-l)!(j-k+l)!(-j+k+l)!]
-- **Delta symbols**: Δⱼ = (2j+1)^(2j)
+- **Delta symbols**: Δⱼ = (-1)^(2j) × (2j+1)
 - **Sign factors**: (-1)^(...)
 
 ### Algorithm Overview

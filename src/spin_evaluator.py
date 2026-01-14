@@ -242,8 +242,9 @@ class SpinNetworkEvaluator:
         sign = (-1.0) ** (j + k + l)
 
         # For large spins, use log-gamma to avoid overflow
+        # factorial(~170) starts overflowing Python floats
         max_spin = max(j, k, l)
-        if max_spin > 100:
+        if max_spin > 50:
             from scipy.special import gammaln
 
             # Compute in log space to avoid overflow
@@ -275,7 +276,7 @@ class SpinNetworkEvaluator:
 
     def delta_symbol(self, j, power=1.0):
         """
-        Compute Δ_j^power = [(2j+1)^(2j)]^power
+        Compute Δ_j^power = [(-1)^(2j) × (2j+1)]^power
 
         PHYSICS: Quantum dimension of spin-j representation.
         Appears in trace normalizations.
@@ -283,32 +284,30 @@ class SpinNetworkEvaluator:
         Parameters:
         -----------
         j : numeric value or variable
-        power : float, exponent (multiplies the 2j exponent)
+        power : float, exponent
 
         Returns:
         --------
         float : The numerical value
 
         FORMULA:
-            Δ_j = (2j+1)^(2j)
-            Δ_j^p = (2j+1)^(2j×p)
+            Δ_j = (-1)^(2j) × (2j+1)
+            Δ_j^p = [(-1)^(2j) × (2j+1)]^p
 
         NUMERICAL STABILITY:
-            For large spins (j > 100), uses log-space computation to avoid overflow.
-            Example: For j=1000, (2001)^(2000) would overflow, but exp(2000×log(2001)) works.
+            Simple formula, no overflow issues even for large j.
         """
         # Work with actual j value (not 2*j)
         j_val = j if isinstance(j, (int, float)) else float(j)
 
         dimension = 2 * j_val + 1
-        exponent = 2 * j_val * power
+        sign = (-1.0) ** (2 * j_val)
 
-        # For large spins, compute in log space to avoid overflow
-        if j_val > 100:
-            # Δ_j^p = (2j+1)^(2j×p) = exp((2j×p) × log(2j+1))
-            result = math.exp(exponent * math.log(dimension))
-        else:
-            result = math.pow(dimension, exponent)
+        # Δ_j = (-1)^(2j) × (2j+1)
+        delta = sign * dimension
+
+        # Apply power
+        result = math.pow(delta, power)
 
         return result
 
@@ -382,19 +381,21 @@ class SpinNetworkEvaluator:
         np.ndarray : Array of delta values
 
         FORMULA:
-            Δ_j = (2j+1)^(2j)
-            Δ_j^p = (2j+1)^(2j×p)
+            Δ_j = (-1)^(2j) × (2j+1)
+            Δ_j^p = [(-1)^(2j) × (2j+1)]^p
 
         NUMERICAL STABILITY:
-            Always uses log-space computation to handle large spins safely.
+            Simple formula, no overflow issues.
         """
         j_arr = np.asarray(j_arr, dtype=float)
         dimensions = 2 * j_arr + 1
-        exponents = 2 * j_arr * power
+        signs = np.power(-1.0, 2 * j_arr)
 
-        # Use log-space computation for numerical stability
-        # (2j+1)^(2j×p) = exp((2j×p) × log(2j+1))
-        return np.exp(exponents * np.log(dimensions))
+        # Δ_j = (-1)^(2j) × (2j+1)
+        delta_values = signs * dimensions
+
+        # Apply power
+        return np.power(delta_values, power)
 
     def wigner_6j(self, j1, j2, j3, j4, j5, j6, power=1.0):
         """

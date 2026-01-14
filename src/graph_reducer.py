@@ -185,7 +185,7 @@ def apply_degree2_reduction(term):
         b = d2.get("label", None)
 
         # Record Kronecker(a,b)
-        coeffs.append(build_kronecker_delta_coeff(a, b))
+        coeffs.append(build_kronecker_coeff(a, b))
 
         # Remove the vertex v (drops its two incident edges)
         if G.has_node(v):
@@ -244,7 +244,7 @@ def apply_two_cycle_reduction(term):
     a_node, u, v, b_node, a_lbl, int_lbl_1, int_lbl_2, b_lbl = cand
 
     # Record Kronecker on the external edges
-    coeffs.append(build_kronecker_delta_coeff(a_lbl, b_lbl))
+    coeffs.append(build_kronecker_coeff(a_lbl, b_lbl))
 
     # Record theta: internal edge + external edges
     coeffs.append(build_theta_coeff(a_lbl, int_lbl_1, int_lbl_2))
@@ -422,16 +422,36 @@ def f_move_recouple_term(term, cycle_nodes, i):
     # Use f_range_with_symbolic to handle both numeric and symbolic edge labels
     from src.utils import f_range_with_symbolic
 
-    rng = f_range_with_symbolic(a_label, b_label, d_label, c_label)
+    # Get known ranges from existing F-variables (stored in term metadata)
+    known_ranges = term.get("f_ranges", {})
+
+    rng = f_range_with_symbolic(a_label, b_label, d_label, c_label, known_ranges=known_ranges)
     if rng is not None:
         coeffs.append(build_sum_coeff(f_symbol, rng))  # summation over f
-        print(f"  → Created summation: {f_symbol} with range {rng.get('Fmin')//2} to {rng.get('Fmax')//2}" +
+
+        # Store range info for this F-variable
+        if "f_ranges" not in term:
+            term["f_ranges"] = {}
+        term["f_ranges"][f_symbol] = (rng.get('Fmin'), rng.get('Fmax'))
+
+        # Enhanced logging with range quality indicator
+        range_j_min = rng.get('Fmin') // 2
+        range_j_max = rng.get('Fmax') // 2
+        range_size = range_j_max - range_j_min + 1
+        quality = "tight" if range_size <= 5 else ("moderate" if range_size <= 15 else "wide")
+
+        print(f"  → Created summation: {f_symbol} with range {range_j_min} to {range_j_max} " +
+              f"[{range_size} values, {quality}]" +
               (" (symbolic)" if rng.get('symbolic') else ""))
     else:
         # Fallback: even if range computation fails, create summation with default range
         # This ensures F-variables always have summation symbols
         print(f"  ⚠️  Could not compute range for {f_symbol}, using conservative default [0, 20]")
         coeffs.append(build_sum_coeff(f_symbol, {"Fmin": 0, "Fmax": 40, "parity": 0}))
+
+        if "f_ranges" not in term:
+            term["f_ranges"] = {}
+        term["f_ranges"][f_symbol] = (0, 40)
 
     # Record the 6j with correct mapping [a, b, f, d, c, e]
     coeffs.append(build_6j_coeff(a=a_label, b=b_label, f=f_symbol, c=c_label, d=d_label, e=e_label))
