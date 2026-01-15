@@ -8,7 +8,7 @@ A computational tool for calculating spin network norms. This project performs s
 
 - **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes (for collaborators)
 - **[PROBABILITY_WORKFLOW.md](PROBABILITY_WORKFLOW.md)** - Compute reconnection probabilities
-- **This README** - Comprehensive documentation (you're reading it!)
+- **This README** - Comprehensive documentation
 
 ---
 
