@@ -252,10 +252,11 @@ def main():
     # Print symbolic result
     print_norm_expression(terms)
 
-    # Save raw LaTeX
-    print("\nSaving raw norm expression...")
-    save_latex_pdf(terms, filename="norm_expression.pdf")
-    print("  ✓ Saved: norm_expression.pdf")
+    # Optionally save raw (non-canonical) LaTeX expression
+    # Uncomment the following lines to save the non-canonical expression:
+    # print("\nSaving raw norm expression...")
+    # save_latex_pdf(terms, filename="norm_expression.pdf")
+    # print("  ✓ Saved: norm_expression.pdf")
 
     # Apply Kronecker reductions
     print("\nApplying Kronecker reductions...")

@@ -180,7 +180,7 @@ def main():
     if abs(numerical_result) < 1e-10:
         print("\n⚠️  Warning: Result is very close to zero!")
         print("This might indicate that some triangle conditions are not satisfied")
-        print("or that the spin network configuration is quantum mechanically forbidden.")
+        print("or that the spin network configuration is forbidden by SU(2) recoupling rules.")
 
 
 if __name__ == "__main__":

@@ -108,7 +108,7 @@ def latex_formatting(terms):
                         fixed.get("e", fixed.get("E")),
                     )
                 a, b, fval, cval, d, e = args
-                power = fixed.get("power", 1)
+                power = c.get("power", 1)  # Power is at top level, not in fixed
                 if power != 1:
                     factors.append(rf"\left{latex_6j(a,b,fval,cval,d,e)}\right^{{{power}}}")
                 else:
@@ -121,13 +121,13 @@ def latex_formatting(terms):
                     args = (
                         fixed.get("a", fixed.get("A")),
                         fixed.get("b", fixed.get("B")),
-                        fixed.get("f", fixed.get("F")),
+                        fixed.get("e", fixed.get("E")),
                         fixed.get("c", fixed.get("C")),
                         fixed.get("d", fixed.get("D")),
-                        fixed.get("e", fixed.get("E")),
+                        fixed.get("f", fixed.get("F")),
                     )
                 a, b, e, cval, d, fval = args
-                power = fixed.get("power", 1)
+                power = c.get("power", 1)  # Power is at top level, not in fixed
                 if power != 1:
                     factors.append(rf"\left{latex_6j(a,b,e,cval,d,fval)}\right^{{{power}}}_{{\mathrm{{W}}}}")
                 else:
@@ -142,7 +142,7 @@ def latex_formatting(terms):
                         fixed.get("c", fixed.get("C"))
                     )
                 a, b, cval = args
-                power = fixed.get("power", 1)
+                power = c.get("power", 1)  # Power is at top level, not in fixed
                 if power != 1:
                     factors.append(rf"\Theta\left({a},{b},{cval}\right)^{{{power}}}")
                 else:
@@ -150,7 +150,7 @@ def latex_formatting(terms):
 
             elif typ == "delta":
                 j = fixed.get("j", fixed.get("J"))
-                power = fixed.get("power", 1)
+                power = c.get("power", 1)  # Power is at top level, not in fixed
                 if power != 1:
                     factors.append(rf"\Delta_{{{j}}}^{{{power}}}")
                 else:

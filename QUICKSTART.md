@@ -101,7 +101,7 @@ This number is your result!
 → Your edge spins don't satisfy |j₁-j₂| ≤ j₃ ≤ j₁+j₂ at some node
 
 ### Result is zero
-→ Your spin network configuration is quantum mechanically forbidden
+→ Your spin network configuration is forbidden by the rules of SU(2)
 
 ### "Memory error" with large spins
 → For spins up to j=1000, use:

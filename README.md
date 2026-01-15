@@ -1,12 +1,13 @@
 # Spin Networks Calculator
 
-A computational tool for calculating spin network norms in loop quantum gravity. This project performs symbolic graph reduction and numerical evaluation of spin networks using Wigner 6j symbols.
+A computational tool for calculating spin network norms. This project performs symbolic graph reduction and numerical evaluation of spin networks using combinatorics.
 
 ---
 
 ## Documentation Quick Links
 
 - **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes (for collaborators)
+- **[PROBABILITY_WORKFLOW.md](PROBABILITY_WORKFLOW.md)** - Compute reconnection probabilities
 - **This README** - Comprehensive documentation (you're reading it!)
 
 ---
@@ -25,21 +26,22 @@ A computational tool for calculating spin network norms in loop quantum gravity.
 
 ## What is this?
 
-**Spin networks** are mathematical structures used in loop quantum gravity to describe quantum states of space. This tool:
+**Spin networks** are combinatorial structures first presented by Roger Penrose. This tool:
 
 1. **Takes a graph as input** where:
-   - Nodes represent quantum states
+   - Nodes are trivalent
    - Edges have numerical labels (spin values)
 
 2. **Performs symbolic computation**:
    - Applies F-moves and triangle reductions
    - Generates canonical expressions with Wigner 6j symbols
-   - Produces beautiful LaTeX PDFs of the results
+   - Produces LaTeX PDFs of the results
 
 3. **Computes numerical values**:
    - Uses high-performance C++ backend (wigxjpf)
    - Handles large spin values efficiently
-   - Returns the norm (scalar value) of the spin network
+   - Returns the norm (positive scalar value) of the spin network
+   - Note: Result is returned as absolute value (norms are always positive)
 
 ---
 
@@ -83,7 +85,7 @@ pip install networkx matplotlib sympy pybind11 pywigxjpf numpy scipy jax
 python -c "import pywigxjpf; print('✓ wigxjpf installed successfully')"
 ```
 
-If you see the success message, you're ready to go! 🎉
+If you see the success message, you're ready to go.
 
 ---
 
@@ -155,16 +157,56 @@ Evaluating term 1/1...
     Total iterations: 6,174
     Using 11 parallel workers
     Split into 44 chunks of ~140 iterations each
-  Term value: -6.658558117818342e+01
+  Term value: 6.658558117818342e+01
 
 ======================================================================
- SPIN NETWORK NORM = -6.658558117818342e+01
+ SPIN NETWORK NORM = 6.658558117818342e+01
 ======================================================================
 ```
 
 ---
 
 ## Usage Guide
+
+### Reconnection Probability Workflow
+
+**NEW: Graphical interface with automatic probability computation!**
+
+**See [PROBABILITY_WORKFLOW.md](PROBABILITY_WORKFLOW.md) for complete documentation.**
+
+Quick workflow (GUI):
+1. Create graph with open edges: `python scripts/graph.py`
+2. Launch reconnection GUI: `python scripts/reconnect_edges.py drawn_graph_with_labels.graphml`
+3. In the GUI:
+   - Click two open edges (orange)
+   - Press C to connect
+   - Choose "YES - All possible values"
+   - Press S to save & compute
+4. Done! All probabilities computed automatically
+
+**Features:**
+- **Visual selection** of which edges to reconnect (no need to remember node numbers!)
+- **Automatic computation** of all possible edge values (triangle inequality)
+- **Normalization test** verifies Σp = 1 (physical consistency)
+- **Integrated workflow** - everything in one tool
+
+The probability formula is:
+```
+p(c,...,z) = abs(Δ(c)⋅⋅⋅Δ(z) / [Θ(a,b,c)⋅⋅⋅Θ(x,y,z)] × ||G₂||/||G₁||)
+```
+
+Example output:
+```
+Probability distribution:
+  New Edge     Probability
+  0.0          0.000000e+00
+  1.0          1.000000e+00
+  2.0          0.000000e+00
+  TOTAL        1.000000e+00
+
+✓ PASSED: Probabilities sum to 1
+  Physical consistency verified!
+```
 
 ### Creating a Spin Network from Scratch
 
@@ -268,7 +310,7 @@ Performing graph reduction (F-moves, triangle reductions)...
 
 **Key checks:**
 - **Triangular condition satisfied**: Each node's edges satisfy |j₁-j₂| ≤ j₃ ≤ j₁+j₂
-- **Graph is planar**: Can be drawn without crossing edges (important for physical realizability)
+- **Graph is planar**: Can be drawn without crossing edges
 
 ### 2. PDF Outputs
 
@@ -282,21 +324,21 @@ Shows the **raw expression** after graph reduction:
 Shows the **canonical form** with:
 - Combined duplicate coefficients
 - Simplified signs
-- W6j symbols (weighted Wigner 6j)
+- Wigner 6j symbols
 - Proper mathematical notation
 
 ### 3. Numerical Result
 
-The final number is the **norm** (magnitude) of your spin network state:
+The final number is the **norm** of your spin network state:
 
 ```
-  SPIN NETWORK NORM = -6.658558117818342e+01
+  SPIN NETWORK NORM = 6.658558117818342e+01
 ```
 
 **Interpreting the result:**
-- **Non-zero value**: Your spin network is physically allowed ✓
+- **Non-zero value**: Your spin network is physically allowed
 - **Very small (~10⁻¹⁰)**: Might indicate numerical precision issues
-- **Zero**: The spin network configuration violates quantum coupling rules
+- **Zero**: The spin network configuration violates SU(2) coupling rules
 
 ---
 
@@ -312,7 +354,7 @@ A **spin network** is a graph with:
   ```
 
 The **norm** is computed as a product of:
-- **Wigner 6j symbols**: Quantum recoupling coefficients
+- **Wigner 6j symbols**: SU(2) recoupling coefficients
 - **Theta symbols**: θ(j,k,l) = (-1)^(j+k+l) × (j+k+l+1)! / [(j+k-l)!(j-k+l)!(-j+k+l)!]
 - **Delta symbols**: Δⱼ = (-1)^(2j) × (2j+1)
 - **Sign factors**: (-1)^(...)
@@ -381,7 +423,7 @@ Error: Triangular condition not satisfied at node X
 ```
 
 **Possible causes:**
-1. **Quantum forbidden configuration**: Some 6j symbols have zero value because internal triangle conditions aren't satisfied
+1. **Forbidden configuration**: Some 6j symbols have zero value because internal triangle conditions aren't satisfied
 2. **Cancellation**: Multiple terms with opposite signs sum to zero
 
 **What to try:**
@@ -464,7 +506,8 @@ Spin_Networks_Project_full/
 │   └── reconstructed_canon_norm_expression.pdf
 │
 └── Other
-    ├── main.py                  # Legacy combined pipeline
+    ├── legacy/                  # Legacy files (old scripts)
+    │   └── main.py              # Old combined pipeline
     └── .gitignore               # Git ignore rules
 ```
 

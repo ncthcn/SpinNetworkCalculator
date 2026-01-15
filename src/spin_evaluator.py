@@ -8,11 +8,15 @@ EDUCATIONAL OVERVIEW:
 
 1. WHAT WE'RE COMPUTING:
    The norm of a spin network, which is a product of:
-   - Wigner 6j symbols (quantum recoupling coefficients)
+   - Wigner 6j symbols (SU(2) recoupling coefficients)
    - Theta symbols θ(j1,j2,j3) = √[(2j1+1)(2j2+1)(2j3+1)]
    - Delta symbols Δ_j = √(2j+1)
    - Sign factors (-1)^(...)
-   - Summations over intermediate quantum numbers
+   - Summations over intermediate integers
+
+   NOTE: The final result is returned as an ABSOLUTE VALUE since spin network
+   norms are positive by definition. Sign conventions in the calculation may
+   produce negative intermediate values, but the physical norm is |result|.
 
 2. WHY WIGXJPF:
    - Uses prime factorization to avoid overflow
@@ -99,7 +103,7 @@ class SpinNetworkEvaluator:
         max_two_j : int
             Maximum value of 2*j that will be used. Default 200 (j up to 100).
 
-            WHY 2*j?: In quantum mechanics, angular momentum can be half-integer
+            WHY 2*j?: Spin can be half-integer
             (e.g., j = 1/2, 3/2, 5/2...). We store as 2*j to use integers:
             - j = 1/2  → 2*j = 1
             - j = 1    → 2*j = 2
@@ -210,12 +214,9 @@ class SpinNetworkEvaluator:
         """
         Compute θ(j1,j2,j3)^power using the full definition with factorials.
 
-        PHYSICS: Theta symbol encodes the quantum dimensions and triangular
-        inequality constraints for spin coupling.
-
         Parameters:
         -----------
-        j1, j2, j3 : numeric values (spin quantum numbers)
+        j1, j2, j3 : numeric values (spin)
         power : float, exponent on the theta symbol
 
         Returns:
@@ -269,17 +270,21 @@ class SpinNetworkEvaluator:
             # θ(j,k,l) = sign × numerator / (denom1 × denom2 × denom3)
             theta_value = sign * numerator / (denom1 * denom2 * denom3)
 
-            # Apply power
-            result = math.pow(theta_value, power)
+            # Apply power (handle negative values with fractional powers)
+            if power == 1.0:
+                result = theta_value
+            elif theta_value >= 0:
+                result = math.pow(theta_value, power)
+            else:
+                # For negative values with fractional power, use signed power
+                # result = sign(x) * |x|^power
+                result = -math.pow(abs(theta_value), power) if int(power) % 2 == 1 else math.pow(abs(theta_value), power)
 
         return result
 
     def delta_symbol(self, j, power=1.0):
         """
         Compute Δ_j^power = [(-1)^(2j) × (2j+1)]^power
-
-        PHYSICS: Quantum dimension of spin-j representation.
-        Appears in trace normalizations.
 
         Parameters:
         -----------
@@ -400,9 +405,6 @@ class SpinNetworkEvaluator:
     def wigner_6j(self, j1, j2, j3, j4, j5, j6, power=1.0):
         """
         Compute Wigner 6j symbol using wigxjpf.
-
-        PHYSICS: The 6j symbol represents the transformation coefficient
-        between two different coupling schemes of three angular momenta.
 
         NOTATION: {j1 j2 j3}
                   {j4 j5 j6}
@@ -787,11 +789,17 @@ class SpinNetworkEvaluator:
             print(f"  Term value: {term_value:.10e}")
             total_result += term_value
 
+        # Take absolute value since spin network norms are positive by definition
+        # (sign conventions in the calculation can produce negative values)
+        final_result = abs(total_result)
+
         print("\n" + "=" * 70)
-        print(f"FINAL RESULT: {total_result:.15e}")
+        print(f"FINAL RESULT: {final_result:.15e}")
+        if total_result < 0:
+            print(f"(Note: Raw result was {total_result:.15e}, took absolute value)")
         print("=" * 70)
 
-        return total_result
+        return final_result
 
 
 # ============================================================================
