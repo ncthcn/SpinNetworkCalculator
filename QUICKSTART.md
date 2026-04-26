@@ -61,9 +61,19 @@ python scripts/evaluate_norm.py my_network.graphml
 
 ## What You Get
 
-### Files Generated (Clean symbolic expression):
-- `canon_norm_expression.pdf`
-- `canon_norm_expression.txt`
+### Files Generated
+
+**From `compute_norm.py`:**
+- `canon_norm_expression.pdf` — canonical expression (PDF)
+- `canon_norm_expression.txt` — canonical expression (text, input for `evaluate_formula.py`)
+- `norm_expression.pdf` — raw symbolic expression
+
+**From `transition_to.py` (reconnection GUI):**
+- `transition_to_graph.graphml` — reconnected graph
+- `transition_to_graph_norm_G1.txt` — original graph norm expression
+- `transition_to_graph_norm_G2.txt` — reconnected graph norm expression
+- `transition_to_graph_symbolic_probability.txt` — probability formula
+- `transition_to_graph_transition.json` — per-channel probabilities and norms
 
 ### Console Output:
 ```
@@ -102,6 +112,9 @@ This number is your result.
 ### Result is zero
 → Your spin network configuration is forbidden by the rules of SU(2)
 
+### Non-planar graph warning
+→ `compute_norm.py` saves `{input_basename}_kuratowski.png` (e.g. `drawn_graph_kuratowski.png`) showing the K₅ or K₃,₃ subdivision witnessing non-planarity, then continues with cycle-basis fallback. Pass `--strict-planarity` to abort instead.
+
 ### "Memory error" with large spins
 → For spins up to j=1000, use:
 ```bash
@@ -122,4 +135,7 @@ No special configuration needed - just specify `--max-j` for memory allocation!
 
 ## Need More Help?
 
-Read the full [README.md](README.md) for detailed explanations.
+- Full guide: [README.md](README.md)
+- Probabilities: [PROBABILITY_WORKFLOW.md](PROBABILITY_WORKFLOW.md)
+- GPU/parallel: [PARALLEL_ACCELERATION.md](PARALLEL_ACCELERATION.md)
+- Graph comparison: [scripts/README_COMPARISON.md](scripts/README_COMPARISON.md)

@@ -6,7 +6,7 @@ Compute transition probabilities for spin network edge reconnections with automa
 
 ```bash
 # Step 1: Launch the GUI with your graph
-python scripts/reconnect_edges.py drawn_graph.graphml
+python scripts/transition_to.py drawn_graph.graphml
 
 # Step 2: In the GUI:
 #   - Click two open edges (orange)
@@ -23,7 +23,7 @@ python scripts/reconnect_edges.py drawn_graph.graphml
 
 1. **Open your graph**:
    ```bash
-   python scripts/reconnect_edges.py drawn_graph.graphml
+   python scripts/transition_to.py drawn_graph.graphml
    ```
 
 2. **Select two open edges**:
@@ -56,7 +56,7 @@ python scripts/reconnect_edges.py drawn_graph.graphml
 ### Example Session
 
 ```
-$ python scripts/reconnect_edges.py drawn_graph.graphml
+$ python scripts/transition_to.py drawn_graph.graphml
 
 [GUI opens]
 [Click edge 1-2]
@@ -178,8 +178,16 @@ In the GUI:
 
 ## What Gets Saved
 
-- `*_all_probabilities.json` - Full results with all probabilities and normalization test
-- Console output - Detailed step-by-step computation
+When using `transition_to.py` (GUI workflow):
+- `transition_to_graph.graphml` — reconnected graph structure
+- `transition_to_graph_norm_G1.txt` — canonical norm expression for original graph
+- `transition_to_graph_norm_G2.txt` — canonical norm expression for reconnected graph
+- `transition_to_graph_symbolic_probability.txt` — symbolic probability formula
+- `transition_to_graph_transition.json` — full results: norms, per-channel probabilities, normalization
+
+When using `compute_all_probabilities.py` (CLI workflow):
+- `*_all_probabilities.json` — full results with all probabilities and normalization test
+- Console output — detailed step-by-step computation
 
 ## Troubleshooting
 
@@ -202,5 +210,8 @@ In the GUI:
 
 - [README.md](README.md) - Main documentation
 - [QUICKSTART.md](QUICKSTART.md) - Getting started guide
+- [scripts/README_COMPARISON.md](scripts/README_COMPARISON.md) - Graph comparison workflow
 - [scripts/compute_probability.py](scripts/compute_probability.py) - Single value computation
 - [scripts/compute_all_probabilities.py](scripts/compute_all_probabilities.py) - All values computation
+- [scripts/compute_symbolic_probability.py](scripts/compute_symbolic_probability.py) - Symbolic probability
+- [scripts/compare_graphs_cli.py](scripts/compare_graphs_cli.py) - CLI comparison tool

@@ -26,7 +26,7 @@ Computational tool for spin network norms using symbolic graph reduction and Wig
 ```bash
 # Workflow 1: Norm calculation
 python scripts/graph.py              # Draw graph interactively
-python scripts/compute_norm.py       # Symbolic reduction → PDFs
+python scripts/compute_norm.py       # Symbolic reduction → PDFs + .txt
 python scripts/evaluate_norm.py      # Numerical evaluation
 
 # Workflow 2: Reconnection probabilities (GUI)
@@ -34,6 +34,12 @@ python scripts/transition_to.py drawn_graph.graphml
 
 # Workflow 3: Probabilities (CLI)
 python scripts/compute_all_probabilities.py drawn_graph.graphml 1-2 3-4
+
+# Workflow 4: Graph comparison
+python scripts/compare_graphs.py drawn_graph.graphml
+
+# Workflow 5: Evaluate from saved expression
+python scripts/evaluate_formula.py canon_norm_expression.txt
 ```
 
 ### Key Files by Purpose
@@ -46,6 +52,10 @@ python scripts/compute_all_probabilities.py drawn_graph.graphml 1-2 3-4
 | LaTeX PDFs | `src/LaTeX_rendering.py` |
 | Graph gluing | `src/gluer.py` |
 | Utilities | `src/utils.py` |
+| Orientations | `src/orientation.py` |
+| Graph comparison | `scripts/compare_graphs.py` |
+| Symbolic probability | `scripts/compute_symbolic_probability.py` |
+| Formula evaluation | `scripts/evaluate_formula.py` |
 
 ### Graph Editor Keys (scripts/graph.py)
 `N` add node | `E` add edge | `M` move | `D` delete node | `X` delete edge | `Z` undo | `S` save
@@ -63,6 +73,8 @@ Input Graph → Glue Open Edges → F-moves → Triangle Reductions → Expand 6
 - **spin_evaluator.py**: wigxjpf interface, JAX/multiprocessing backends, theta/delta symbols
 - **gluer.py**: Creates theta graph by gluing open edges
 - **utils.py**: Triangle inequality checks, face cycles, range computation
+- **orientation.py**: Reference orientation and layout phase calculations
+- **drawing.py**: Graph visualization, Kuratowski obstruction plots
 
 ## Constraints
 
@@ -76,25 +88,47 @@ Input Graph → Glue Open Edges → F-moves → Triangle Reductions → Expand 6
 - Python 3.7+
 - Core deps: networkx, matplotlib, sympy, numpy, scipy, pywigxjpf
 - Optional: jax (GPU acceleration)
-- Output files: `drawn_graph.graphml`, `norm_expression.pdf`, `canon_norm_expression.pdf`
+- Output files:
+  - `drawn_graph.graphml` — user-drawn graph
+  - `norm_expression.pdf` — raw symbolic expression
+  - `canon_norm_expression.pdf` — canonical expression (PDF)
+  - `canon_norm_expression.txt` — canonical expression (text, input for `evaluate_formula.py`)
+  - `transition_to_graph.graphml` — reconnected graph
+  - `transition_to_graph_norm_G1.txt` — original graph norm expression
+  - `transition_to_graph_norm_G2.txt` — reconnected graph norm expression
+  - `transition_to_graph_symbolic_probability.txt` — probability formula
+  - `transition_to_graph_transition.json` — full probability results (per-channel, norms)
+  - `graph_snapshots/graph.png` — visualization snapshot
+  - `{input_basename}_kuratowski.png` — K₅/K₃,₃ obstruction subgraph saved by `compute_norm.py` when the glued graph is non-planar (e.g. `drawn_graph_kuratowski.png`); not produced for planar graphs
 
 ## Testing
 ```bash
 pytest tests/                        # All tests
 pytest tests/test_integration.py     # Pipeline tests
 pytest tests/test_graph_reducer.py   # Reduction tests
+pytest tests/test_symbols.py         # Wigner symbol tests
+pytest tests/test_orientation.py     # Orientation tests
+pytest tests/test_reconnection_workflow.py  # Reconnection probability tests
+pytest tests/test_multi_sum.py       # Multi-variable summation tests
+pytest tests/test_ranges.py          # Range calculation tests
 ```
 
 ## Project Map
 ```
 ├── scripts/           # User-facing scripts
-│   ├── graph.py                    # Interactive graph editor
-│   ├── compute_norm.py             # Symbolic computation
-│   ├── evaluate_norm.py            # Numerical evaluation
-│   ├── compute_all_probabilities.py # Full probability distribution
-│   ├── transition_to.py            # Reconnection GUI
-│   ├── inspect_graph.py            # Graph inspection
-│   └── modify_graph.py             # Graph modification
+│   ├── graph.py                         # Interactive graph editor
+│   ├── compute_norm.py                  # Symbolic computation
+│   ├── evaluate_norm.py                 # Numerical evaluation
+│   ├── compute_probability.py           # Single reconnection probability
+│   ├── compute_all_probabilities.py     # Full probability distribution (CLI)
+│   ├── compute_symbolic_probability.py  # Symbolic probability formula
+│   ├── evaluate_formula.py              # Evaluate expression from .txt file
+│   ├── transition_to.py                 # Reconnection GUI
+│   ├── compare_graphs.py                # Automated graph comparison workflow
+│   ├── compare_graphs_cli.py            # Graph comparison (CLI)
+│   ├── inspect_graph.py                 # Graph inspection
+│   ├── modify_graph.py                  # Interactive graph modification GUI
+│   └── README_COMPARISON.md             # Graph comparison workflow docs
 ├── src/               # Core library
 │   ├── graph_reducer.py            # F-moves, triangle reductions
 │   ├── norm_reducer.py             # Canonicalization
@@ -103,8 +137,18 @@ pytest tests/test_graph_reducer.py   # Reduction tests
 │   ├── LaTeX_rendering.py          # PDF generation
 │   ├── utils.py                    # Utilities
 │   ├── drawing.py                  # Visualization
+│   ├── orientation.py              # Reference orientation calculations
 │   └── reduction_animator.py       # Reduction GIFs
 ├── tests/             # Test suite
+│   ├── test_graph_reducer.py
+│   ├── test_integration.py
+│   ├── test_multi_sum.py
+│   ├── test_orientation.py
+│   ├── test_range_improvements.py
+│   ├── test_ranges.py
+│   ├── test_reconnection_workflow.py
+│   ├── test_symbols.py
+│   └── test_gui_probability_workflow.py
 ├── legacy/            # Deprecated (main.py)
 └── graph_snapshots/   # Generated images
 ```

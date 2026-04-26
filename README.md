@@ -8,6 +8,8 @@ A computational tool for calculating spin network norms and probabilities. This 
 
 - **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes (for collaborators)
 - **[PROBABILITY_WORKFLOW.md](PROBABILITY_WORKFLOW.md)** - Compute reconnection probabilities
+- **[PARALLEL_ACCELERATION.md](PARALLEL_ACCELERATION.md)** - GPU and parallel evaluation
+- **[scripts/README_COMPARISON.md](scripts/README_COMPARISON.md)** - Graph comparison workflow
 - **This README** - Comprehensive documentation
 
 ---
@@ -174,7 +176,7 @@ Evaluating term 1/1...
 
 Quick workflow (GUI):
 1. Create graph with open edges: `python scripts/graph.py`
-2. Launch reconnection GUI: `python scripts/reconnect_edges.py drawn_graph.graphml`
+2. Launch reconnection GUI: `python scripts/transition_to.py drawn_graph.graphml`
 3. In the GUI:
    - Click two open edges (orange)
    - Press C to connect
@@ -308,6 +310,8 @@ Performing graph reduction (F-moves, triangle reductions)...
 - **Triangular condition satisfied**: Each node's edges satisfy |j₁-j₂| ≤ j₃ ≤ j₁+j₂
 - **Graph is planar**: Can be drawn without crossing edges
 
+If the glued graph is non-planar, `compute_norm.py` saves a Kuratowski obstruction image (`{input_basename}_kuratowski.png`, e.g. `drawn_graph_kuratowski.png`) showing the K₅ or K₃,₃ subdivision that witnesses non-planarity. Computation continues using the cycle-basis fallback unless `--strict-planarity` is passed.
+
 ### 2. PDF Output
 
 #### `canon_norm_expression.pdf`
@@ -317,7 +321,7 @@ Shows the **canonical form** with:
 - Wigner 6j symbols
 - Proper mathematical notation
 
-### 2. TXT Output
+### 3. TXT Output
 
 #### `canon_norm_expression.txt`
 Same content as `canon_norm_expression.pdf` expressed in a .txt file, ready to be given as input for `evaluate_formula.py`.
@@ -438,33 +442,54 @@ python scripts/evaluate_norm.py --max-j 100  # Limit to j ≤ 100
 Spin_Networks_Project_full/
 │
 ├── Documentation
-│   ├── README.md                # This file - comprehensive guide
-│   ├── QUICKSTART.md            # 5-minute quick start
-│   └── requirements.txt         # Python dependencies
+│   ├── README.md                        # This file - comprehensive guide
+│   ├── QUICKSTART.md                    # 5-minute quick start
+│   ├── PROBABILITY_WORKFLOW.md          # Reconnection probability guide
+│   ├── PARALLEL_ACCELERATION.md        # GPU/parallel evaluation guide
+│   └── requirements.txt                 # Python dependencies
 │
 ├── User Scripts (scripts/)
-│   ├── graph.py                 # Interactive graph editor 
-│   ├── compute_norm.py          # Symbolic computation (→ PDFs)
-│   └── evaluate_norm.py         # Numerical evaluation (→ result)
+│   ├── graph.py                         # Interactive graph editor
+│   ├── compute_norm.py                  # Symbolic computation (→ PDFs + .txt)
+│   ├── evaluate_norm.py                 # Numerical evaluation
+│   ├── compute_probability.py           # Single reconnection probability
+│   ├── compute_all_probabilities.py     # Full probability distribution (CLI)
+│   ├── compute_symbolic_probability.py  # Symbolic probability formula
+│   ├── evaluate_formula.py              # Evaluate from canon_norm_expression.txt
+│   ├── transition_to.py                 # Reconnection GUI
+│   ├── compare_graphs.py                # Automated graph comparison workflow
+│   ├── compare_graphs_cli.py            # Graph comparison (CLI)
+│   ├── modify_graph.py                  # Interactive graph modification GUI
+│   ├── inspect_graph.py                 # Graph inspection utility
+│   └── README_COMPARISON.md            # Graph comparison workflow docs
 │
 ├── Core Library (src/)
-│   ├── drawing.py               # Graph visualization utilities
+│   ├── drawing.py               # Graph visualization, Kuratowski plots
 │   ├── gluer.py                 # Graph gluing operations
 │   ├── graph_reducer.py         # F-moves and triangle reductions
 │   ├── norm_reducer.py          # Canonicalization and Regge symmetries
 │   ├── spin_evaluator.py        # Numerical evaluation with wigxjpf
 │   ├── LaTeX_rendering.py       # PDF generation
-│   └── utils.py                 # Utility functions
+│   ├── utils.py                 # Utility functions
+│   ├── orientation.py           # Reference orientation calculations
+│   └── reduction_animator.py   # Reduction step animation (GIFs)
 │
-├── Generated Files (ignored by git)
-│   ├── drawn_graph.graphml
-│   ├── norm_expression.pdf
-│   ├── canon_norm_expression.pdf
-│   └── reconstructed_canon_norm_expression.pdf
+├── Generated Files
+│   ├── drawn_graph.graphml                      # User-drawn graph
+│   ├── norm_expression.pdf                      # Raw symbolic expression
+│   ├── canon_norm_expression.pdf                # Canonical expression (PDF)
+│   ├── canon_norm_expression.txt                # Canonical expression (text)
+│   ├── transition_to_graph.graphml              # Reconnected graph
+│   ├── transition_to_graph_norm_G1.txt          # Original graph norm expression
+│   ├── transition_to_graph_norm_G2.txt          # Reconnected graph norm expression
+│   ├── transition_to_graph_symbolic_probability.txt  # Probability formula
+│   ├── transition_to_graph_transition.json      # Full probability results
+│   ├── graph_snapshots/graph.png                # Visualization snapshot
+│   └── {input_basename}_kuratowski.png          # K₅/K₃,₃ subgraph (only if non-planar)
 │
 └── Other
-    ├── legacy/                  # Legacy files
-    │   └── main.py              # Old combined pipeline
+    ├── tests/                   # Test suite (pytest)
+    ├── legacy/                  # Deprecated (main.py)
     └── .gitignore               # Git ignore rules
 ```
 
