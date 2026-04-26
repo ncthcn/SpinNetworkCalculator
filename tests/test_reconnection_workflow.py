@@ -94,7 +94,7 @@ def test_workflow():
     print("="*70)
 
     # Load original graph
-    original_file = "drawn_graph_with_labels.graphml"
+    original_file = "drawn_graph.graphml"
     if not os.path.exists(original_file):
         print(f"Error: {original_file} not found")
         return False

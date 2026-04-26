@@ -28,6 +28,7 @@ from src.norm_reducer import canonicalise_terms, apply_kroneckers, expand_6j_sym
 from src.spin_evaluator import evaluate_spin_network
 
 
+# Standard graph loader: reads GraphML, coerces labels to float, sets "pos" attrs.
 def load_graph_from_file(file_path):
     """Load a graph from a GraphML file."""
     graph = nx.read_graphml(file_path, force_multigraph=True)
@@ -50,11 +51,10 @@ def load_graph_from_file(file_path):
     return graph
 
 
+# Full norm pipeline: load → glue → reduce → Kronecker → expand 6j → canonicalise
+# → evaluate. Returns a float.
 def compute_norm(graph_file, quiet=True):
-    """
-    Compute the numerical norm of a spin network graph.
-    Returns the norm value as a float.
-    """
+    """Compute the numerical norm of a spin network graph."""
     if not quiet:
         print(f"\n{'='*70}")
         print(f"COMPUTING NORM: {graph_file}")
@@ -112,11 +112,8 @@ def compute_norm(graph_file, quiet=True):
     return result
 
 
+# Computes Θ(j1,j2,j3) for exactly 3 labels.
 def compute_theta_product(labels):
-    """
-    Compute the product of theta symbols for given edge labels.
-    Theta(j1, j2, j3) = (-1)^(j1+j2+j3) * (j1+j2+j3+1)! / [(j1+j2-j3)!(j1-j2+j3)!(-j1+j2+j3)!]
-    """
     from src.spin_evaluator import SpinNetworkEvaluator
 
     if len(labels) != 3:
@@ -124,37 +121,34 @@ def compute_theta_product(labels):
 
     evaluator = SpinNetworkEvaluator()
     j1, j2, j3 = labels
-    result = evaluator.theta_symbol(j1, j2, j3, power=1)
+    sign_exp, mag = evaluator.theta_symbol(j1, j2, j3, power=1)
     evaluator.cleanup()
-    return result
+    # Combine sign and magnitude
+    sign = (-1.0) ** int(round(sign_exp))
+    return sign * mag
 
 
+# Computes ∏ Δ(j) for each j in labels.
 def compute_delta_product(labels):
-    """
-    Compute the product of delta symbols for given edge labels.
-    Delta(j) = (-1)^(2j) * (2j+1)
-    """
     from src.spin_evaluator import SpinNetworkEvaluator
 
     evaluator = SpinNetworkEvaluator()
-    result = 1.0
+    total_sign_exponent = 0.0
+    total_magnitude = 1.0
     for j in labels:
-        result *= evaluator.delta_symbol(j, power=1)
+        sign_exp, mag = evaluator.delta_symbol(j, power=1)
+        total_sign_exponent += sign_exp
+        total_magnitude *= mag
     evaluator.cleanup()
-    return result
+    # Combine sign and magnitude
+    sign = (-1.0) ** int(round(total_sign_exponent))
+    return sign * total_magnitude
 
 
-def get_edge_label(graph, node1, node2, key=None):
-    """Get label of edge between two nodes."""
-    if key is not None:
-        return graph.edges[node1, node2, key].get('label', '?')
-    else:
-        # Get first edge
-        for k in graph[node1][node2]:
-            return graph.edges[node1, node2, k].get('label', '?')
-    return None
-
-
+# CLI entry point: computes norms for original and modified graphml files
+# without opening a GUI, then optionally computes Θ/Δ if flagged edge data
+# is provided via --flagged-edge/--flagged-label/--flagged-vertex/--other-labels.
+# Saves results to JSON. Use compare_graphs.py for the interactive GUI version.
 def main():
     parser = argparse.ArgumentParser(
         description="Compare two spin network graphs (command-line, no GUI)",

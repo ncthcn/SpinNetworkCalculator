@@ -1,0 +1,70 @@
+{
+  "original_file": "drawn_graph.graphml",
+  "new_file": "transition_to_graph.graphml",
+  "added_edges": [],
+  "reconnections": [
+    {
+      "old_edges": [
+        {
+          "nodes": [
+            10,
+            9
+          ],
+          "label": 0.5
+        },
+        {
+          "nodes": [
+            12,
+            11
+          ],
+          "label": 1.5
+        }
+      ],
+      "possible_values": [
+        1.0,
+        2.0
+      ],
+      "compute_all": true
+    }
+  ],
+  "norms": {
+    "original_graph": 86016.0,
+    "new_graph": 73728.0,
+    "subgraph": 1.0
+  },
+  "computation": {
+    "delta_product": 3.0,
+    "delta_old_open_ends": 1.0,
+    "old_open_end_labels": [],
+    "theta_product": -12.0,
+    "new_edge_labels": [
+      1.0,
+      2.0
+    ],
+    "theta_triplets": [],
+    "per_channel": [
+      {
+        "c": 1.0,
+        "norm_G2": 73728.0,
+        "delta": 3.0,
+        "theta": -12.0,
+        "probability": 0.21428571428571427
+      },
+      {
+        "c": 2.0,
+        "norm_G2": 122880.0,
+        "delta": 5.0,
+        "theta": 20.0,
+        "probability": 0.35714285714285715
+      }
+    ]
+  },
+  "probability": 0.21428571428571427,
+  "probability_formula": "P = |[Delta(c1)...Delta(cn) * Delta(j1)...Delta(jm) / Theta(c1,s1,t1)...Theta(cn,sn,tn)] * [1/||subgraph||] * [||new_graph|| / ||old_graph||]|",
+  "formula_notes": {
+    "ci": "new edge label produced by reconnection i",
+    "ji": "original open end label at each subgraph attachment point",
+    "si_ti": "the two edges coupled at reconnection vertex i",
+    "subgraph_norm": "1 if only reconnecting existing open ends (no added edges)"
+  }
+}

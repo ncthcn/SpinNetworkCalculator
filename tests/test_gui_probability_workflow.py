@@ -33,7 +33,7 @@ def test_compute_all_can_run():
     graph_path = os.path.join(
         os.path.dirname(__file__),
         '..',
-        'drawn_graph_with_labels.graphml'
+        'drawn_graph.graphml'
     )
 
     if not os.path.exists(graph_path):
@@ -71,7 +71,7 @@ def test_gui_workflow_readiness():
     print("✓ ALL TESTS PASSED")
     print("="*70)
     print("\nThe GUI workflow is ready:")
-    print("1. Run: python scripts/reconnect_edges.py drawn_graph_with_labels.graphml")
+    print("1. Run: python scripts/reconnect_edges.py drawn_graph.graphml")
     print("2. Click two open edges")
     print("3. Press C to connect")
     print("4. Choose YES for 'Compute all probabilities'")

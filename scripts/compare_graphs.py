@@ -17,7 +17,6 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import argparse
-import subprocess
 import json
 import tkinter as tk
 from modify_graph import GraphModifier
@@ -29,6 +28,7 @@ from src.norm_reducer import canonicalise_terms, apply_kroneckers, expand_6j_sym
 from src.spin_evaluator import evaluate_spin_network
 
 
+# Standard graph loader: reads GraphML, coerces labels to float, sets "pos" attrs.
 def load_graph_from_file(file_path):
     """Load a graph from a GraphML file."""
     graph = nx.read_graphml(file_path, force_multigraph=True)
@@ -51,11 +51,10 @@ def load_graph_from_file(file_path):
     return graph
 
 
+# Full norm pipeline: load → glue → reduce → Kronecker → expand 6j → canonicalise
+# → evaluate. Same logic as evaluate_norm.py, kept local to avoid subprocesses.
 def compute_norm(graph_file, quiet=True):
-    """
-    Compute the numerical norm of a spin network graph.
-    Returns the norm value as a float.
-    """
+    """Compute the numerical norm of a spin network graph."""
     print(f"\n{'='*70}")
     print(f"COMPUTING NORM: {graph_file}")
     print(f"{'='*70}")
@@ -113,6 +112,9 @@ def compute_norm(graph_file, quiet=True):
     return result
 
 
+# Parses the *_flagged.txt file that GraphModifier writes when an open edge
+# is flagged. Returns a dict with edge_nodes, edge_label, vertex_id,
+# other_edge_labels. Returns None if file doesn't exist.
 def extract_flagged_info(flagged_file):
     """Extract flagged edge information from the text file."""
     if not os.path.exists(flagged_file):
@@ -143,11 +145,9 @@ def extract_flagged_info(flagged_file):
     return data
 
 
+# Computes Θ(j1,j2,j3) for exactly 3 labels. Used to evaluate the transition
+# coefficient at the flagged vertex.
 def compute_theta_product(labels):
-    """
-    Compute the product of theta symbols for given edge labels.
-    Theta(j1, j2, j3) = (-1)^(j1+j2+j3) * (j1+j2+j3+1)! / [(j1+j2-j3)!(j1-j2+j3)!(-j1+j2+j3)!]
-    """
     from src.spin_evaluator import SpinNetworkEvaluator
 
     if len(labels) != 3:
@@ -155,26 +155,34 @@ def compute_theta_product(labels):
 
     evaluator = SpinNetworkEvaluator()  # __init__ automatically initializes
     j1, j2, j3 = labels
-    result = evaluator.theta_symbol(j1, j2, j3, power=1)
+    sign_exp, mag = evaluator.theta_symbol(j1, j2, j3, power=1)
     evaluator.cleanup()
-    return result
+    # Combine sign and magnitude
+    sign = (-1.0) ** int(round(sign_exp))
+    return sign * mag
 
 
+# Computes ∏ Δ(j) for each j in labels. Δ(j) = (-1)^(2j) × (2j+1).
 def compute_delta_product(labels):
-    """
-    Compute the product of delta symbols for given edge labels.
-    Delta(j) = (-1)^(2j) * (2j+1)
-    """
     from src.spin_evaluator import SpinNetworkEvaluator
 
     evaluator = SpinNetworkEvaluator()  # __init__ automatically initializes
-    result = 1.0
+    total_sign_exponent = 0.0
+    total_magnitude = 1.0
     for j in labels:
-        result *= evaluator.delta_symbol(j, power=1)
+        sign_exp, mag = evaluator.delta_symbol(j, power=1)
+        total_sign_exponent += sign_exp
+        total_magnitude *= mag
     evaluator.cleanup()
-    return result
+    # Combine sign and magnitude
+    sign = (-1.0) ** int(round(total_sign_exponent))
+    return sign * total_magnitude
 
 
+# GUI-based workflow: computes original norm, opens GraphModifier so the user
+# can manually modify a graph and flag an open edge, then computes the new norm
+# and the Θ/Δ coefficients at the flagged vertex. Saves results to JSON.
+# For the CLI equivalent (no GUI), use compare_graphs_cli.py.
 def main():
     parser = argparse.ArgumentParser(
         description="Compare two spin network graphs and compute transition data",

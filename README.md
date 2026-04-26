@@ -1,6 +1,6 @@
 # Spin Networks Calculator
 
-A computational tool for calculating spin network norms. This project performs symbolic graph reduction and numerical evaluation of spin networks using combinatorics.
+A computational tool for calculating spin network norms and probabilities. This project performs symbolic graph reduction and numerical evaluation of spin networks using a combinatoric algorithm inspired by the Decomposition Theorem [1,2].
 
 ---
 
@@ -30,18 +30,18 @@ A computational tool for calculating spin network norms. This project performs s
 
 1. **Takes a graph as input** where:
    - Nodes are trivalent
-   - Edges have numerical labels (spin values)
+   - Edges have half-integer labels (spin values)
 
 2. **Performs symbolic computation**:
    - Applies F-moves and triangle reductions
    - Generates canonical expressions with Wigner 6j symbols
-   - Produces LaTeX PDFs of the results
+   - Produces LaTeX PDFs and .txt files of the results
 
 3. **Computes numerical values**:
    - Uses high-performance C++ backend (wigxjpf)
    - Handles large spin values efficiently
    - Returns the norm (positive scalar value) of the spin network
-   - Note: Result is returned as absolute value (norms are always positive)
+
 
 ---
 
@@ -108,7 +108,7 @@ python scripts/graph.py
 - **Press Z** - Undo last action
 - **Press S** - Save and exit
 
-The graph is saved as `drawn_graph_with_labels.graphml`
+The graph is saved as `drawn_graph.graphml`
 
 **Visual Feedback:**
 - Current mode shown in right panel with color coding
@@ -170,25 +170,21 @@ Evaluating term 1/1...
 
 ### Reconnection Probability Workflow
 
-**NEW: Graphical interface with automatic probability computation!**
-
 **See [PROBABILITY_WORKFLOW.md](PROBABILITY_WORKFLOW.md) for complete documentation.**
 
 Quick workflow (GUI):
 1. Create graph with open edges: `python scripts/graph.py`
-2. Launch reconnection GUI: `python scripts/reconnect_edges.py drawn_graph_with_labels.graphml`
+2. Launch reconnection GUI: `python scripts/reconnect_edges.py drawn_graph.graphml`
 3. In the GUI:
    - Click two open edges (orange)
    - Press C to connect
-   - Choose "YES - All possible values"
+   - Choose "YES - All possible values" or "NO" and input specific value
    - Press S to save & compute
-4. Done! All probabilities computed automatically
 
 **Features:**
-- **Visual selection** of which edges to reconnect (no need to remember node numbers!)
-- **Automatic computation** of all possible edge values (triangle inequality)
+- **Visual selection** of which edges to reconnect
+- **Automatic computation** of all possible edge values (through the triangle inequality)
 - **Normalization test** verifies Σp = 1 (physical consistency)
-- **Integrated workflow** - everything in one tool
 
 The probability formula is:
 ```
@@ -240,7 +236,7 @@ python scripts/graph.py
 **Tips:**
 - Nodes can only have up to 3 edges (valence-3 constraint)
 - Spin values must be integers or half-integers (0, 0.5, 1, 1.5, ...)
-- Symbolic labels (like F_1, F_2) are supported for summation variables
+- Symbolic labels are supported for summation variables
 - The editor validates triangular conditions: |j₁-j₂| ≤ j₃ ≤ j₁+j₂
 
 #### Method 2: Use Existing GraphML File
@@ -294,7 +290,7 @@ When you run `compute_norm.py`, you'll see:
 ======================================================================
 SPIN NETWORK NORM COMPUTATION (Symbolic)
 ======================================================================
-Input file: drawn_graph_with_labels.graphml
+Input file: drawn_graph.graphml
 
 Loading graph...
   Loaded graph with 8 nodes and 8 edges
@@ -312,13 +308,7 @@ Performing graph reduction (F-moves, triangle reductions)...
 - **Triangular condition satisfied**: Each node's edges satisfy |j₁-j₂| ≤ j₃ ≤ j₁+j₂
 - **Graph is planar**: Can be drawn without crossing edges
 
-### 2. PDF Outputs
-
-#### `norm_expression.pdf`
-Shows the **raw expression** after graph reduction:
-```
-∑[F₁=2,...,3] × 6j(...) × 6j(...) × θ(...) × Δ(...)
-```
+### 2. PDF Output
 
 #### `canon_norm_expression.pdf`
 Shows the **canonical form** with:
@@ -327,10 +317,16 @@ Shows the **canonical form** with:
 - Wigner 6j symbols
 - Proper mathematical notation
 
+### 2. TXT Output
+
+#### `canon_norm_expression.txt`
+Same content as `canon_norm_expression.pdf` expressed in a .txt file, ready to be given as input for `evaluate_formula.py`.
+
 ### 3. Numerical Result
 
 The final number is the **norm** of your spin network state:
 
+Example:
 ```
   SPIN NETWORK NORM = 6.658558117818342e+01
 ```
@@ -353,7 +349,7 @@ A **spin network** is a graph with:
   |j₁ - j₂| ≤ j₃ ≤ j₁ + j₂
   ```
 
-The **norm** is computed as a product of:
+The **norm** is computed by taking a copy of the network, gluing it along its opend ends, expanding each j-edge as an antisymmetrised set of 2j strands, counting the number of strand loops formed and assigning a (-2) value to each. The norm will be found as a product of:
 - **Wigner 6j symbols**: SU(2) recoupling coefficients
 - **Theta symbols**: θ(j,k,l) = (-1)^(j+k+l) × (j+k+l+1)! / [(j+k-l)!(j-k+l)!(-j+k+l)!]
 - **Delta symbols**: Δⱼ = (-1)^(2j) × (2j+1)
@@ -364,11 +360,11 @@ The **norm** is computed as a product of:
 ```
 Input Graph
     ↓
-Glue Open Edges (create theta graph)
+Glue Open Edges (create closed graph)
     ↓
-Apply F-moves (insert 6j symbols)
+Apply F-moves (reduces (n>3)-cycles)
     ↓
-Triangle Reductions (simplify graph)
+Triangle Reductions (reduces 3-cycles)
     ↓
 Expand 6j → W6j (with theta/delta factors)
     ↓
@@ -379,14 +375,6 @@ Numerical Evaluation (compute 6j values via wigxjpf)
 Final Result
 ```
 
-### Why wigxjpf?
-
-The **wigxjpf** library (Wigner symbols using prime factorization):
-- Avoids factorial overflow (uses prime factorization)
-- Industry standard (extensively tested)
-- Handles half-integer spins natively (stores as 2×j)
-- Much faster than naive implementations (~1000× speedup)
-
 ---
 
 ## Troubleshooting
@@ -395,41 +383,10 @@ The **wigxjpf** library (Wigner symbols using prime factorization):
 
 **Error:**
 ```
-Error: 'drawn_graph_with_labels.graphml' not found.
+Error: 'drawn_graph.graphml' not found.
 ```
 
 **Solution:** First run `python scripts/graph.py` to create a spin network graph.
-
----
-
-### Problem: "Triangular condition not satisfied"
-
-**Error:**
-```
-Error: Triangular condition not satisfied at node X
-```
-
-**Solution:** The spin values at node X violate the triangle inequality. For edges j₁, j₂, j₃:
-- Check that |j₁ - j₂| ≤ j₃ ≤ j₁ + j₂
-- Example: Edges with spins 1, 5, 10 violate this because |1-5| = 4 but 10 > 1+5 = 6
-
----
-
-### Problem: Result is exactly zero
-
-**Symptom:**
-```
-  SPIN NETWORK NORM = 0.000000000000000e+00
-```
-
-**Possible causes:**
-1. **Forbidden configuration**: Some 6j symbols have zero value because internal triangle conditions aren't satisfied
-2. **Cancellation**: Multiple terms with opposite signs sum to zero
-
-**What to try:**
-- Check that your graph edges satisfy triangular conditions at each node
-- Try different spin values
-- Verify the graph structure is physically meaningful
 
 ---
 
@@ -486,7 +443,7 @@ Spin_Networks_Project_full/
 │   └── requirements.txt         # Python dependencies
 │
 ├── User Scripts (scripts/)
-│   ├── graph.py                 # Interactive graph editor (keyboard-driven, modern UI)
+│   ├── graph.py                 # Interactive graph editor 
 │   ├── compute_norm.py          # Symbolic computation (→ PDFs)
 │   └── evaluate_norm.py         # Numerical evaluation (→ result)
 │
@@ -500,13 +457,13 @@ Spin_Networks_Project_full/
 │   └── utils.py                 # Utility functions
 │
 ├── Generated Files (ignored by git)
-│   ├── drawn_graph_with_labels.graphml
+│   ├── drawn_graph.graphml
 │   ├── norm_expression.pdf
 │   ├── canon_norm_expression.pdf
 │   └── reconstructed_canon_norm_expression.pdf
 │
 └── Other
-    ├── legacy/                  # Legacy files (old scripts)
+    ├── legacy/                  # Legacy files
     │   └── main.py              # Old combined pipeline
     └── .gitignore               # Git ignore rules
 ```
@@ -517,36 +474,10 @@ Spin_Networks_Project_full/
 
 ### Citation
 
-If you use this tool in your research, please cite:
-
-```
-[Your paper/thesis information here]
-```
+The paper using this code and numerical results produced by it is in the writing process.
+This section will be updated as soon as the paper is submitted.
 
 ---
-
-## Contributing
-
-Found a bug? Have a feature request?
-
-1. Check existing issues at [your repository]
-2. Create a detailed bug report with:
-   - Input graph (GraphML file)
-   - Expected vs. actual output
-   - Python version and OS
-
----
-
-## Future Work
-
-### Features to be Implemented
-
-- [ ] **Caching of 6j values**: Store computed Wigner symbols to avoid recomputation
-- [ ] **Web interface**: Browser-based graph drawing tool
-- [ ] **Batch processing**: Process multiple graphs in one command
-- [ ] **Export formats**: Mathematica, Maple, JSON output
-- [ ] **Visualization**: Animate reduction steps
-- [ ] **Unit tests**: Comprehensive test suite
 
 ### Known Limitations
 
@@ -563,27 +494,19 @@ The evaluator automatically handles large spin values (j up to 1000+) using:
 - **Vectorized operations**: Uses `scipy.special.gammaln` for efficient array computations
 - **No overflow**: All factorial and power computations remain numerically stable
 
-### Contributing
-
-If you'd like to contribute:
-1. Pick an item from "Future Work" above
-2. Fork the repository
-3. Create a feature branch
-4. Submit a pull request with tests
-
 ---
 
 ## License
 
-[Your license here]
+MIT License
 
 ---
 
 ## Authors
 
-[Your name and collaborators]
+Nathan Cohen
 
-**Contact:** [Your email]
+**Contact:** nathan.cohen@univie.ac.at
 
 ---
 
@@ -597,10 +520,14 @@ If you'd like to contribute:
 
 ## Further Reading
 
+### Decomposition Theorem
+- Moussouris, J. (1984), "Quantum models of space-time based on recoupling theory", Ph.D. thesis, University of Oxford.
+- Ruiz, H.-C. (2012),"'Toroidal spin networks: Towards a generalization of the decomposition theorem"
+
 ### Spin Networks
 - Penrose, R. (1971). "Angular momentum: an approach to combinatorial space-time"
-- Kauffman, L. (1991). *Knots and Physics*
+- Kauffman, L. (1991). "Knots and Physics"
 
 ### Wigner Symbols
-- Varshalovich, D. A., Moskalev, A. N., & Khersonskii, V. K. (1988). *Quantum Theory of Angular Momentum*
-- Edmonds, A. R. (1996). *Angular Momentum in Quantum Mechanics*
+- Varshalovich, D. A., Moskalev, A. N., & Khersonskii, V. K. (1988). "Quantum Theory of Angular Momentum"
+- Edmonds, A. R. (1996). "Angular Momentum in Quantum Mechanics"

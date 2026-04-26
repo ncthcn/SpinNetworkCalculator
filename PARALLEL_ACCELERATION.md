@@ -5,15 +5,15 @@ This document describes the parallel evaluation and GPU acceleration features ad
 ## Overview
 
 The evaluator now supports:
-- ✅ **Multi-variable summations** (arbitrary N nested summations)
-- ✅ **CPU parallelization** via multiprocessing
-- ✅ **GPU acceleration** via JAX (Apple Metal, NVIDIA CUDA, or CPU)
-- ✅ **Automatic backend selection** (always uses fastest available)
-- ✅ **NumPy vectorization** for theta/delta symbols
+- **Multi-variable summations** (arbitrary N nested summations)
+- **CPU parallelization** via multiprocessing
+- **GPU acceleration** via JAX (Apple Metal, NVIDIA CUDA, or CPU)
+- **Automatic backend selection** (always uses fastest available)
+- **NumPy vectorization** for theta/delta symbols
 
 ## Quick Start
 
-**No code changes required!** Parallel evaluation is now the default:
+**No code changes required!** Parallel evaluation is the default:
 
 ```python
 from src.spin_evaluator import evaluate_spin_network
@@ -74,44 +74,6 @@ evaluator = SpinNetworkEvaluator(
 )
 ```
 
-## Multi-Variable Summations
-
-The evaluator now handles **arbitrary N nested summations** automatically:
-
-### Example: Double Summation
-
-```python
-term = {
-    "coeffs": [
-        {"type": "sum", "index": "F_1", "range2": {"Fmin": 2, "Fmax": 10}},
-        {"type": "sum", "index": "F_2", "range2": {"Fmin": 2, "Fmax": 10}},
-        {"type": "delta", "fixed": {"j": "F_1"}, "power": 1},
-        {"type": "delta", "fixed": {"j": "F_2"}, "power": 1},
-        {"type": "W6j", "args": (1, "F_1", 2, "F_2", 3, 1), "power": 1}
-    ]
-}
-
-# Evaluates ∑_{F_1=1..5} ∑_{F_2=1..5} [Δ_{F_1} × Δ_{F_2} × W6j(...)]
-result = evaluate_spin_network([term], max_two_j=50)
-```
-
-### Example: Triple Summation
-
-```python
-term = {
-    "coeffs": [
-        {"type": "sum", "index": "F_1", "range2": {"Fmin": 2, "Fmax": 8}},
-        {"type": "sum", "index": "F_2", "range2": {"Fmin": 2, "Fmax": 8}},
-        {"type": "sum", "index": "F_3", "range2": {"Fmin": 2, "Fmax": 8}},
-        # ... coefficients using F_1, F_2, F_3 ...
-    ]
-}
-
-# Automatically parallelized across CPU cores
-result = evaluate_spin_network([term])
-```
-
-**No limit on the number of summation variables!** The code uses `itertools.product` to generate all combinations and evaluates them in parallel.
 
 ## Performance
 
@@ -200,6 +162,14 @@ evaluator = SpinNetworkEvaluator(
     backend='multiprocessing',
     n_workers=n_workers
 )
+```
+
+### For `evaluate_spin_network()`
+```python
+# Force specific backend if needed
+result = evaluate_spin_network(canon_terms, backend='jax')  # Use GPU
+result = evaluate_spin_network(canon_terms, backend='multiprocessing', n_workers=4)  # 4 cores
+result = evaluate_spin_network(canon_terms, backend='serial')  # Debug mode
 ```
 
 ### Disable Parallelization (for debugging)
@@ -302,30 +272,6 @@ benchmark_backends(canonical_terms, max_two_j=200)
 Benchmarks all available backends and returns timing dictionary.
 
 **Returns:** dict mapping backend name to execution time
-
-## Migration Guide
-
-**No changes needed!** Existing code automatically benefits from parallelization:
-
-### Before (old code still works):
-```python
-from src.spin_evaluator import evaluate_spin_network
-result = evaluate_spin_network(canon_terms)
-```
-
-### After (same code, now runs in parallel):
-```python
-from src.spin_evaluator import evaluate_spin_network
-result = evaluate_spin_network(canon_terms)  # Now uses multiprocessing/GPU automatically!
-```
-
-### Optional: Explicit backend control
-```python
-# Force specific backend if needed
-result = evaluate_spin_network(canon_terms, backend='jax')  # Use GPU
-result = evaluate_spin_network(canon_terms, backend='multiprocessing', n_workers=4)  # 4 cores
-result = evaluate_spin_network(canon_terms, backend='serial')  # Debug mode
-```
 
 ## Contributing
 

@@ -1,62 +1,60 @@
-from .utils import is_numeric_label
+from .utils import is_numeric_label, to_doubled
 
-#-------------------------
-# New coefficient builders
-#-------------------------
+# -----------------------------------------------------------------------
+# norm_reducer.py — post-reduction simplification and canonicalisation
+# -----------------------------------------------------------------------
+#
+# After graph_reducer.py has finished, we have a term with a list of
+# coefficient dicts. This module does three further passes:
+#
+#   1. apply_kroneckers  – substitute Kronecker-delta equalities so that
+#                          redundant summation variables are merged.
+#   2. expand_6j_symbolic – replace each standard 6j coefficient with its
+#                           explicit definition in terms of theta/delta/W6j.
+#   3. canonicalise_terms – merge identical factors (accumulate powers),
+#                           sort arguments to a canonical form, and separate
+#                           constant pre-factors from summation-dependent ones.
 
+# -----------------------------------------------------------------------
+# Coefficient builders (used only inside this module)
+# -----------------------------------------------------------------------
+
+# Creates a sign factor (-1)^(sum of args).
+# 'args' is a list of (coefficient_string, variable_or_number) pairs,
+# e.g. [('-', j1), ('+', j2), ('2', F_1)].
 def build_sign_coeff(args):
-    """
-    Build a sign coefficient dict.
-    """
-    fixed = {"args": args}
     return {
         "type": "sign",
-        "fixed": fixed
+        "fixed": {"args": args}
     }
 
-def build_wigner_6j_coeff(a, b, e, c, d, f, power=1):
-    fixed = {"a": a, "b": b, "e": e, "c": c, "d": d, "f": f}
+# -----------------------------------------------------------------------
+# Kronecker substitution
+# -----------------------------------------------------------------------
 
-    # doubled numeric values
-    for key in ["a", "b", "c", "d", "e", "f"]:
-        val = fixed[key]
-        if is_numeric_label(val):
-            fixed[key.upper()] = to_doubled(val)
-    print(f"Built 6j coeff with fixed labels:", a, b, e, c, d, f)
-
-    return {
-        "type": "W6j",
-        "list_order": ["a", "b", "e", "c", "d", "f"],
-        "fixed": fixed,
-        "power": power
-    }
-
+# Kronecker deltas arise whenever two edges that must carry the same spin
+# are merged (degree-2 and 2-cycle reductions). This function:
+#   1. Collects all Kronecker(x, y) constraints.
+#   2. Builds a union-find over the constrained labels.
+#   3. Substitutes every label with its representative.
+#   4. Merges duplicate summation coefficients, intersecting their ranges.
+# Returns the modified term, or None if a numeric contradiction is found
+# (e.g. Kronecker(1, 2) forces j=1 AND j=2 simultaneously → term vanishes).
 def apply_kroneckers(term):
-    """
-    Take a term {'sign', 'coeffs'} and:
-    1. Apply all Kronecker deltas (numeric or symbolic).
-    2. Merge summed indices; intersect ranges when merged.
-    3. Substitute merged indices in 6j, theta, delta, and sum coefficients.
-    4. Remove zero terms.
-    Returns modified term or None if term vanishes.
-    """
-    equalities = {}  # label -> set of equivalent labels
-    sums = {}        # sum index -> sum dict
+    equalities = {}
+    sums = {}
 
-    # 1) Gather all Kronecker deltas
     for c in term["coeffs"]:
         if c["type"] == "Kronecker":
             x, y = c["fixed"]["c"], c["fixed"]["d"]
 
-            # numeric contradiction → term vanishes
             if is_numeric_label(x) and is_numeric_label(y) and x != y:
-                return None
+                return None  # numeric contradiction: term is zero
 
-            # symbolic → record equivalence
             equalities.setdefault(x, set()).add(y)
             equalities.setdefault(y, set()).add(x)
 
-    # 2) Flatten equivalence sets into representative mapping
+    # Union-find: map every label to its canonical representative.
     mapping = {}
 
     def root(x):
@@ -74,35 +72,30 @@ def apply_kroneckers(term):
 
     subst = {x: root(x) for x in mapping}
 
-    # 3) Apply substitution to all coefficients & collect sums
     new_coeffs = []
     for c in term["coeffs"]:
         if c["type"] == "Kronecker":
-            continue  # already processed
+            continue  # already processed; no longer needed
 
         nc = c.copy()
 
-        # Substitute in args
         if "args" in nc:
             nc["args"] = tuple(subst.get(a, a) for a in nc["args"])
 
-        # Substitute in fixed dict
         if "fixed" in nc:
             nc["fixed"] = {k: subst.get(v, v) for k, v in nc["fixed"].items()}
 
-        # Merge sums
         if nc.get("type") == "sum":
             idx = nc["index"]
             rng = nc.get("range2")
             if idx in sums:
                 old_rng = sums[idx].get("range2")
                 if old_rng and rng:
-                    # intersect ranges
                     Fmin = max(old_rng["Fmin"], rng["Fmin"])
                     Fmax = min(old_rng["Fmax"], rng["Fmax"])
                     parity = old_rng.get("parity", rng.get("parity"))
                     if Fmin > Fmax:
-                        return None  # empty sum → term vanishes
+                        return None  # empty summation range: term vanishes
                     sums[idx]["range2"] = {"Fmin": Fmin, "Fmax": Fmax, "parity": parity}
                 elif rng:
                     sums[idx]["range2"] = rng
@@ -111,60 +104,31 @@ def apply_kroneckers(term):
         else:
             new_coeffs.append(nc)
 
-    # 4) Append merged sums
     new_coeffs.extend(sums.values())
 
-    # 5) Propagate substitutions in all nested sums inside 6j/theta/delta
+    # Propagate substitutions into nested sum indices inside other coefficients.
     for c in new_coeffs:
         if c.get("type") in ("6j", "theta", "delta", "delta inverse"):
-            # If the coeff contains a sum index, apply substitution
             if "sum_index" in c and c["sum_index"] in subst:
                 old_idx = c["sum_index"]
                 new_idx = subst[old_idx]
                 c["sum_index"] = new_idx
                 if "gen_args" in c and callable(c["gen_args"]):
-                    # you may regenerate the args if needed
                     c["args"] = tuple(new_idx if x == old_idx else x for x in c["args"])
 
     term["coeffs"] = new_coeffs
     return term
 
+# -----------------------------------------------------------------------
+# 6j expansion
+# -----------------------------------------------------------------------
 
-# def expand_6j_symbolic(coeff):
-#     """
-#     Replace one 6j entry with the symbolic internal 6j definition.
-
-#     Input coeff:
-#         { "type":"6j", "args":(a, b, f, c, d, e) }
-#     """
-#     fixed = coeff.get("fixed", {})
-
-#     a = fixed.get("a", fixed.get("A"))
-#     b = fixed.get("b", fixed.get("B"))
-#     d = fixed.get("d", fixed.get("D"))
-#     c = fixed.get("c", fixed.get("C"))
-#     e = fixed.get("e", fixed.get("E"))
-#     f = fixed.get("f", fixed.get("F"))
-
-#     out = []
-
-#     # sign contribution
-#     out.append(("sign", [("-",a), ("-",b), ("-",c), ("-",d), ("2", f)]))
-
-#     # Δ contributions
-#     out.append(("delta", f))
-    
-#     # θ contributions
-#     out.append(("theta", (a, b, e), .5))
-#     out.append(("theta", (c, d, e), .5))
-#     out.append(("theta", (b, c, f), -.5))
-#     out.append(("theta", (a, d, f), -.5))
-
-#     # Wigner 6j contribution
-#     out.append(("W6j", (a, b, e, c, d, f), 1))
-
-#     return out
-
+# Replaces one standard 6j coefficient {a b f; c d e} with its explicit
+# definition:
+#   (-1)^(-a-b-c-d+2f)  ×  Δ_f  ×  Θ(a,b,e)^(1/2)  ×  Θ(c,d,e)^(1/2)
+#   ×  Θ(b,c,f)^(-1/2)  ×  Θ(a,d,f)^(-1/2)  ×  W6j(a,b,e,c,d,f)
+# The W6j symbol is the "pure" Wigner 6j, evaluated by wigxjpf.
+# Returns a list of coefficient dicts that replace the single 6j entry.
 def expand_6j_symbolic(coeff):
     fixed = coeff.get("fixed", {})
     a = fixed.get("a", fixed.get("A"))
@@ -176,44 +140,36 @@ def expand_6j_symbolic(coeff):
 
     out = []
 
-    # sign contribution
-    out.append({"type": "sign", "fixed": {"args": [("-",a), ("-",b), ("-",c), ("-",d), ("2", f)]}, "power": 1})
-
-    # delta contribution
+    out.append({"type": "sign",
+                "fixed": {"args": [("-", a), ("-", b), ("-", c), ("-", d), ("2", f)]},
+                "power": 1})
     out.append({"type": "delta", "fixed": {"j": f}, "power": 1})
-
-    # theta contributions
     out.append({"type": "theta", "args": (a, b, e), "power": 0.5})
     out.append({"type": "theta", "args": (c, d, e), "power": 0.5})
     out.append({"type": "theta", "args": (b, c, f), "power": -0.5})
     out.append({"type": "theta", "args": (a, d, f), "power": -0.5})
-
-    # Wigner 6j contribution
-    out.append({"type": "W6j", "fixed": {"a": a, "b": b, "e": e, "c": c, "d": d, "f": f}, "power": 1})
+    out.append({"type": "W6j",
+                "fixed": {"a": a, "b": b, "e": e, "c": c, "d": d, "f": f},
+                "power": 1})
 
     return out
 
-# -------------------------
-# Key functions for canonicalisation
-# -------------------------
+# -----------------------------------------------------------------------
+# Canonicalisation helpers
+# -----------------------------------------------------------------------
 
+# Simplifies a sign coefficient (-1)^(sum) by:
+#   - Summing all numeric contributions.
+#   - Collecting variable contributions by name (to merge duplicates).
+#   - Returning None if the exponent is always even (factor = 1).
+#   - Returning {"type": "sign_value", "value": -1} if it's always odd.
 def canonicalise_sign(sign_coeff):
-    """
-    Canonicalise a sign coefficient by:
-    1. Summing all numeric terms
-    2. Collecting variable terms with their coefficients
-
-    Input: sign_coeff with args = [(coeff, val), ...]
-    Output: canonicalised sign_coeff with combined terms
-    """
     args = sign_coeff.get("fixed", {}).get("args", [])
 
-    # Accumulate numeric sum and variable terms
     numeric_sum = 0
-    var_terms = {}  # variable -> coefficient
+    var_terms = {}
 
     for coeff_str, val in args:
-        # Parse coefficient (could be '-', '+', '2', etc.)
         if coeff_str == '-':
             coeff = -1
         elif coeff_str == '+' or coeff_str is None:
@@ -222,36 +178,24 @@ def canonicalise_sign(sign_coeff):
             try:
                 coeff = float(coeff_str)
             except:
-                coeff = 1  # fallback
+                coeff = 1
 
-        # Check if val is numeric or variable
         if isinstance(val, (int, float)):
             numeric_sum += coeff * val
         else:
-            # Variable term
             var_name = str(val)
             var_terms[var_name] = var_terms.get(var_name, 0) + coeff
 
-    # If only numeric (no variables), simplify based on parity
     if not var_terms or all(c == 0 for c in var_terms.values()):
-        # Check if numeric_sum is even or odd
         if numeric_sum % 2 == 0:
-            return None  # (-1)^even = 1, remove the sign
+            return None         # (-1)^even = 1
         else:
-            # (-1)^odd = -1, return a special marker
             return {"type": "sign_value", "value": -1}
 
-    # Rebuild args list for mixed numeric/variable case
     new_args = []
-
-    # Add numeric sum if non-zero
     if numeric_sum != 0:
-        if numeric_sum > 0:
-            new_args.append(('+', numeric_sum))
-        else:
-            new_args.append(('-', -numeric_sum))
+        new_args.append(('+', numeric_sum) if numeric_sum > 0 else ('-', -numeric_sum))
 
-    # Add variable terms sorted alphabetically
     for var in sorted(var_terms.keys()):
         coeff = var_terms[var]
         if coeff == 0:
@@ -265,45 +209,21 @@ def canonicalise_sign(sign_coeff):
         else:
             new_args.append((f'{coeff}', var))
 
-    return {
-        "type": "sign",
-        "fixed": {"args": new_args}
-    }
+    return {"type": "sign", "fixed": {"args": new_args}}
 
+# Sorts a tuple of mixed numeric/symbolic arguments into canonical order
+# (numbers first, then symbols alphabetically). Used by theta_key and
+# wigner_sixj_key to make the key independent of argument order.
 def sort_mixed_args(args):
-    """
-    Sort arguments for canonical form.
-    Numbers first (ints/floats), then symbols (strings).
-    """
     def key(x):
         return (0, x) if isinstance(x, (int, float)) else (1, str(x))
     return tuple(sorted(args, key=key))
 
-# def theta_key(c):
-#     """
-#     Canonical key for a theta coefficient.
-#     Accepts dict with 'args' or 'fixed'->'args', or raw tuple/list.
-#     """
-#     if isinstance(c, dict):
-#         args = c.get("args") or c.get("fixed", {}).get("args")
-#         if args is None:
-#             raise ValueError(f"No args found in coefficient: {c}")
-#     elif isinstance(c, (tuple, list)):
-#         args = tuple(c)
-#     else:
-#         raise TypeError(f"Unexpected type for theta_key: {type(c)}")
-
-#     return ("theta", sort_mixed_args(args))
-
+# Canonical key for a theta coefficient.
+# theta(a, b, c) = theta(b, a, c) = theta(c, a, b) … (symmetric in all 3
+# arguments), so we sort them to produce a unique representative.
+# Returns ("theta", sorted_args, power).
 def theta_key(c):
-    """
-    Canonical key for a theta coefficient.
-    Works with either:
-      - dict: {"type":"theta", "args":(...)} or {"fixed": {...}}
-      - tuple: ("theta", args, power)
-    Returns a sorted tuple of arguments and power.
-    """
-    # extract args and power
     if isinstance(c, tuple):
         _, args, power = c
     elif isinstance(c, dict):
@@ -317,28 +237,20 @@ def theta_key(c):
     else:
         raise TypeError(f"Unsupported theta coeff type: {type(c)}")
 
-    # custom sort to mix numbers and strings
     def sort_mixed(x):
         return (0, x) if isinstance(x, (int, float)) else (1, str(x))
 
     sorted_args = tuple(sorted(args, key=sort_mixed))
     return ("theta", sorted_args, power)
 
+# Canonical key for a Wigner 6j coefficient using its full 24-fold symmetry.
+# The Wigner 6j symbol {a b c; d e f} is invariant under:
+#   - Any permutation of its 3 columns.
+#   - Swapping upper and lower entries in any pair of columns.
+# Together this gives the tetrahedral group of order 24. We enumerate all 24
+# equivalent forms and pick the lexicographically smallest one as the key.
+# Returns ("W6j", canonical_args, power).
 def wigner_sixj_key(c):
-    """
-    Canonical key for a W6j coefficient using correct Regge symmetries.
-
-    The Wigner 6j symbol {a b c; d e f} has 24 symmetries (tetrahedral group).
-    These come from:
-    - Even permutations of the 3 columns (6 permutations)
-    - Interchanging upper and lower rows in each column (×2 for each column)
-    - Combined: 6 × 4 = 24 total symmetries
-
-    Accepts either:
-      - dict with 'fixed'
-      - tuple: ("W6j", args, power)
-    Returns lexicographically minimal Regge-equivalent tuple plus power.
-    """
     if isinstance(c, tuple):
         _, args, power = c
     elif isinstance(c, dict):
@@ -355,123 +267,99 @@ def wigner_sixj_key(c):
 
     a, b, c, d, e, f = args
 
-    # Generate all 24 Regge symmetries
-    # Start with 6 even column permutations, then apply row swaps
     column_perms = [
-        (a, b, c, d, e, f),  # identity
-        (b, c, a, e, f, d),  # cycle (123)
-        (c, a, b, f, d, e),  # cycle (132)
-        (a, c, b, d, f, e),  # swap columns 2↔3
-        (c, b, a, f, e, d),  # swap columns 1↔3
-        (b, a, c, e, d, f),  # swap columns 1↔2
+        (a, b, c, d, e, f),
+        (b, c, a, e, f, d),
+        (c, a, b, f, d, e),
+        (a, c, b, d, f, e),
+        (c, b, a, f, e, d),
+        (b, a, c, e, d, f),
     ]
 
-    # For each column permutation, generate 4 variants by swapping rows in pairs
     all_symmetries = []
     for (j1, j2, j3, j4, j5, j6) in column_perms:
-        # Original
         all_symmetries.append((j1, j2, j3, j4, j5, j6))
-        # Swap rows in columns 1&2
         all_symmetries.append((j4, j5, j3, j1, j2, j6))
-        # Swap rows in columns 1&3
         all_symmetries.append((j4, j2, j6, j1, j5, j3))
-        # Swap rows in columns 2&3
         all_symmetries.append((j1, j5, j6, j4, j2, j3))
 
-    # Custom key for sorting mixed types (numbers first, then strings)
     def sort_key(mat):
         return tuple((0, x) if isinstance(x, (int, float)) else (1, str(x)) for x in mat)
 
     return ("W6j", min(all_symmetries, key=sort_key), power)
 
+# -----------------------------------------------------------------------
+# Canonicalisation pass
+# -----------------------------------------------------------------------
+
+# Combines identical factors by accumulating their powers (theta^p * theta^q
+# → theta^(p+q)), merges all sign coefficients into one, and separates
+# constant pre-factors from summation-dependent ones so the LaTeX output
+# and the evaluator see a clean, well-ordered expression:
+#
+#   [constant thetas/deltas/sign]  ×  ∑_F [F-dependent thetas/W6j/…]
 def canonicalise_terms(terms):
-    """
-    Canonicalise a list of terms.
-    Handles both dict and tuple coefficients.
-    Returns new list of canonicalised terms.
-    """
     canon_terms = []
 
     for term in terms:
-        power_accumulator = {}  # maps (type, args) -> total_power
-        sign_coeffs = []  # collect all sign coefficients to merge
-        non_canonical_coeffs = []  # for coeffs that shouldn't be canonicalized
+        power_accumulator = {}
+        sign_coeffs = []
+        non_canonical_coeffs = []
 
         for c in term["coeffs"]:
             typ = c[0] if isinstance(c, tuple) else c.get("type")
             if typ == "theta":
-                key = theta_key(c)  # returns ("theta", sorted_args, power)
-                typ_key = (key[0], key[1])  # (type, args) without power
+                key = theta_key(c)
+                typ_key = (key[0], key[1])
                 power_accumulator[typ_key] = power_accumulator.get(typ_key, 0) + key[2]
             elif typ == "W6j":
-                key = wigner_sixj_key(c)  # returns ("W6j", canonical_args, power)
-                typ_key = (key[0], key[1])  # (type, args) without power
+                key = wigner_sixj_key(c)
+                typ_key = (key[0], key[1])
                 power_accumulator[typ_key] = power_accumulator.get(typ_key, 0) + key[2]
             elif typ == "delta":
-                # Accumulate delta powers by their index j
                 fixed = c.get("fixed", {})
                 j = fixed.get("j", fixed.get("J"))
                 power = c.get("power", 1)
                 typ_key = ("delta", j)
                 power_accumulator[typ_key] = power_accumulator.get(typ_key, 0) + power
             elif typ == "sign":
-                # Collect sign coefficients to merge
                 sign_coeffs.append(c)
             else:
-                # keep other coefficient types (sum, 6j, Kronecker) as-is
                 non_canonical_coeffs.append(c)
 
-        # Merge all sign coefficients into one
-        overall_sign = 1  # Track the overall sign multiplier
+        # Merge all sign factors into one simplified sign.
+        overall_sign = 1
         if sign_coeffs:
-            # Merge all signs by combining their args
             merged_args = []
             for sign_c in sign_coeffs:
-                args = sign_c.get("fixed", {}).get("args", [])
-                merged_args.extend(args)
+                merged_args.extend(sign_c.get("fixed", {}).get("args", []))
 
-            # Create merged sign and canonicalize it
-            merged_sign = {"type": "sign", "fixed": {"args": merged_args}}
-            canonical_sign = canonicalise_sign(merged_sign)
+            canonical_sign = canonicalise_sign({"type": "sign", "fixed": {"args": merged_args}})
 
-            # Handle the canonicalized sign result
             if canonical_sign is None:
-                # Sign simplified to 1, no need to add it
                 sign_coeffs = []
             elif canonical_sign.get("type") == "sign_value":
-                # Sign simplified to -1
                 overall_sign = canonical_sign.get("value", 1)
                 sign_coeffs = []
             elif canonical_sign.get("fixed", {}).get("args"):
-                # Sign still has variable terms
                 sign_coeffs = [canonical_sign]
             else:
                 sign_coeffs = []
 
-        # Reconstruct canonical coeffs
         new_coeffs = []
-
-        # First, add the overall sign if it's -1
         if overall_sign == -1:
             new_coeffs.append({"type": "sign_value", "value": -1})
 
-        # Collect sum indices to identify which coefficients depend on summed variables
-        sum_indices = set()
-        for c in non_canonical_coeffs:
-            if isinstance(c, dict) and c.get("type") == "sum":
-                sum_indices.add(c.get("index"))
+        sum_indices = set(c.get("index") for c in non_canonical_coeffs
+                         if isinstance(c, dict) and c.get("type") == "sum")
 
-        # Helper function to check if a coefficient contains a summed variable
+        # Helper: does this coefficient involve any summation variable?
         def contains_summed_var(coeff):
             if not isinstance(coeff, dict):
                 return False
-
-            # Check in args
             args = coeff.get("args", ())
             if any(str(arg) in sum_indices for arg in args):
                 return True
-
-            # Check in fixed (including nested structures for sign coefficients)
             fixed = coeff.get("fixed", {})
             for val in fixed.values():
                 if isinstance(val, str) and val in sum_indices:
@@ -481,10 +369,8 @@ def canonicalise_terms(terms):
                         if isinstance(v, str) and v in sum_indices:
                             return True
                 elif isinstance(val, (list, tuple)):
-                    # For sign coefficients: {"args": [('-', 'F_1'), ('+', 'F_2'), ...]}
                     for item in val:
                         if isinstance(item, (list, tuple)):
-                            # Each item is (sign, value) tuple
                             for sub_item in item:
                                 if isinstance(sub_item, str) and sub_item in sum_indices:
                                     return True
@@ -492,14 +378,13 @@ def canonicalise_terms(terms):
                             return True
             return False
 
-        # Separate coefficients into those without and with summed variables
+        # Partition accumulated power factors into pre-sum and post-sum groups.
         coeffs_before_sum = []
         coeffs_after_sum = []
 
         for (typ, args), total_power in power_accumulator.items():
-            # Skip coefficients that cancel out (power = 0)
             if total_power == 0:
-                continue
+                continue  # factors that cancelled out
 
             if typ == "theta":
                 coeff = {"type": "theta", "args": args, "power": total_power}
@@ -515,53 +400,34 @@ def canonicalise_terms(terms):
             else:
                 coeffs_before_sum.append(coeff)
 
-        # Build final coefficient list: non-summed → sum → summed coeffs (including signs)
+        # Final ordering: constant factors → sum symbol → F-dependent factors.
         new_coeffs.extend(coeffs_before_sum)
 
-        # Check if sign coefficients contain summed variables
-        sign_before_sum = []
-        sign_after_sum = []
-        for sign_c in sign_coeffs:
-            if contains_summed_var(sign_c):
-                sign_after_sum.append(sign_c)
-            else:
-                sign_before_sum.append(sign_c)
+        sign_before_sum = [s for s in sign_coeffs if not contains_summed_var(s)]
+        sign_after_sum  = [s for s in sign_coeffs if contains_summed_var(s)]
 
-        new_coeffs.extend(sign_before_sum)  # Signs without summed variables go before sum
-        new_coeffs.extend([c for c in non_canonical_coeffs if c.get("type") == "sum"])  # Sum symbols
-        new_coeffs.extend(sign_after_sum)  # Signs with summed variables go after sum
+        new_coeffs.extend(sign_before_sum)
+        new_coeffs.extend([c for c in non_canonical_coeffs if c.get("type") == "sum"])
+        new_coeffs.extend(sign_after_sum)
         new_coeffs.extend(coeffs_after_sum)
-        new_coeffs.extend([c for c in non_canonical_coeffs if c.get("type") != "sum"])  # Other
+        new_coeffs.extend([c for c in non_canonical_coeffs if c.get("type") != "sum"])
 
         term["coeffs"] = new_coeffs
         canon_terms.append(term)
 
     return canon_terms
 
+# -----------------------------------------------------------------------
+# Reconstruction
+# -----------------------------------------------------------------------
+
+# Converts canonical terms back into the standard term format
+# (list of dicts with a "coeffs" key). This is a no-op for dict coefficients
+# but handles any legacy tuple entries by passing them through unchanged.
+# Used when we need to re-render the LaTeX after canonicalisation.
 def reconstruct_terms_from_canonical(canon_terms):
-    """
-    Reconstruct terms in the original structure form (like reduce_all_cycles output)
-    from the canonicalised terms.
-
-    Input:
-        canon_terms: list of canonicalised terms, each with 'coeffs' list
-    Output:
-        terms: list of terms with 'coeffs' list in the original format
-    """
     reconstructed = []
-
     for term in canon_terms:
-        coeffs = []
-        for c in term.get("coeffs", []):
-            # Only dicts have a "type"
-            if isinstance(c, dict):
-                coeffs.append(c)
-            else:
-                # Keep tuples or strings as-is
-                coeffs.append(c)
-
+        coeffs = [c for c in term.get("coeffs", [])]
         reconstructed.append({"coeffs": coeffs})
-
     return reconstructed
-
-

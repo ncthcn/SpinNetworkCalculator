@@ -6,7 +6,7 @@ Compute transition probabilities for spin network edge reconnections with automa
 
 ```bash
 # Step 1: Launch the GUI with your graph
-python scripts/reconnect_edges.py drawn_graph_with_labels.graphml
+python scripts/reconnect_edges.py drawn_graph.graphml
 
 # Step 2: In the GUI:
 #   - Click two open edges (orange)
@@ -23,7 +23,7 @@ python scripts/reconnect_edges.py drawn_graph_with_labels.graphml
 
 1. **Open your graph**:
    ```bash
-   python scripts/reconnect_edges.py drawn_graph_with_labels.graphml
+   python scripts/reconnect_edges.py drawn_graph.graphml
    ```
 
 2. **Select two open edges**:
@@ -56,7 +56,7 @@ python scripts/reconnect_edges.py drawn_graph_with_labels.graphml
 ### Example Session
 
 ```
-$ python scripts/reconnect_edges.py drawn_graph_with_labels.graphml
+$ python scripts/reconnect_edges.py drawn_graph.graphml
 
 [GUI opens]
 [Click edge 1-2]
@@ -113,8 +113,6 @@ Where:
 c
 ```
 
-This is a fundamental constraint from quantum mechanics (completeness).
-
 ### Test Results
 
 **Pass (✓)**:
@@ -145,9 +143,9 @@ The new edge label c must satisfy:
 ```
 
 **Examples**:
-- Edges 1.0 + 1.0 → possible values: [0.0, 1.0, 2.0]
+- Edges 1.0 + 1.5 → possible values: [0.5, 1.5, 2.5]
 - Edges 2.0 + 3.0 → possible values: [1.0, 2.0, 3.0, 4.0, 5.0]
-- Edges 7.5 + 9.5 → possible values: [2.0, 2.5, 3.0, ..., 17.0] (31 values!)
+- Edges 7.5 + 9.5 → possible values: [2.0, 3.0, ..., 17.0]
 
 The GUI automatically determines all valid values.
 
@@ -156,7 +154,7 @@ The GUI automatically determines all valid values.
 You can also use the command line directly (without GUI):
 
 ```bash
-python scripts/compute_all_probabilities.py drawn_graph_with_labels.graphml 1-2 3-4
+python scripts/compute_all_probabilities.py drawn_graph.graphml 1-2 3-4
 ```
 
 Where `1-2` and `3-4` specify which edges to reconnect (format: `node1-node2`).
@@ -170,7 +168,7 @@ In the GUI:
 
 ## Tips
 
-1. **Always use "All values" mode** for physics calculations - the normalization test is crucial!
+1. **Always use "All values" mode** for physics calculations - the normalization test is crucial.
 
 2. **Open edges** are those connected to vertices with degree < 3. They appear orange in the GUI.
 

@@ -32,7 +32,7 @@ Load and modify an existing graph interactively:
 
 ```bash
 # Start with an existing graph
-python scripts/modify_graph.py drawn_graph_with_labels.graphml
+python scripts/modify_graph.py drawn_graph.graphml
 
 # Or load a graph via File menu
 python scripts/modify_graph.py
@@ -61,7 +61,7 @@ python scripts/modify_graph.py
 Complete workflow from original graph to comparison results:
 
 ```bash
-python scripts/compare_graphs.py drawn_graph_with_labels.graphml
+python scripts/compare_graphs.py drawn_graph.graphml
 ```
 
 This will:
@@ -97,7 +97,7 @@ When you save a modified graph, several files are created:
 
 ```json
 {
-  "original_file": "drawn_graph_with_labels.graphml",
+  "original_file": "drawn_graph.graphml",
   "modified_file": "modified_graph.graphml",
   "original_norm": -384.0,
   "modified_norm": -42.67,
@@ -135,10 +135,10 @@ The `compare_graphs.py` script computes all these quantities for you.
 ```bash
 # 1. Create an initial graph (or use existing one)
 python scripts/graph.py
-# Draw your graph, save as drawn_graph_with_labels.graphml
+# Draw your graph, save as drawn_graph.graphml
 
 # 2. Run comparison workflow
-python scripts/compare_graphs.py drawn_graph_with_labels.graphml
+python scripts/compare_graphs.py drawn_graph.graphml
 
 # GUI opens:
 #  - Add a new edge somewhere
@@ -149,7 +149,7 @@ python scripts/compare_graphs.py drawn_graph_with_labels.graphml
 cat modified_graph_comparison.json
 
 # 4. Repeat for different modifications
-python scripts/compare_graphs.py drawn_graph_with_labels.graphml -o variant2.graphml
+python scripts/compare_graphs.py drawn_graph.graphml -o variant2.graphml
 ```
 
 ## Constraints

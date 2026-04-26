@@ -23,7 +23,7 @@ pip install -r requirements.txt
 pip install jax-metal
 ```
 
-**Note:** JAX provides automatic GPU/parallel acceleration. On M3 Macs with `jax-metal`, expect 10-100x speedup!
+**Note:** JAX provides automatic GPU/parallel acceleration. On M3 Macs with `jax-metal`, expect 10-100x speedup.
 
 ## Usage (Every Time)
 
@@ -41,7 +41,7 @@ python scripts/graph.py
 # → Press D to delete nodes, X to delete edges
 # → Press S to save and exit
 
-# Compute symbolic form (generates PDFs)
+# Compute symbolic form (generates PDFs and .txt)
 python scripts/compute_norm.py
 
 # Evaluate numerically
@@ -61,10 +61,9 @@ python scripts/evaluate_norm.py my_network.graphml
 
 ## What You Get
 
-### Files Generated:
-- `norm_expression.pdf` - Raw symbolic expression
-- `canon_norm_expression.pdf` - Simplified canonical form
-- `reconstructed_canon_norm_expression.pdf` - Alternative representation
+### Files Generated (Clean symbolic expression):
+- `canon_norm_expression.pdf`
+- `canon_norm_expression.txt`
 
 ### Console Output:
 ```
@@ -88,7 +87,7 @@ Evaluating term 1/1...
 ======================================================================
 ```
 
-This number is your result!
+This number is your result.
 
 **Note:** The evaluation now runs in parallel automatically using all your CPU cores (or GPU if available).
 

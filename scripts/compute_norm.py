@@ -22,22 +22,26 @@ The script does NOT perform numerical evaluation - use evaluate_norm.py for that
 
 import os
 import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import networkx as nx
-from src.drawing import draw_graph, compute_layout
-from src.utils import check_triangular_condition
-from src.graph_reducer import reduce_all_cycles
+
+from src.drawing import compute_layout, draw_graph, plot_kuratowski
 from src.gluer import glue_open_edges
-from src.LaTeX_rendering import save_latex_pdf
-from src.norm_reducer import canonicalise_terms, reconstruct_terms_from_canonical, apply_kroneckers, expand_6j_symbolic
+from src.graph_reducer import reduce_all_cycles
+from src.LaTeX_rendering import save_formula_txt, save_latex_pdf
+from src.norm_reducer import apply_kroneckers, canonicalise_terms, expand_6j_symbolic
 from src.reduction_animator import ReductionAnimator
+from src.utils import check_triangular_condition
 
 
+# Reads a .graphml file produced by graph.py, converts edge labels to float
+# where possible, and populates the "pos" node attribute from stored x/y
+# coordinates (or from kamada-kawai layout as a fallback).
+# Returns a NetworkX MultiGraph ready for gluing and reduction.
 def load_graph_from_file(file_path):
-    """
-    Load a graph from a GraphML file and ensure all nodes have valid positions.
-    """
+    """Load a graph from a GraphML file and ensure all nodes have valid positions."""
     graph = nx.read_graphml(file_path, force_multigraph=True)
 
     # Convert edge labels to float or keep as string
@@ -52,7 +56,10 @@ def load_graph_from_file(file_path):
     for node in graph.nodes:
         if "x" in graph.nodes[node] and "y" in graph.nodes[node]:
             # If x and y attributes exist, use them to set the position
-            graph.nodes[node]["pos"] = (float(graph.nodes[node]["x"]), float(graph.nodes[node]["y"]))
+            graph.nodes[node]["pos"] = (
+                float(graph.nodes[node]["x"]),
+                float(graph.nodes[node]["y"]),
+            )
         else:
             # Otherwise, use the default position
             graph.nodes[node]["pos"] = pos[node]
@@ -60,10 +67,11 @@ def load_graph_from_file(file_path):
     return graph
 
 
+# Terminal pretty-printer for the coefficient list produced by reduce_all_cycles.
+# Iterates over each term and each coefficient dict, printing a human-readable
+# product string. Used only for quick inspection; the authoritative output is
+# the LaTeX PDF produced by save_latex_pdf.
 def print_norm_expression(terms):
-    """
-    Print the norm expression in a readable format.
-    """
     ORDER = {
         "sum": 0,
         "sign": 1,
@@ -79,10 +87,7 @@ def print_norm_expression(terms):
         coeffs = term.get("coeffs", [])
 
         # sort coeff list by type priority
-        coeffs = sorted(
-            coeffs,
-            key=lambda c: ORDER.get(c.get("type"), 999)
-        )
+        coeffs = sorted(coeffs, key=lambda c: ORDER.get(c.get("type"), 999))
 
         factors = []
 
@@ -94,9 +99,7 @@ def print_norm_expression(terms):
                 f = c.get("index", "f")
                 rng = c.get("range2")
                 if rng:
-                    rng_str = (
-                        f"[{f}={rng['Fmin']/2},..., {rng['Fmax']/2}]"
-                    )
+                    rng_str = f"[{f}={rng['Fmin'] / 2},..., {rng['Fmax'] / 2}]"
                     factors.append(f"∑_{rng_str}")
                 else:
                     factors.append(f"∑_{{f}}")
@@ -157,26 +160,36 @@ def print_norm_expression(terms):
     print("|", product_str, "|")
 
 
+# Entry point for the symbolic computation workflow:
+#   load → validate → glue → reduce → Kronecker → expand 6j → canonicalise → PDF
+# With --animate, captures each reduction step as a PNG and compiles a GIF.
+# Does NOT evaluate numerically; use evaluate_norm.py for that.
+# Draws the Kuratowski subgraph (a K5 or K3,3 subdivision) returned by
 def main():
     # Parse command line arguments
-    filepath = "drawn_graph_with_labels.graphml"
+    filepath = "drawn_graph.graphml"
     animate = False
+    strict_planarity = False
 
     for arg in sys.argv[1:]:
         if arg == "--animate":
             animate = True
+        elif arg == "--strict-planarity":
+            strict_planarity = True
         elif not arg.startswith("--"):
             filepath = arg
 
     # Check if file exists
     if not os.path.exists(filepath):
         print(f"Error: '{filepath}' not found.")
-        print(f"\nUsage: python {sys.argv[0]} [input_file.graphml] [--animate]")
+        print(
+            f"\nUsage: python {sys.argv[0]} [input_file.graphml] [--animate] [--strict-planarity]"
+        )
         sys.exit(1)
 
-    print("="*70)
+    print("=" * 70)
     print("SPIN NETWORK NORM COMPUTATION (Symbolic)")
-    print("="*70)
+    print("=" * 70)
     print(f"Input file: {filepath}")
     if animate:
         print("Animation: ENABLED 🎬")
@@ -191,7 +204,9 @@ def main():
     # Load graph
     print("Loading graph...")
     graph = load_graph_from_file(filepath)
-    print(f"  Loaded graph with {graph.number_of_nodes()} nodes and {graph.number_of_edges()} edges")
+    print(
+        f"  Loaded graph with {graph.number_of_nodes()} nodes and {graph.number_of_edges()} edges"
+    )
 
     # Check triangular condition
     try:
@@ -203,7 +218,9 @@ def main():
 
     # Draw original graph
     print("\nDrawing original graph...")
-    edge_labels_orig = {(u, v, k): d["label"] for u, v, k, d in graph.edges(keys=True, data=True)}
+    edge_labels_orig = {
+        (u, v, k): d["label"] for u, v, k, d in graph.edges(keys=True, data=True)
+    }
     draw_graph(graph, edge_labels_orig)
 
     # Capture original graph
@@ -212,7 +229,7 @@ def main():
             graph,
             title="Original Spin Network",
             description=f"Input graph with {graph.number_of_nodes()} nodes and {graph.number_of_edges()} edges before any transformations.",
-            operation="initial"
+            operation="initial",
         )
 
     # Glue with copy
@@ -224,7 +241,9 @@ def main():
 
     # Draw glued graph
     print("Drawing glued graph...")
-    edge_labels_glued = {(u, v, k): d["label"] for u, v, k, d in glued_graph.edges(keys=True, data=True)}
+    edge_labels_glued = {
+        (u, v, k): d["label"] for u, v, k, d in glued_graph.edges(keys=True, data=True)
+    }
     draw_graph(glued_graph, edge_labels_glued)
 
     # Capture glued graph
@@ -233,15 +252,23 @@ def main():
             glued_graph,
             title="After Gluing Open Edges",
             description=f"Open edges glued to form theta graph. Now has {glued_graph.number_of_nodes()} nodes and {glued_graph.number_of_edges()} edges.",
-            operation="glue"
+            operation="glue",
         )
 
-    # Check planarity
-    is_planar, embedding = nx.check_planarity(glued_graph)
+    # Check planarity — counterexample=True returns the Kuratowski subgraph on failure
+    is_planar, certificate = nx.check_planarity(glued_graph, counterexample=True)
     if is_planar:
         print("  ✓ The glued graph is planar")
     else:
-        print("  ✗ Warning: The glued graph is not planar")
+        out_png = os.path.splitext(filepath)[0] + "_kuratowski.png"
+        plot_kuratowski(certificate, out_png)
+        if strict_planarity:
+            print("  ✗ Non-planar graph — aborting (--strict-planarity is set)")
+            sys.exit(1)
+        print(
+            "  ⚠ Non-planar graph — proceeding with cycle-basis fallback"
+            " (pass --strict-planarity to abort instead)"
+        )
 
     # Perform graph reduction
     print("\nPerforming graph reduction (F-moves, triangle reductions)...")
@@ -251,12 +278,6 @@ def main():
 
     # Print symbolic result
     print_norm_expression(terms)
-
-    # Optionally save raw (non-canonical) LaTeX expression
-    # Uncomment the following lines to save the non-canonical expression:
-    # print("\nSaving raw norm expression...")
-    # save_latex_pdf(terms, filename="norm_expression.pdf")
-    # print("  ✓ Saved: norm_expression.pdf")
 
     # Apply Kronecker reductions
     print("\nApplying Kronecker reductions...")
@@ -282,21 +303,18 @@ def main():
     print("Canonicalizing expression...")
     canon_terms = canonicalise_terms(clean_terms)
 
-    # Save canonical LaTeX
+    # Save canonical LaTeX and plain-text formula
     print("\nSaving canonical norm expression...")
     save_latex_pdf(canon_terms, filename="canon_norm_expression.pdf")
     print("  ✓ Saved: canon_norm_expression.pdf")
-
-    # # Also save reconstructed form
-    # t = reconstruct_terms_from_canonical(canon_terms)
-    # save_latex_pdf(t, filename="reconstructed_canon_norm_expression.pdf")
-    # print("  ✓ Saved: reconstructed_canon_norm_expression.pdf")
+    save_formula_txt(canon_terms, "canon_norm_expression.txt")
+    print("  ✓ Saved: canon_norm_expression.txt")
 
     # Generate animations if requested
     if animator:
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print("GENERATING ANIMATIONS")
-        print("="*70)
+        print("=" * 70)
 
         # Show summary
         animator.summary()
@@ -309,18 +327,21 @@ def main():
         print("\nGenerating PDF slideshow...")
         animator.save_slides_pdf("reduction_slides.pdf")
 
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print("ANIMATION FILES CREATED")
-        print("="*70)
+        print("=" * 70)
         print("  📊 Individual frames: reduction_steps/step_*.png")
         print("  🎬 Animated GIF: reduction.gif")
         print("  📄 PDF Slideshow: reduction_slides.pdf")
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("SYMBOLIC COMPUTATION COMPLETE")
-    print("="*70)
-    print("\nNext step: Use 'python evaluate_norm.py' to compute numerical value")
-    print("(Make sure canon_norm_expression.pdf was generated successfully)")
+    print("=" * 70)
+    print("\nNext steps:")
+    print("  • python scripts/evaluate_norm.py            (numerical evaluation)")
+    print(
+        "  • python scripts/evaluate_formula.py \"$(grep -v '^#' canon_norm_expression.txt)\"  (formula evaluator)"
+    )
     if animate:
         print("\nTo view the animation:")
         print("  - Open reduction.gif in any image viewer")

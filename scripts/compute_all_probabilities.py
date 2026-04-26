@@ -23,33 +23,61 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 import argparse
 import json
 import networkx as nx
-import tempfile
 
 from src.gluer import glue_open_edges
 from src.graph_reducer import reduce_all_cycles
 from src.norm_reducer import canonicalise_terms, apply_kroneckers, expand_6j_symbolic
 from src.spin_evaluator import evaluate_spin_network, SpinNetworkEvaluator
+from src.LaTeX_rendering import terms_to_formula_string
 
 
-def load_graph(file_path):
-    """Load graph from GraphML."""
+# Standard graph loader shared by all scripts: reads GraphML, coerces labels
+# to float, populates "pos" from stored x/y or kamada-kawai fallback.
+def load_graph_from_file(file_path):
+    """Load a graph from a GraphML file and ensure all nodes have valid positions."""
     graph = nx.read_graphml(file_path, force_multigraph=True)
 
+    # Convert edge labels to float or keep as string
     for u, v, data in graph.edges(data=True):
         try:
             data["label"] = float(data["label"])
         except (ValueError, KeyError):
-            pass
+            pass  # Keep non-numeric labels as strings
+
+    # Ensure all nodes have valid positions
+    pos = nx.kamada_kawai_layout(graph)
+    for node in graph.nodes:
+        if "x" in graph.nodes[node] and "y" in graph.nodes[node]:
+            graph.nodes[node]["pos"] = (float(graph.nodes[node]["x"]), float(graph.nodes[node]["y"]))
+        else:
+            graph.nodes[node]["pos"] = pos[node]
 
     return graph
 
 
-def compute_norm(graph_file, quiet=True):
-    """Compute spin network norm."""
+# Thin wrapper: loads the file then delegates to compute_norm_from_graph.
+def compute_norm_from_file(graph_file, quiet=True):
+    """Compute spin network norm from a GraphML file."""
     if not quiet:
         print(f"Computing norm for {graph_file}...")
 
-    graph = load_graph(graph_file)
+    graph = load_graph_from_file(graph_file)
+    return compute_norm_from_graph(graph, quiet=quiet)
+
+
+# Core norm pipeline: glue → reduce → Kronecker → expand 6j → canonicalise
+# → evaluate. Returns a float. The same logic appears in evaluate_norm.py;
+# having it here avoids subprocess calls and lets batch loops stay in-process.
+def compute_norm_from_graph(graph, quiet=True):
+    """Compute spin network norm from a NetworkX graph object."""
+    canon_terms, result = _compute_norm_full(graph)
+    if not quiet:
+        print(f"  → Norm = {result}")
+    return result
+
+
+def _compute_norm_full(graph):
+    """Run full norm pipeline; return (canon_terms, norm_float)."""
     glued_graph = glue_open_edges(graph)
     terms = reduce_all_cycles(glued_graph, animator=None)
 
@@ -71,13 +99,20 @@ def compute_norm(graph_file, quiet=True):
 
     canon_terms = canonicalise_terms(clean_terms)
     result = evaluate_spin_network(canon_terms)
-
-    if not quiet:
-        print(f"  → Norm = {result}")
-
-    return result
+    return canon_terms, result
 
 
+# Short aliases used inside main() for readability.
+def load_graph(file_path):
+    return load_graph_from_file(file_path)
+
+
+def compute_norm(graph_file, quiet=True):
+    return compute_norm_from_file(graph_file, quiet=quiet)
+
+
+# Enumerates all c values satisfying the triangle inequality |j1-j2| ≤ c ≤ j1+j2
+# with integer step (the integer-sum rule requires j1+j2+c ∈ Z, so step is always 1).
 def calculate_possible_values(j1, j2):
     """Calculate all possible values for new edge based on triangle inequality."""
     possible = []
@@ -98,11 +133,12 @@ def calculate_possible_values(j1, j2):
     return possible
 
 
+# Builds the reconnected graph G2 for a given new label c:
+# removes the two specified open edges, inserts a new trivalent vertex,
+# and adds a new open edge with label new_label. Returns (G2, label1, label2).
+# Edge specs are "node1-node2" strings; the open endpoint is auto-detected as
+# the one with degree < 3.
 def reconnect_edges_with_label(graph, edge1_spec, edge2_spec, new_label):
-    """
-    Reconnect two edges with a specific new label.
-    Returns modified graph.
-    """
     graph = graph.copy()
 
     # Parse edge specifications
@@ -155,36 +191,49 @@ def reconnect_edges_with_label(graph, edge1_spec, edge2_spec, new_label):
     return graph, label1, label2
 
 
+# Computes ∏ Δ(j) for each j in labels.  Δ(j) = (-1)^(2j) × (2j+1).
+# Keeps sign and magnitude separate to avoid overflow, then recombines.
 def compute_delta_product(labels):
     """Compute product of Δ symbols."""
     evaluator = SpinNetworkEvaluator()
-    result = 1.0
+    total_sign_exponent = 0.0
+    total_magnitude = 1.0
     for j in labels:
-        result *= evaluator.delta_symbol(j, power=1)
+        sign_exp, mag = evaluator.delta_symbol(j, power=1)
+        total_sign_exponent += sign_exp
+        total_magnitude *= mag
     evaluator.cleanup()
-    return result
+    # Combine sign and magnitude
+    sign = (-1.0) ** int(round(total_sign_exponent))
+    return sign * total_magnitude
 
 
+# Computes ∏ Θ(j1,j2,j3) for each triplet.
+# Θ(j1,j2,j3) = (-1)^(j1+j2+j3) × (j1+j2+j3+1)! / [(j1+j2-j3)!(j1-j2+j3)!(-j1+j2+j3)!].
 def compute_theta_product(triplets):
-    """
-    Compute product of Θ symbols.
-    triplets: list of (j1, j2, j3) tuples
-    """
     evaluator = SpinNetworkEvaluator()
-    result = 1.0
+    total_sign_exponent = 0.0
+    total_magnitude = 1.0
     for j1, j2, j3 in triplets:
-        result *= evaluator.theta_symbol(j1, j2, j3, power=1)
+        sign_exp, mag = evaluator.theta_symbol(j1, j2, j3, power=1)
+        total_sign_exponent += sign_exp
+        total_magnitude *= mag
     evaluator.cleanup()
-    return result
+    # Combine sign and magnitude
+    sign = (-1.0) ** int(round(total_sign_exponent))
+    return sign * total_magnitude
 
 
+# Main entry point: given original.graphml and two edge specs (e.g. "1-2" "3-4"),
+# enumerates all admissible c values, computes p(c) = |Δ(c)/Θ(a,b,c) × ||G2||/||G1|||
+# for each, prints a table, and verifies sum = 1.  Saves results to JSON.
 def main():
     parser = argparse.ArgumentParser(
         description="Compute probabilities for all possible reconnection values",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Example:
-  python compute_all_probabilities.py drawn_graph_with_labels.graphml 1-2 3-4
+  python compute_all_probabilities.py drawn_graph.graphml 1-2 3-4
 
 This will:
 1. Compute original graph norm ||G₁||
@@ -241,7 +290,7 @@ This will:
 
     # Compute original norm
     print(f"\n[STEP 4] Computing original graph norm...")
-    norm1 = compute_norm(args.original_file, quiet=args.quiet)
+    canon_G1, norm1 = _compute_norm_full(original_graph)
     print(f"  ||G₁|| = {norm1}")
 
     # Compute probability for each possible value
@@ -249,7 +298,7 @@ This will:
     print("  " + "-"*66)
 
     results = []
-    temp_files = []
+    formula_entries = []
 
     for new_label in possible_values:
         print(f"\n  → New edge label: {new_label}")
@@ -259,17 +308,10 @@ This will:
             original_graph, args.edge1, args.edge2, new_label
         )
 
-        # Save to temporary file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.graphml', delete=False) as f:
-            temp_file = f.name
-            temp_files.append(temp_file)
-
-        nx.write_graphml(reconnected_graph, temp_file)
-
-        # Compute reconnected norm
+        # Compute reconnected norm directly from graph object (no temp files needed)
         if not args.quiet:
             print(f"    Computing ||G₂|| for c={new_label}...")
-        norm2 = compute_norm(temp_file, quiet=args.quiet)
+        canon_G2, norm2 = _compute_norm_full(reconnected_graph)
         print(f"    ||G₂|| = {norm2}")
 
         # Compute Delta
@@ -298,12 +340,16 @@ This will:
             'probability': float(probability)
         })
 
-    # Cleanup temp files
-    for temp_file in temp_files:
-        try:
-            os.unlink(temp_file)
-        except:
-            pass
+        norm_G2_formula = terms_to_formula_string(canon_G2)
+        formula_entries.append(
+            f"# c = {new_label}\n"
+            f"abs(\n"
+            f"    delta({new_label})\n"
+            f"    / theta({label1}, {label2}, {new_label})\n"
+            f"    * ({norm_G2_formula})\n"
+            f"    / ({terms_to_formula_string(canon_G1)})\n"
+            f")"
+        )
 
     # Verify normalization
     print("\n" + "="*70)
@@ -363,6 +409,15 @@ This will:
         json.dump(full_results, f, indent=2)
 
     print(f"\n✓ Results saved to: {results_file}")
+
+    # Save symbolic formula .txt with one entry per possible c value
+    formula_file = args.original_file.replace('.graphml', '_all_probability_formulas.txt')
+    with open(formula_file, 'w') as f:
+        f.write(f"# All reconnection probability formulas\n")
+        f.write(f"# Edges: {args.edge1} (label={label1}) + {args.edge2} (label={label2})\n")
+        f.write(f"# Evaluate each block with: python scripts/evaluate_formula.py \"<formula>\"\n\n")
+        f.write("\n\n".join(formula_entries) + "\n")
+    print(f"✓ Formulas saved to: {formula_file}")
     print("="*70 + "\n")
 
     return full_results

@@ -31,10 +31,10 @@ from src.norm_reducer import canonicalise_terms, apply_kroneckers, expand_6j_sym
 from src.spin_evaluator import evaluate_spin_network
 
 
+# Same loader as compute_norm.py: reads GraphML, converts labels to float,
+# sets "pos" node attributes from stored x/y or kamada-kawai fallback.
 def load_graph_from_file(file_path):
-    """
-    Load a graph from a GraphML file and ensure all nodes have valid positions.
-    """
+    """Load a graph from a GraphML file and ensure all nodes have valid positions."""
     graph = nx.read_graphml(file_path, force_multigraph=True)
 
     # Convert edge labels to float or keep as string
@@ -55,6 +55,10 @@ def load_graph_from_file(file_path):
     return graph
 
 
+# Runs the full pipeline (load → glue → reduce → Kronecker → expand 6j →
+# canonicalise → evaluate) and prints the numerical norm.
+# --max-j lets you override the wigxjpf table size; auto-detected otherwise.
+# --quiet suppresses intermediate progress messages.
 def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(
@@ -64,8 +68,8 @@ def main():
     parser.add_argument(
         "input_file",
         nargs="?",
-        default="drawn_graph_with_labels.graphml",
-        help="Input GraphML file (default: drawn_graph_with_labels.graphml)"
+        default="drawn_graph.graphml",
+        help="Input GraphML file (default: drawn_graph.graphml)"
     )
     parser.add_argument(
         "--max-j",

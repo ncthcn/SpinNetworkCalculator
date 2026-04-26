@@ -221,11 +221,12 @@ class SpinNetworkEvaluator:
 
         Returns:
         --------
-        float : The numerical value
+        tuple (sign_exponent, magnitude) where result = (-1)^sign_exponent * magnitude
+        For backward compatibility, returns float if power is integer.
 
         FORMULA:
             θ(j,k,l) = (-1)^(j+k+l) × (j+k+l+1)! / [(j+k-l)!(j-k+l)!(-j+k+l)!]
-            θ(j,k,l)^p = [θ(j,k,l)]^p
+            θ(j,k,l)^p = (-1)^{p(j+k+l)} × |magnitude|^p
 
         NUMERICAL STABILITY:
             For large spins (j > 100), uses log-gamma to avoid overflow.
@@ -237,10 +238,10 @@ class SpinNetworkEvaluator:
 
         # Check triangular inequality - if violated, theta = 0
         if not (abs(j - k) <= l <= j + k):
-            return 0.0
+            return (0.0, 0.0)  # (sign_exponent, magnitude) - magnitude 0 means result is 0
 
-        # Calculate sign: (-1)^(j+k+l)
-        sign = (-1.0) ** (j + k + l)
+        # Sign exponent: (j+k+l) * power
+        sign_exponent = (j + k + l) * power
 
         # For large spins, use log-gamma to avoid overflow
         # factorial(~170) starts overflowing Python floats
@@ -254,12 +255,11 @@ class SpinNetworkEvaluator:
                         gammaln(j - k + l + 1) +
                         gammaln(-j + k + l + 1))
 
-            # log(θ) = log_num - log_denom
+            # log(|θ|) = log_num - log_denom (magnitude only, no sign)
             log_theta = log_num - log_denom
 
-            # Apply power: θ^p = exp(p × log(θ))
-            # Include sign
-            result = sign * math.exp(power * log_theta)
+            # Apply power to magnitude: |θ|^p = exp(p × log(|θ|))
+            magnitude = math.exp(power * log_theta)
         else:
             # For small spins, use cached factorials (faster)
             numerator = cached_factorial(int(j + k + l + 1))
@@ -267,20 +267,14 @@ class SpinNetworkEvaluator:
             denom2 = cached_factorial(int(j - k + l))
             denom3 = cached_factorial(int(-j + k + l))
 
-            # θ(j,k,l) = sign × numerator / (denom1 × denom2 × denom3)
-            theta_value = sign * numerator / (denom1 * denom2 * denom3)
+            # |θ(j,k,l)| = numerator / (denom1 × denom2 × denom3)
+            theta_magnitude = numerator / (denom1 * denom2 * denom3)
 
-            # Apply power (handle negative values with fractional powers)
-            if power == 1.0:
-                result = theta_value
-            elif theta_value >= 0:
-                result = math.pow(theta_value, power)
-            else:
-                # For negative values with fractional power, use signed power
-                # result = sign(x) * |x|^power
-                result = -math.pow(abs(theta_value), power) if int(power) % 2 == 1 else math.pow(abs(theta_value), power)
+            # Apply power to magnitude
+            magnitude = math.pow(theta_magnitude, power)
 
-        return result
+        # Return (sign_exponent, magnitude) tuple for combining with other terms
+        return (sign_exponent, magnitude)
 
     def delta_symbol(self, j, power=1.0):
         """
@@ -293,11 +287,11 @@ class SpinNetworkEvaluator:
 
         Returns:
         --------
-        float : The numerical value
+        tuple (sign_exponent, magnitude) where result = (-1)^sign_exponent * magnitude
 
         FORMULA:
             Δ_j = (-1)^(2j) × (2j+1)
-            Δ_j^p = [(-1)^(2j) × (2j+1)]^p
+            Δ_j^p = (-1)^{2jp} × (2j+1)^p
 
         NUMERICAL STABILITY:
             Simple formula, no overflow issues even for large j.
@@ -306,15 +300,13 @@ class SpinNetworkEvaluator:
         j_val = j if isinstance(j, (int, float)) else float(j)
 
         dimension = 2 * j_val + 1
-        sign = (-1.0) ** (2 * j_val)
+        # Sign exponent: 2j * power
+        sign_exponent = 2 * j_val * power
 
-        # Δ_j = (-1)^(2j) × (2j+1)
-        delta = sign * dimension
+        # Apply power to magnitude only
+        magnitude = math.pow(dimension, power)
 
-        # Apply power
-        result = math.pow(delta, power)
-
-        return result
+        return (sign_exponent, magnitude)
 
     def theta_symbol_vectorized(self, j1_arr, j2_arr, j3_arr, power=1.0):
         """
@@ -496,7 +488,9 @@ class SpinNetworkEvaluator:
                 print(f"  Summation: {var} from {min_j} to {max_j}")
 
         # Step 2: Evaluate constant pre-factors (coefficients not in sum)
-        pre_factor = 1.0
+        # Track sign exponents and magnitudes separately to avoid complex numbers
+        pre_sign_exponent = 0.0
+        pre_magnitude = 1.0
 
         for c in coeffs:
             if not isinstance(c, dict):
@@ -513,12 +507,20 @@ class SpinNetworkEvaluator:
 
             if not depends_on_sum:
                 # Evaluate immediately and add to pre-factor
-                val = self._evaluate_coefficient(c, {})
-                pre_factor *= val
+                result = self._evaluate_coefficient(c, {})
+                # Handle (sign_exponent, magnitude) tuple
+                if isinstance(result, tuple):
+                    sign_exp, mag = result
+                    pre_sign_exponent += sign_exp
+                    pre_magnitude *= mag
+                else:
+                    pre_magnitude *= result
 
         # Step 3: If no summations, we're done
         if not sum_vars:
-            return pre_factor
+            # Combine sign and magnitude
+            total_sign = (-1.0) ** int(round(pre_sign_exponent))
+            return total_sign * pre_magnitude
 
         # Step 4: Perform summation (supports N variables)
         print(f"  Computing summation over {len(sum_vars)} variable(s)...")
@@ -535,7 +537,9 @@ class SpinNetworkEvaluator:
             sum_result = self._evaluate_sum_serial(coeffs, sum_vars)
 
         # Step 5: Combine pre-factor and sum
-        total = pre_factor * sum_result
+        # Pre-factor sign is computed here, sum already has sign resolved inside
+        pre_sign = (-1.0) ** int(round(pre_sign_exponent))
+        total = pre_sign * pre_magnitude * sum_result
         return total
 
     def _evaluate_sum_serial(self, coeffs, sum_vars):
@@ -564,7 +568,9 @@ class SpinNetworkEvaluator:
             substitutions = dict(zip(var_names, sum_values))
 
             # Evaluate all coefficients that depend on sum variables
-            term_value = 1.0
+            # Track sign exponents and magnitudes separately
+            term_sign_exponent = 0.0
+            term_magnitude = 1.0
 
             for c in coeffs:
                 if not isinstance(c, dict):
@@ -577,8 +583,19 @@ class SpinNetworkEvaluator:
                 depends_on_sum = self._depends_on_sum_var(c, sum_vars.keys())
 
                 if depends_on_sum:
-                    val = self._evaluate_coefficient(c, substitutions)
-                    term_value *= val
+                    result = self._evaluate_coefficient(c, substitutions)
+                    # Handle (sign_exponent, magnitude) tuple
+                    if isinstance(result, tuple):
+                        sign_exp, mag = result
+                        term_sign_exponent += sign_exp
+                        term_magnitude *= mag
+                    else:
+                        term_magnitude *= result
+
+            # Combine sign and magnitude for this term
+            # The total sign exponent should be an integer (spin network rule)
+            term_sign = (-1.0) ** int(round(term_sign_exponent))
+            term_value = term_sign * term_magnitude
 
             sum_result += term_value
             count += 1
@@ -619,7 +636,9 @@ class SpinNetworkEvaluator:
             for sum_values in chunk:
                 substitutions = dict(zip(var_names, sum_values))
 
-                term_value = 1.0
+                # Track sign exponents and magnitudes separately
+                term_sign_exponent = 0.0
+                term_magnitude = 1.0
                 for c in coeffs:
                     if not isinstance(c, dict):
                         continue
@@ -629,9 +648,18 @@ class SpinNetworkEvaluator:
 
                     depends_on_sum = self._depends_on_sum_var(c, sum_vars.keys())
                     if depends_on_sum:
-                        val = self._evaluate_coefficient(c, substitutions)
-                        term_value *= val
+                        result = self._evaluate_coefficient(c, substitutions)
+                        # Handle (sign_exponent, magnitude) tuple
+                        if isinstance(result, tuple):
+                            sign_exp, mag = result
+                            term_sign_exponent += sign_exp
+                            term_magnitude *= mag
+                        else:
+                            term_magnitude *= result
 
+                # Combine sign and magnitude for this term
+                term_sign = (-1.0) ** int(round(term_sign_exponent))
+                term_value = term_sign * term_magnitude
                 chunk_sum += term_value
             return chunk_sum
 
@@ -696,7 +724,8 @@ class SpinNetworkEvaluator:
         typ = coeff.get("type")
 
         if typ == "sign_value":
-            return float(coeff.get("value", 1))
+            # Return (0, value) tuple - no sign exponent
+            return (0.0, float(coeff.get("value", 1)))
 
         elif typ == "theta":
             args = coeff.get("args", ())
@@ -708,6 +737,7 @@ class SpinNetworkEvaluator:
             j2 = substitutions.get(j2, j2) if isinstance(j2, str) else j2
             j3 = substitutions.get(j3, j3) if isinstance(j3, str) else j3
 
+            # Returns (sign_exponent, magnitude) tuple
             return self.theta_symbol(j1, j2, j3, power)
 
         elif typ == "delta":
@@ -718,6 +748,7 @@ class SpinNetworkEvaluator:
             # Substitute variable
             j = substitutions.get(j, j) if isinstance(j, str) else j
 
+            # Returns (sign_exponent, magnitude) tuple
             return self.delta_symbol(j, power)
 
         elif typ == "W6j":
@@ -730,7 +761,8 @@ class SpinNetworkEvaluator:
                 j_val = substitutions.get(j, j) if isinstance(j, str) else j
                 j_vals.append(j_val)
 
-            return self.wigner_6j(*j_vals, power=power)
+            # W6j has no sign factor, return (0, value) tuple
+            return (0.0, self.wigner_6j(*j_vals, power=power))
 
         elif typ == "sign":
             # Handle (-1)^{sum of terms}
@@ -750,12 +782,12 @@ class SpinNetworkEvaluator:
                 else:  # '+' or None
                     exponent += val_subst
 
-            # Return (-1)^exponent
-            return (-1.0) ** exponent
+            # Return (sign_exponent, 1.0) tuple - magnitude is 1
+            return (exponent, 1.0)
 
         else:
             print(f"Warning: Unknown coefficient type '{typ}'")
-            return 1.0
+            return (0.0, 1.0)
 
     def evaluate(self, canonical_terms: List[Dict]) -> float:
         """
@@ -793,13 +825,159 @@ class SpinNetworkEvaluator:
         # (sign conventions in the calculation can produce negative values)
         final_result = abs(total_result)
 
+        # Round to nearest integer (spin network norms are integers)
+        rounded_result = round(final_result)
+
         print("\n" + "=" * 70)
-        print(f"FINAL RESULT: {final_result:.15e}")
-        if total_result < 0:
+        print(f"FINAL RESULT: {rounded_result}")
+        print(f"(Raw value before rounding: {final_result:.15e})")
+        # Handle complex results (take absolute value)
+        if isinstance(total_result, complex):
+            print(f"(Note: Raw result was complex {total_result}, took absolute value)")
+        elif total_result < 0:
             print(f"(Note: Raw result was {total_result:.15e}, took absolute value)")
         print("=" * 70)
 
-        return final_result
+        return rounded_result
+
+
+# ============================================================================
+# FORMULA EVALUATOR
+# ============================================================================
+
+def _sanitize_primes(formula: str) -> str:
+    """Replace prime notation in variable names with _p, skipping string literals.
+
+    e.g. z' -> z_p, n'' -> n_p_p, but 'F_2' string literals are untouched.
+    """
+    result = []
+    i = 0
+    n = len(formula)
+    while i < n:
+        c = formula[i]
+        if c in ('"', "'"):
+            prev_is_word = bool(result) and (result[-1].isalnum() or result[-1] == '_')
+            if prev_is_word:
+                # Prime suffix on a variable name
+                j = i
+                while j < n and formula[j] == "'":
+                    j += 1
+                result.append("_p" * (j - i))
+                i = j
+            else:
+                # String literal: copy until matching closing delimiter
+                delim = c
+                result.append(c)
+                i += 1
+                while i < n:
+                    result.append(formula[i])
+                    if formula[i] == delim:
+                        i += 1
+                        break
+                    i += 1
+        else:
+            result.append(c)
+            i += 1
+    return "".join(result)
+
+
+class FormulaEvaluator:
+    """
+    Evaluate arbitrary spin network formulas from a string expression.
+
+    Supported functions in formula strings:
+      theta(j1, j2, j3)              - Theta symbol (signed)
+      delta(j)                       - Delta symbol (signed)
+      W6j(j1, j2, j3, j4, j5, j6)   - Wigner 6j symbol
+      Sum('F', min, max, lambda F: …) - Summation over half/integer steps
+      Standard math: sqrt, abs, exp, log, sin, cos, pi, ...
+
+    EXAMPLE:
+        fe = FormulaEvaluator()
+        fe.evaluate("theta(1, 1, 1)")
+        fe.evaluate("Sum('F', 0, 2, lambda F: delta(F) * W6j(1, 2, F, 1, 2, 3))")
+        fe.evaluate("theta(j, j, 0) * W6j(j, j, 0, j, j, 0)", variables={"j": 1.0})
+        fe.cleanup()
+    """
+
+    def __init__(self, max_two_j: int = 200, backend: str = 'auto'):
+        self._ev = SpinNetworkEvaluator(max_two_j, backend=backend)
+        self._base_namespace = self._build_namespace()
+
+    def _build_namespace(self) -> dict:
+        ev = self._ev
+
+        def theta(j1, j2, j3, power=1.0):
+            sign_exp, mag = ev.theta_symbol(j1, j2, j3, power)
+            return ((-1.0) ** int(round(sign_exp))) * mag
+
+        def delta(j, power=1.0):
+            sign_exp, mag = ev.delta_symbol(j, power)
+            return ((-1.0) ** int(round(sign_exp))) * mag
+
+        def W6j(j1, j2, j3, j4, j5, j6, power=1.0):
+            return ev.wigner_6j(j1, j2, j3, j4, j5, j6, power)
+
+        def Sum(var_name, min_val, max_val, func):
+            """Summation with integer step (matches spin network coupling rule)."""
+            total = 0.0
+            v = float(min_val)
+            while v <= max_val + 1e-9:
+                total += func(v)
+                v += 1.0
+            return total
+
+        ns = {name: getattr(math, name) for name in dir(math) if not name.startswith('_')}
+        ns.update({
+            'theta': theta,
+            'delta': delta,
+            'W6j': W6j,
+            'Sum': Sum,
+            'abs': abs,
+            'round': round,
+            'max': max,
+            'min': min,
+        })
+        return ns
+
+    def evaluate(self, formula: str, variables: Optional[Dict[str, float]] = None) -> float:
+        """
+        Evaluate a formula string numerically.
+
+        Parameters
+        ----------
+        formula : str
+            Expression using theta, delta, W6j, Sum, and math functions.
+        variables : dict, optional
+            Variable bindings, e.g. {"j": 1.0, "k": 0.5}
+
+        Returns
+        -------
+        float
+        """
+        ns = dict(self._base_namespace)
+        if variables:
+            ns.update(variables)
+        # Pass ns as globals (not locals) so that lambdas created inside eval
+        # can resolve free variables (round, theta, W6j, ...) through their
+        # __globals__, which is always the globals dict, never the locals dict.
+        ns["__builtins__"] = {"__import__": None}
+        # Sanitize prime notation (e.g. z' -> z_p, n'' -> n_p_p) outside
+        # string literals, for formula strings generated before this was fixed.
+        formula = _sanitize_primes(formula)
+        try:
+            return float(eval(formula, ns))
+        except Exception as e:
+            raise ValueError(f"Failed to evaluate formula '{formula}': {e}") from e
+
+    def cleanup(self):
+        self._ev.cleanup()
+
+    def __del__(self):
+        try:
+            self.cleanup()
+        except Exception:
+            pass
 
 
 # ============================================================================
