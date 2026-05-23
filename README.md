@@ -19,6 +19,7 @@ A computational tool for calculating spin network norms and probabilities. This 
 - [What is this?](#what-is-this)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
+- [Python Library API](#python-library-api)
 - [Usage Guide](#usage-guide)
 - [Understanding the Output](#understanding-the-output)
 - [Technical Details](#technical-details)
@@ -37,12 +38,12 @@ A computational tool for calculating spin network norms and probabilities. This 
 2. **Performs symbolic computation**:
    - Applies F-moves and triangle reductions
    - Generates canonical expressions with Wigner 6j symbols
-   - Produces LaTeX PDFs and .txt files of the results
+   - Returns a `Formula` object that can be saved as PDF or plain text
 
 3. **Computes numerical values**:
    - Uses high-performance C++ backend (wigxjpf)
    - Handles large spin values efficiently
-   - Returns the norm (positive scalar value) of the spin network
+   - Returns the norm as a Python `float` via `formula.evaluate_numeric()`
 
 
 ---
@@ -93,78 +94,182 @@ If you see the success message, you're ready to go.
 
 ## Quick Start
 
-### 1. Draw Your Spin Network
+### 1. Create a Spin Network
 
-Use the interactive graph drawing tool:
+```python
+from src.api import new_network, load_network
 
-```bash
-python scripts/graph.py
+# Option A: draw interactively (opens a GUI window)
+# Note: in Jupyter, run  %gui tk  in a cell first
+snet = new_network()
+
+# Option B: load from an existing .graphml file
+snet = load_network("drawn_graph.graphml")
 ```
 
-**Instructions (Keyboard-Driven Interface):**
-- **Press N** - Add Node mode → Click anywhere to add nodes
-- **Press E** - Add Edge mode → Click two nodes, then enter spin value
-- **Press M** - Move Node mode → Click and drag nodes to reposition
-- **Press D** - Delete Node mode → Click nodes to delete them
-- **Press X** - Delete Edge mode → Click edges to delete them
-- **Press Z** - Undo last action
-- **Press S** - Save and exit
+**GUI controls (when using `new_network()`):**
 
-The graph is saved as `drawn_graph.graphml`
-
-**Visual Feedback:**
-- Current mode shown in right panel with color coding
-- Selected nodes turn blue
-- Dragging nodes turn orange
-- Hover over edges to see them highlighted in red (delete mode)
+| Key | Action |
+|-----|--------|
+| N | Add Node |
+| E | Add Edge → click two nodes, enter spin value |
+| M | Move Node |
+| D | Delete Node |
+| X | Delete Edge |
+| Z | Undo |
+| S | Save & Exit |
 
 ### 2. Compute the Symbolic Norm
 
-```bash
-python scripts/compute_norm.py
-```
+```python
+formula = snet.evaluate_symbolic()
+print(formula)
+# Formula(from graph, terms=1, free=[], assigned=[])
 
-**What it does:**
-- Loads your graph
-- Performs graph reduction (F-moves, triangle reductions)
-- Generates canonical expression
-- **Outputs:**
-  - `norm_expression.pdf` (raw expression)
-  - `canon_norm_expression.pdf` (simplified canonical form)
+# If the graph has symbolic edge labels, assign numeric values first
+args = snet.get_args()           # list of free spin variables
+args[0].value = 1.5              # assign a value directly
+snet.set_args(args)              # applies and validates triangular inequality
+
+formula = snet.evaluate_symbolic()   # re-runs with updated labels
+```
 
 ### 3. Evaluate Numerically
 
-```bash
-python scripts/evaluate_norm.py
+```python
+result = formula.evaluate_numeric()
+print(result)   # e.g. -60.0
+
+# Save the expression for reference
+formula.save("norm.pdf", "pdf")   # LaTeX-rendered PDF
+formula.save("norm.txt", "txt")   # plain-text Python expression
 ```
 
-**What it does:**
-- Reads the canonical expression
-- Computes Wigner 6j symbols using fast C++ backend
-- **Uses parallel/GPU acceleration automatically** (JAX Metal on M3, or multiprocessing)
-- **Outputs:** Numerical value of the spin network norm
+For the full API reference see the [Python Library API](#python-library-api) section below.
 
-**Example output:**
+---
+
+## Python Library API
+
+In addition to the CLI scripts, the project provides a clean Python library API in `src/api.py` designed for use in **Jupyter Notebooks** or downstream Python code.  The full mathematical pipeline runs in memory — no intermediate files are created.
+
+### Core Classes
+
+| Class | Purpose |
+|---|---|
+| `SpinArg` | One free spin variable (edge label + assigned value) |
+| `Graph` | Trivalent graph with evaluation methods and formula cache |
+| `SpinNetwork` | User-facing wrapper around `Graph` (extend with future methods here) |
+| `Formula` | Symbolic norm expression; evaluates numerically and saves to file |
+
+### Full Workflow
+
+```python
+from src.api import new_network, load_network, SpinArg
+
+# ── Option A: draw a new graph interactively ───────────────────────────────
+# Opens the graph editor GUI. Close it with S (Save & Exit).
+# Note: in Jupyter, run  %gui tk  first.
+snet = new_network()
+
+# ── Option B: load an existing .graphml file ───────────────────────────────
+snet = load_network("drawn_graph.graphml")
+
+# ── Inspect and edit ───────────────────────────────────────────────────────
+snet.display()           # read-only visual inspector
+snet.modify()            # interactive editor (invalidates formula cache)
+
+# ── Manage free (symbolic) spin variables ──────────────────────────────────
+args = snet.get_args()   # list of SpinArg objects, one per symbolic edge label
+for a in args:
+    print(a.label, a.value, a.is_numeric)
+
+args[0].value = 1.5      # assign a concrete spin value directly
+snet.set_args(args)      # validates triangular inequality, then applies changes
+
+# ── Symbolic evaluation (expensive; result is cached) ──────────────────────
+formula = snet.evaluate_symbolic()
+print(formula)           # Formula(from graph, terms=3, free=[], assigned=[])
+
+# ── Save the symbolic expression ───────────────────────────────────────────
+formula.save("result.txt", "txt")   # plain-text Python expression
+formula.save("result.pdf", "pdf")   # LaTeX-rendered PDF
+
+# ── Reload from file (supports evaluate_numeric, not PDF saving) ───────────
+from src.api import Formula
+f2 = Formula.load("result.txt")
+
+# ── Numerical evaluation ───────────────────────────────────────────────────
+result = formula.evaluate_numeric()                          # default: auto-select backend
+result = formula.evaluate_numeric([SpinArg("j_1", 2.0)])    # pass overrides directly
+result = formula.evaluate_numeric(backend="jax")             # GPU (requires JAX)
+result = formula.evaluate_numeric(backend="multiprocessing") # parallel CPU
+result = formula.evaluate_numeric(backend="serial")          # single-threaded
+result = formula.evaluate_numeric(max_two_j=2000)            # allow large spins (> j=100)
+
+# ── Batch evaluation over a range of spins ─────────────────────────────────
+# evaluate_batch shares one evaluator instance — much faster than looping evaluate_numeric()
+results = formula.evaluate_batch([
+    [SpinArg("j_1", 0.5)],
+    [SpinArg("j_1", 1.0)],
+    [SpinArg("j_1", 1.5)],
+    [SpinArg("j_1", 2.0)],
+])
+# results == [f(0.5), f(1.0), f(1.5), f(2.0)]
+
+results = formula.evaluate_batch(args_list, backend="multiprocessing")  # parallel batch
+
+# ── Persist the graph ──────────────────────────────────────────────────────
+snet.save("my_network.graphml")
 ```
-Using multiprocessing backend (11 workers)
-Initializing wigxjpf tables for max 2j = 200...
-✓ Wigxjpf initialized and ready
 
-======================================================================
-EVALUATING SPIN NETWORK EXPRESSION
-======================================================================
+### Caching and Idempotency
 
-Evaluating term 1/1...
-  Computing summation over 3 variable(s)...
-    Total iterations: 6,174
-    Using 11 parallel workers
-    Split into 44 chunks of ~140 iterations each
-  Term value: 6.658558117818342e+01
+`evaluate_symbolic()` is expensive (F-moves, triangle reductions, canonicalisation).  Its result is cached inside `Graph`.  The cache is **automatically invalidated** when:
+- `snet.modify()` is called (graph structure changed)
+- `snet.set_args(args)` is called (edge labels changed)
 
-======================================================================
- SPIN NETWORK NORM = 6.658558117818342e+01
-======================================================================
+Re-running a Jupyter cell that calls `evaluate_symbolic()` on an unchanged graph returns the cached `Formula` instantly.
+
+### SpinArg: Python vs C++ idioms
+
+`SpinArg` uses Python's `@dataclass` and `@property` instead of C++ getters/setters:
+
+```python
+# C++ style (NOT how this works)
+arg.getValue()     # ✗
+arg.setValue(1.5)  # ✗
+
+# Python style (correct)
+arg.value          # read  → @property is_numeric tells you if it's a number
+arg.value = 1.5    # write → direct attribute assignment
+arg.is_numeric     # True after assigning a float
 ```
+
+### Computation Backends
+
+Both `evaluate_numeric()` and `evaluate_batch()` accept a `backend` keyword that controls how the Wigner 6j sums are evaluated:
+
+| Backend | When to use | Requirement |
+|---|---|---|
+| `"auto"` (default) | Picks the best available: JAX → multiprocessing → serial | None |
+| `"jax"` | GPU acceleration (fastest for large graphs) | `pip install jax` + `jax-metal` on Apple Silicon |
+| `"multiprocessing"` | Parallel CPU cores | None (stdlib) |
+| `"serial"` | Single thread; deterministic and easiest to debug | None |
+
+The `max_two_j` parameter pre-allocates wigxjpf tables for spins up to `max_two_j/2`
+(default `200` → j up to 100). Raise it for larger spins; lower it to save memory:
+
+```python
+# Large spins with GPU
+result = formula.evaluate_numeric(backend="jax", max_two_j=2000)
+
+# Memory-constrained environment
+result = formula.evaluate_numeric(backend="serial", max_two_j=100)
+```
+
+See **[PARALLEL_ACCELERATION.md](PARALLEL_ACCELERATION.md)** for JAX installation details
+and benchmarks.
 
 ---
 
@@ -175,7 +280,7 @@ Evaluating term 1/1...
 **See [PROBABILITY_WORKFLOW.md](PROBABILITY_WORKFLOW.md) for complete documentation.**
 
 Quick workflow (GUI):
-1. Create graph with open edges: `python scripts/graph.py`
+1. Create a graph with open edges and save it: `snet = new_network(); snet.save("drawn_graph.graphml")`
 2. Launch reconnection GUI: `python scripts/transition_to.py drawn_graph.graphml`
 3. In the GUI:
    - Click two open edges (orange)
@@ -206,139 +311,105 @@ Probability distribution:
   Physical consistency verified!
 ```
 
-### Creating a Spin Network from Scratch
+### Creating and Editing a Spin Network
 
-#### Method 1: Interactive Graph Editor (Recommended)
+```python
+from src.api import new_network, load_network
 
-```bash
-python scripts/graph.py
+# Draw a new graph interactively
+snet = new_network()          # blocks until you press S (Save & Exit)
+
+# Load an existing graph
+snet = load_network("my_network.graphml")
+
+# Inspect (read-only viewer) or edit (interactive editor)
+snet.display()
+snet.modify()                 # invalidates the formula cache on close
+
+# Save to disk at any time
+snet.save("my_network.graphml")
 ```
 
-**The graph editor provides a modern, keyboard-driven interface:**
+**Graph constraints enforced by the editor:**
+- Trivalent nodes — at most 3 edges per node
+- Half-integer spin labels: 0, 0.5, 1, 1.5, …
+- Triangular inequality at each complete vertex: |j₁−j₂| ≤ j₃ ≤ j₁+j₂
+- Symbolic labels (e.g. `j_1`, `a`) are accepted for parametric networks
 
-**Modes (switch with keyboard):**
-1. **Add Node (N)**: Click anywhere on canvas to add nodes
-2. **Add Edge (E)**: Click two nodes sequentially, enter spin value when prompted
-3. **Move Node (M)**: Click and drag nodes to reposition them
-4. **Delete Node (D)**: Click a node to delete it (and connected edges)
-5. **Delete Edge (X)**: Click near an edge to delete it
+### Large Spin Values
 
-**Additional Controls:**
-- **Z** - Undo last action (up to 50 steps)
-- **S** - Save graph and exit
-- **Undo/Clear/Save buttons** - Available in top toolbar
+The evaluator handles large spins automatically using log-space arithmetic:
+- **Theta symbols**: `scipy.special.gammaln` for factorials in log-space
+- **Delta symbols**: `exp(2j × log(2j+1))` to avoid overflow
+- **Memory**: wigxjpf tables scale as O(j²); j=1000 requires ~hundreds of MB
 
-**Interface Features:**
-- **Right panel** shows current mode with instructions
-- **Graph statistics** display node and edge counts
-- **Edge curvature slider** adjusts parallel edge spacing
-- **Hover feedback** - elements highlight when mouse hovers
-- **Constraint validation** - Checks triangular inequality at nodes with 3 edges
+For very large spin values the default `max_two_j=200` (j up to 100) may need raising.
+Pass it directly through the API:
 
-**Tips:**
-- Nodes can only have up to 3 edges (valence-3 constraint)
-- Spin values must be integers or half-integers (0, 0.5, 1, 1.5, ...)
-- Symbolic labels are supported for summation variables
-- The editor validates triangular conditions: |j₁-j₂| ≤ j₃ ≤ j₁+j₂
-
-#### Method 2: Use Existing GraphML File
-
-If you already have a `.graphml` file:
-
-```bash
-python scripts/compute_norm.py my_network.graphml
-python scripts/evaluate_norm.py my_network.graphml
+```python
+result = formula.evaluate_numeric(max_two_j=2000)            # j up to 1000
+results = formula.evaluate_batch(args_list, max_two_j=2000)
 ```
 
-### Advanced Options
+If you need even finer control, access `FormulaEvaluator` directly:
 
-#### Specify Maximum Spin Value
-
-If you have very large spin values, you can manually set the maximum:
-
-```bash
-python scripts/evaluate_norm.py --max-j 50
+```python
+from src.spin_evaluator import FormulaEvaluator
+evaluator = FormulaEvaluator(max_two_j=4000, backend="jax")
+result = evaluator.evaluate(formula_string, variables={"j_1": 500.0})
+evaluator.cleanup()
 ```
-
-This pre-allocates memory for spins up to j=50.
-
-**For large spins (j up to 1000):**
-```bash
-python scripts/evaluate_norm.py --max-j 1000
-```
-
-The evaluator uses log-space computation to avoid numerical overflow for large spins:
-- **Theta symbols**: Uses `scipy.special.gammaln` to compute factorials in log-space
-- **Delta symbols**: Computes `(2j+1)^(2j)` as `exp(2j × log(2j+1))`
-- **Memory**: Tables scale as O(j²), so j=1000 requires ~hundreds of MB
-
-#### Quiet Mode (Less Output)
-
-```bash
-python scripts/evaluate_norm.py --quiet
-```
-
-Only shows the final result, useful for scripting.
 
 ---
 
 ## Understanding the Output
 
-### 1. Console Output
+### Formula object
 
-When you run `compute_norm.py`, you'll see:
+`snet.evaluate_symbolic()` returns a `Formula` object.  Printing it shows a
+summary of the canonical expression:
 
-```
-======================================================================
-SPIN NETWORK NORM COMPUTATION (Symbolic)
-======================================================================
-Input file: drawn_graph.graphml
-
-Loading graph...
-  Loaded graph with 8 nodes and 8 edges
-  ✓ Triangular condition satisfied for all nodes
-
-Drawing original graph...
-Gluing open edges (creating theta graph)...
-  ✓ The glued graph is planar
-
-Performing graph reduction (F-moves, triangle reductions)...
-...
+```python
+formula = snet.evaluate_symbolic()
+print(formula)
+# Formula(from graph, terms=3, free=["j_1"], assigned=[])
 ```
 
-**Key checks:**
-- **Triangular condition satisfied**: Each node's edges satisfy |j₁-j₂| ≤ j₃ ≤ j₁+j₂
-- **Graph is planar**: Can be drawn without crossing edges
+`terms` is the number of canonical terms in the sum.
+`free` lists spin variables that still need a numeric value.
+`assigned` lists variables that have already been set.
 
-If the glued graph is non-planar, `compute_norm.py` saves a Kuratowski obstruction image (`{input_basename}_kuratowski.png`, e.g. `drawn_graph_kuratowski.png`) showing the K₅ or K₃,₃ subdivision that witnesses non-planarity. Computation continues using the cycle-basis fallback unless `--strict-planarity` is passed.
+### Saved files
 
-### 2. PDF Output
-
-#### `canon_norm_expression.pdf`
-Shows the **canonical form** with:
-- Combined duplicate coefficients
-- Simplified signs
-- Wigner 6j symbols
-- Proper mathematical notation
-
-### 3. TXT Output
-
-#### `canon_norm_expression.txt`
-Same content as `canon_norm_expression.pdf` expressed in a .txt file, ready to be given as input for `evaluate_formula.py`.
-
-### 3. Numerical Result
-
-The final number is the **norm** of your spin network state:
-
-Example:
-```
-  SPIN NETWORK NORM = 6.658558117818342e+01
+```python
+formula.save("norm.pdf", "pdf")   # LaTeX-rendered PDF
+formula.save("norm.txt", "txt")   # plain-text Python expression
 ```
 
-**Interpreting the result:**
-- **Non-zero value**: Your spin network is physically allowed
-- **Very small (~10⁻¹⁰)**: Might indicate numerical precision issues
-- **Zero**: The spin network configuration violates SU(2) coupling rules
+**PDF** shows the canonical form with Wigner 6j symbols, theta/delta symbols,
+sign factors, and proper mathematical notation.
+
+**TXT** contains a plain-text Python expression that can be reloaded:
+
+```python
+from src.api import Formula
+f2 = Formula.load("norm.txt")
+result = f2.evaluate_numeric(args)
+```
+
+### Numerical result
+
+`formula.evaluate_numeric()` returns a Python `float`:
+
+```python
+result = formula.evaluate_numeric()
+print(result)   # e.g. -60.0
+```
+
+**Interpreting the value:**
+- **Non-zero**: The spin network is physically allowed
+- **Very small (~10⁻¹⁰)**: May indicate numerical precision issues
+- **Zero**: The configuration violates SU(2) coupling rules
 
 ---
 
@@ -386,11 +457,11 @@ Final Result
 ### Problem: "File not found"
 
 **Error:**
-```
-Error: 'drawn_graph.graphml' not found.
+```python
+FileNotFoundError: [Errno 2] No such file or directory: 'drawn_graph.graphml'
 ```
 
-**Solution:** First run `python scripts/graph.py` to create a spin network graph.
+**Solution:** Create a graph first with `new_network()`, or check the path passed to `load_network()`.
 
 ---
 
@@ -429,9 +500,12 @@ MemoryError: Cannot allocate wigxjpf tables
 
 **Cause:** The maximum spin value is too large (tables scale as O(j²))
 
-**Solution:** Reduce the `--max-j` parameter or use smaller spin values:
-```bash
-python scripts/evaluate_norm.py --max-j 100  # Limit to j ≤ 100
+**Solution:** Use `FormulaEvaluator` directly with a lower `max_two_j`:
+```python
+from src.spin_evaluator import FormulaEvaluator
+evaluator = FormulaEvaluator(max_two_j=200)   # default; lower to save memory
+result = evaluator.evaluate(formula_string)
+evaluator.cleanup()
 ```
 
 ---
@@ -445,25 +519,25 @@ Spin_Networks_Project_full/
 │   ├── README.md                        # This file - comprehensive guide
 │   ├── QUICKSTART.md                    # 5-minute quick start
 │   ├── PROBABILITY_WORKFLOW.md          # Reconnection probability guide
-│   ├── PARALLEL_ACCELERATION.md        # GPU/parallel evaluation guide
+│   ├── PARALLEL_ACCELERATION.md         # GPU/parallel evaluation guide
 │   └── requirements.txt                 # Python dependencies
 │
-├── User Scripts (scripts/)
-│   ├── graph.py                         # Interactive graph editor
-│   ├── compute_norm.py                  # Symbolic computation (→ PDFs + .txt)
-│   ├── evaluate_norm.py                 # Numerical evaluation
-│   ├── compute_probability.py           # Single reconnection probability
-│   ├── compute_all_probabilities.py     # Full probability distribution (CLI)
-│   ├── compute_symbolic_probability.py  # Symbolic probability formula
-│   ├── evaluate_formula.py              # Evaluate from canon_norm_expression.txt
-│   ├── transition_to.py                 # Reconnection GUI
-│   ├── compare_graphs.py                # Automated graph comparison workflow
-│   ├── compare_graphs_cli.py            # Graph comparison (CLI)
-│   ├── modify_graph.py                  # Interactive graph modification GUI
-│   ├── inspect_graph.py                 # Graph inspection utility
-│   └── README_COMPARISON.md            # Graph comparison workflow docs
+├── GUI modules (scripts/)               # used internally by src/api.py
+│   ├── graph.py                         # GraphEditor class  (new_network())
+│   ├── inspect_graph.py                 # GraphInspector class  (Graph.display())
+│   ├── modify_graph.py                  # GraphModifier class  (Graph.modify())
+│   │
+│   └── Reconnection / comparison scripts (standalone CLI tools)
+│       ├── transition_to.py                 # Reconnection GUI
+│       ├── compare_graphs.py                # Automated graph comparison workflow
+│       ├── compare_graphs_cli.py            # Graph comparison (CLI)
+│       ├── compute_probability.py           # Single reconnection probability
+│       ├── compute_all_probabilities.py     # Full probability distribution (CLI)
+│       ├── compute_symbolic_probability.py  # Symbolic probability formula
+│       └── README_COMPARISON.md             # Graph comparison workflow docs
 │
 ├── Core Library (src/)
+│   ├── api.py                   # Public library API (SpinNetwork, Graph, Formula, SpinArg)
 │   ├── drawing.py               # Graph visualization, Kuratowski plots
 │   ├── gluer.py                 # Graph gluing operations
 │   ├── graph_reducer.py         # F-moves and triangle reductions
@@ -472,20 +546,21 @@ Spin_Networks_Project_full/
 │   ├── LaTeX_rendering.py       # PDF generation
 │   ├── utils.py                 # Utility functions
 │   ├── orientation.py           # Reference orientation calculations
-│   └── reduction_animator.py   # Reduction step animation (GIFs)
+│   └── reduction_animator.py    # Reduction step animation (GIFs)
 │
-├── Generated Files
-│   ├── drawn_graph.graphml                      # User-drawn graph
-│   ├── norm_expression.pdf                      # Raw symbolic expression
-│   ├── canon_norm_expression.pdf                # Canonical expression (PDF)
-│   ├── canon_norm_expression.txt                # Canonical expression (text)
-│   ├── transition_to_graph.graphml              # Reconnected graph
-│   ├── transition_to_graph_norm_G1.txt          # Original graph norm expression
-│   ├── transition_to_graph_norm_G2.txt          # Reconnected graph norm expression
-│   ├── transition_to_graph_symbolic_probability.txt  # Probability formula
-│   ├── transition_to_graph_transition.json      # Full probability results
-│   ├── graph_snapshots/graph.png                # Visualization snapshot
-│   └── {input_basename}_kuratowski.png          # K₅/K₃,₃ subgraph (only if non-planar)
+├── Generated Files (examples; names are user-controlled via the API)
+│   ├── drawn_graph.graphml                      # saved by new_network() / Graph.save()
+│   ├── <name>.pdf                               # saved by formula.save("name.pdf","pdf")
+│   ├── <name>.txt                               # saved by formula.save("name.txt","txt")
+│   │
+│   └── Reconnection / comparison outputs
+│       ├── transition_to_graph.graphml
+│       ├── transition_to_graph_norm_G1.txt
+│       ├── transition_to_graph_norm_G2.txt
+│       ├── transition_to_graph_symbolic_probability.txt
+│       ├── transition_to_graph_transition.json
+│       ├── graph_snapshots/graph.png
+│       └── {input_basename}_kuratowski.png      # K₅/K₃,₃ subgraph (non-planar graphs only)
 │
 └── Other
     ├── tests/                   # Test suite (pytest)

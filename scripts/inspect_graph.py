@@ -22,10 +22,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 # Read-only spin network viewer (tkinter GUI)
 # -----------------------------------------------------------------------
 #
-# Useful for quickly inspecting a .graphml file before running compute_norm.py.
+# Used by src/api.py via Graph.display().
 # Highlights open nodes (degree < 3) and open edges in orange so you can
 # identify the external legs of the network.
-# No editing; use modify_graph.py for modifications.
+# No editing; use Graph.modify() for modifications.
 #
 # Keyboard shortcuts: L load | R reset view | Q quit
 class GraphInspector:
@@ -571,13 +571,3 @@ class GraphInspector:
         self.canvas.create_text(lx, ly, text=str(label), font=("Arial", font_size, "bold"),
                                fill="#c0392b")
 
-
-if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser(description="Inspect a spin network graph")
-    parser.add_argument("input_file", nargs="?", help="Input .graphml file")
-    args = parser.parse_args()
-
-    root = tk.Tk()
-    inspector = GraphInspector(root, args.input_file)
-    root.mainloop()

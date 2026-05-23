@@ -26,10 +26,8 @@ from src.utils import vertex_satisfies_triangular_conditions, parse_spin_label
 # Existing-graph editor (tkinter GUI)
 # -----------------------------------------------------------------------
 #
-# Identical editing capabilities to graph.py but loads an existing .graphml
-# and overwrites it on save (rather than always writing drawn_graph.graphml).
-# Used by compare_graphs.py to let the user manually produce a modified graph
-# before the norm comparison step.
+# Used by src/api.py via Graph.modify() and by scripts/compare_graphs.py.
+# Loads an existing .graphml and overwrites it on save.
 #
 # Open edges (degree < 3) are highlighted in orange.
 # Keyboard shortcuts: N add node | E add edge | M move | D delete node |
@@ -799,13 +797,3 @@ class GraphModifier:
         except Exception as e:
             tk.messagebox.showerror("Error", f"Failed to save graph:\n{e}")
 
-
-if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser(description="Modify an existing spin network graph")
-    parser.add_argument("input_file", nargs="?", help="Input .graphml file to load")
-    args = parser.parse_args()
-
-    root = tk.Tk()
-    modifier = GraphModifier(root, args.input_file)
-    root.mainloop()

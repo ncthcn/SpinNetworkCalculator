@@ -15,11 +15,8 @@ from src.orientation import set_reference_orientation, calculate_layout_phase
 # Interactive spin network editor (tkinter GUI)
 # -----------------------------------------------------------------------
 #
-# First step in the norm-computation workflow:
-#   graph.py → compute_norm.py → evaluate_norm.py
-#
-# The user draws a trivalent graph by placing nodes and edges, then saves it
-# as drawn_graph.graphml. The editor enforces:
+# Used by src/api.py via new_network() and GraphEditor.
+# The user draws a trivalent graph by placing nodes and edges. The editor enforces:
 #   - max degree 3 per node (trivalency)
 #   - triangle inequality at each completed vertex (when all 3 edges are set)
 #   - integer or half-integer edge labels
@@ -750,9 +747,3 @@ class GraphEditor:
         except Exception as e:
             tk.messagebox.showerror("Error", f"Failed to save graph:\n{e}")
 
-
-# Create and run the editor
-if __name__ == "__main__":
-    root = tk.Tk()
-    editor = GraphEditor(root)
-    root.mainloop()
