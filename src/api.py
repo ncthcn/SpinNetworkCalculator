@@ -38,12 +38,13 @@ In a plain Python script no special setup is needed.
 
 from __future__ import annotations
 
+import copy
 import os
 import re
 import sys
 import tempfile
 from dataclasses import dataclass
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Tuple
 
 import networkx as nx
 
@@ -55,6 +56,8 @@ _ROOT_DIR = os.path.dirname(_SRC_DIR)
 for _p in (_SRC_DIR, _ROOT_DIR):
     if _p not in sys.path:
         sys.path.insert(0, _p)
+
+from src.evolution import LineageError, Transition  # noqa: E402
 
 
 # ===========================================================================
@@ -171,10 +174,12 @@ def _save_graphml(graph: nx.MultiGraph, path: str) -> None:
     if "phase" in graph_copy.graph:
         graph_copy.graph["phase"] = str(graph_copy.graph["phase"])
 
-    # Node attributes: tuples and lists → string
+    # Node attributes: convert anything GraphML cannot serialise (tuples, lists,
+    # numpy arrays, sympy expressions, …) to a plain string.
+    _graphml_ok = (bool, int, float, str)
     for node, attrs in graph_copy.nodes(data=True):
         for key, value in list(attrs.items()):
-            if isinstance(value, (tuple, list)):
+            if not isinstance(value, _graphml_ok):
                 graph_copy.nodes[node][key] = str(value)
 
     # Edge attributes: tuples and sympy expressions → string
@@ -186,6 +191,28 @@ def _save_graphml(graph: nx.MultiGraph, path: str) -> None:
                 graph_copy.edges[u, v, k][key] = str(value)
 
     nx.write_graphml(graph_copy, path)
+
+
+def _atomic_label_tokens(label_str: str) -> List[str]:
+    """
+    Extract the atomic variable names from an edge-label string.
+
+    Edge labels can be compound expressions such as "x'-n''" or "-n + x".
+    A compound label is NOT an independent variable: its numeric value is
+    determined by the atomic symbols inside it.  This helper returns those
+    atoms, keeping prime notation attached to the name.
+
+    Examples
+    --------
+        "x"        ->  ["x"]
+        "x'-n''"   ->  ["x'", "n''"]
+        "-n + x"   ->  ["n", "x"]
+        "2*y'"     ->  ["y'"]
+    """
+    # One identifier = letter/underscore, then letters/digits/underscores,
+    # then optionally a run of primes ("'").  Numbers and operators between
+    # identifiers are skipped automatically because they cannot start a match.
+    return re.findall(r"[A-Za-z_][A-Za-z0-9_]*'*", label_str)
 
 
 def _extract_free_variables(formula_string: str) -> List[str]:
@@ -208,9 +235,15 @@ def _extract_free_variables(formula_string: str) -> List[str]:
     list[str]
         Sorted list of free variable names (e.g. ["a", "j_1", "j_2"]).
     """
+    # Old .txt files may contain prime notation (e.g. n'').  Convert it to
+    # the Python-safe form (n_p_p) first, otherwise the identifier regex
+    # below would wrongly extract "n''" as just "n".
+    from src.spin_evaluator import _sanitize_primes
+    formula_string = _sanitize_primes(formula_string)
+
     # These identifiers are internal function/keyword names, not spin variables
     BUILTINS = {
-        "theta", "delta", "W6j", "Sum", "lambda",
+        "theta", "delta", "deltatheta", "safe_div", "W6j", "Sum", "lambda",
         "round", "abs", "max", "min", "int", "float", "str", "bool",
     }
 
@@ -304,15 +337,20 @@ class Formula:
         """
         Return the list of free spin variables in this formula.
 
-        Returns a *shallow copy* of the internal list, so modifying the
-        returned list does not affect the Formula.  Use set_args() to push
-        changes back.
+        Returns copies of both the list AND each SpinArg it contains, so
+        mutating a returned SpinArg (args[0].value = 1.5) does NOT affect the
+        Formula until you call set_args().  A plain list(self._args) would
+        copy only the list — SpinArg is a mutable dataclass, so the list
+        entries would still be the *same* objects as the Formula's internal
+        ones, and args[0].value = 1.5 would silently mutate the Formula too
+        (the C++ equivalent of returning a vector of pointers instead of a
+        vector of copies).
 
         Returns
         -------
         list[SpinArg]
         """
-        return list(self._args)
+        return [copy.copy(a) for a in self._args]
 
     def set_args(self, args: List[SpinArg]) -> None:
         """
@@ -400,25 +438,31 @@ class Formula:
         ValueError
             If any free variable is still unassigned (symbolic).
         """
-        from src.spin_evaluator import FormulaEvaluator
+        from src.spin_evaluator import FormulaEvaluator, _sanitize_primes
 
         # Build the variable substitution dictionary.
         # dict[str, float]  maps variable name → numeric spin value.
+        # Names are normalised with _sanitize_primes ("n''" -> "n_p_p") so
+        # that graph-style primed labels and formula-style _p labels are
+        # interchangeable everywhere below.
         variables: dict = {}
 
         # First apply values stored from previous set_args() calls
         for arg in self._args:
             if arg.is_numeric:
-                variables[arg.label] = float(arg.value)
+                variables[_sanitize_primes(arg.label)] = float(arg.value)
 
         # Then apply the overrides passed directly to this call
         if args:
             for arg in args:
                 if arg.is_numeric:
-                    variables[arg.label] = float(arg.value)
+                    variables[_sanitize_primes(arg.label)] = float(arg.value)
 
         # Check that every free variable now has a numeric assignment
-        unassigned = [a.label for a in self._args if a.label not in variables]
+        unassigned = [
+            a.label for a in self._args
+            if _sanitize_primes(a.label) not in variables
+        ]
         if unassigned:
             raise ValueError(
                 f"The following spin variables are still unassigned: {unassigned}.\n"
@@ -481,7 +525,7 @@ class Formula:
             ]
             results = formula.evaluate_batch(args_list, backend="multiprocessing")
         """
-        from src.spin_evaluator import FormulaEvaluator
+        from src.spin_evaluator import FormulaEvaluator, _sanitize_primes
 
         # Initialise once and reuse across all entries — avoids repeated
         # wigxjpf table allocation, which is the expensive part
@@ -489,17 +533,21 @@ class Formula:
         try:
             results = []
             for single_args in args_list:
-                # Build variable dict for this entry (same logic as evaluate_numeric)
+                # Build variable dict for this entry (same logic as
+                # evaluate_numeric, including prime-name normalisation)
                 variables: dict = {}
                 for arg in self._args:
                     if arg.is_numeric:
-                        variables[arg.label] = float(arg.value)
+                        variables[_sanitize_primes(arg.label)] = float(arg.value)
                 if single_args:
                     for arg in single_args:
                         if arg.is_numeric:
-                            variables[arg.label] = float(arg.value)
+                            variables[_sanitize_primes(arg.label)] = float(arg.value)
 
-                unassigned = [a.label for a in self._args if a.label not in variables]
+                unassigned = [
+                    a.label for a in self._args
+                    if _sanitize_primes(a.label) not in variables
+                ]
                 if unassigned:
                     raise ValueError(
                         f"Unassigned variables in batch entry: {unassigned}"
@@ -588,8 +636,6 @@ class Formula:
         parameter is cls (the class itself) instead of self (an instance).
         You call it as  Formula.load("file.txt"),  not on an instance.
         """
-        import sympy
-
         with open(path, "r") as f:
             # Skip comment lines starting with '#'
             lines = [line for line in f if not line.startswith("#")]
@@ -600,12 +646,33 @@ class Formula:
                 f"File {path!r} contains no formula (only comments or empty lines)."
             )
 
+        return cls._from_string(formula_string)
+
+    @classmethod
+    def _from_string(cls, formula_string: str) -> "Formula":
+        """
+        Internal factory: build a Formula purely from an expression string.
+
+        Used by load() (reading a .txt file) and by calculate_probability()
+        (combining the G_in / G_out / G_delta formula strings algebraically
+        into one probability expression).  There are no coefficient terms in
+        this case, so save(..., 'pdf') is unavailable; free variables are
+        auto-detected from the string itself.
+
+        Parameters
+        ----------
+        formula_string : str
+            A Python expression using theta/delta/deltatheta/safe_div/W6j/Sum,
+            as produced by terms_to_formula_string() or assembled manually.
+        """
+        import sympy
+
         # Build the object without calling __init__ by using object.__new__.
         # object.__new__(cls) allocates memory for the object but skips __init__.
         # This is a standard Python pattern when you need a factory method that
         # initialises the object differently from the normal constructor.
         formula = object.__new__(cls)
-        formula._terms = None               # no coefficient terms when loaded
+        formula._terms = None               # no coefficient terms available
         formula._formula_string = formula_string
 
         # Detect free variables from the formula string
@@ -775,8 +842,12 @@ class Graph:
         """
         Return the list of free (symbolic) spin variables in this graph.
 
-        Returns a shallow copy so modifying the returned list does not
-        affect the Graph.  Use set_args() to push changes back.
+        Returns copies of both the list AND each SpinArg it contains, so
+        mutating a returned SpinArg (args[0].value = 1.5) does NOT affect the
+        Graph until you call set_args().  SpinArg is a mutable dataclass, so
+        a plain list(self._args) would copy the list but not its entries —
+        those would still be the Graph's own objects, and mutating one would
+        silently mutate the Graph too.
 
         Returns
         -------
@@ -784,7 +855,7 @@ class Graph:
             One SpinArg per unique symbolic edge label.  Empty if the graph
             has only numeric labels.
         """
-        return list(self._args)
+        return [copy.copy(a) for a in self._args]
 
     def set_args(self, args: List[SpinArg]) -> None:
         """
@@ -836,6 +907,40 @@ class Graph:
         self._update_args()  # rebuild _args; newly numeric labels disappear from the list
         self._dirty = True
         self._formula = None  # invalidate the cached formula
+
+    def get_edge_range(self, label: str) -> Optional[Tuple[float, float]]:
+        """
+        Return the (j_min, j_max) range a free edge label may take without
+        violating the triangular inequality at the vertex/vertices its
+        edge touches, based on the OTHER (already numeric) edges there.
+
+        Use this before scanning a symbolic label with evaluate_batch(), so
+        you only try physically allowed spin values instead of an arbitrary
+        hardcoded range.
+
+        Parameters
+        ----------
+        label : str
+            A label from get_args(), e.g. args[0].label.
+
+        Returns
+        -------
+        (float, float) or None
+            None if no vertex touching this edge could constrain it (e.g.
+            every neighbouring edge is also symbolic) — pick a default
+            range yourself in that case.
+
+        Examples
+        --------
+            args = snet.get_args()
+            rng = snet.get_edge_range(args[0].label)   # e.g. (0.5, 3.5)
+            if rng is not None:
+                from src.utils import spin_values_in_range
+                spin_values = spin_values_in_range(*rng)
+        """
+        from src.utils import edge_triangle_range
+
+        return edge_triangle_range(self._nx_graph, label)
 
     # ------------------------------------------------------------------
     # GUI methods
@@ -994,7 +1099,10 @@ class Graph:
         """
         Compute the numerical value of the spin network norm.
 
-        Shortcut for  evaluate_symbolic().evaluate_numeric(args).
+        Validates triangular conditions for every assigned value before
+        evaluating.  Raises ValueError if any assignment would violate
+        |j1-j2| ≤ j3 ≤ j1+j2 or the integer-sum rule j1+j2+j3 ∈ ℤ at a
+        trivalent vertex where all three edge labels are now numeric.
 
         Parameters
         ----------
@@ -1005,8 +1113,59 @@ class Graph:
         Returns
         -------
         float
+
+        Raises
+        ------
+        ValueError
+            If the assigned values violate the triangular inequality or
+            integer-sum rule at any vertex.
         """
+        if args:
+            self._validate_args_triangular(args)
         return self.evaluate_symbolic().evaluate_numeric(args)
+
+    def _validate_args_triangular(self, args: List[SpinArg]) -> None:
+        """
+        Check that the given assignments satisfy triangular conditions at
+        every trivalent vertex once all symbolic labels are resolved.
+
+        Raises ValueError with a descriptive message on the first violation.
+        """
+        from src.utils import vertex_satisfies_triangular_conditions, is_numeric_label
+
+        # Build a substitution dict: symbolic label string -> float value
+        subst: dict = {}
+        for arg in args:
+            if arg.is_numeric:
+                subst[arg.label] = float(arg.value)
+
+        def resolve(label):
+            """Return numeric value if label is resolved, else the raw label."""
+            if isinstance(label, str) and label in subst:
+                return subst[label]
+            if isinstance(label, (int, float)):
+                return label
+            # Numeric string or sympy number stored on the edge
+            if is_numeric_label(label):
+                return float(label)
+            return label  # still symbolic
+
+        for node in self._nx_graph.nodes:
+            edges = list(self._nx_graph.edges(node, keys=True, data=True))
+            if len(edges) != 3:
+                continue
+            resolved = [resolve(data.get("label")) for _, _, _, data in edges]
+            if not all(isinstance(v, (int, float)) for v in resolved):
+                continue  # vertex still has symbolic labels; skip
+            if not vertex_satisfies_triangular_conditions(resolved):
+                raise ValueError(
+                    f"Assigned values violate the triangular inequality at "
+                    f"node {node}: edge labels {resolved}.\n"
+                    f"Required: each label ≤ sum of the other two, and "
+                    f"their sum must be an integer.\n"
+                    f"The norm is exactly 0 for these values — adjust "
+                    f"the assignment or check your graph topology."
+                )
 
     def __repr__(self) -> str:
         n_nodes = self._nx_graph.number_of_nodes()
@@ -1028,48 +1187,233 @@ class Graph:
 
 class SpinNetwork:
     """
-    A spin network: the main object users interact with.
+    A spin network state: the main object users interact with.
 
-    This class is a thin wrapper around Graph.  It exists as a separate
-    layer so that additional physics-level members and methods (reconnection
-    probabilities, network comparisons, amplitudes, …) can be added here in
-    the future without modifying the lower-level Graph API.
+    Each SpinNetwork is a node in the evolutionary genealogy tree.  It wraps
+    a Graph (the mathematical graph state) and carries links to its parent
+    Transition (how it was created) and its child Transitions (how it evolved).
 
-    All current methods delegate directly to the underlying Graph object.
-    See the Graph class for full documentation on each method.
+    All mathematical methods delegate to the underlying Graph object.  See
+    Graph for full documentation on evaluate_symbolic(), evaluate_numeric(),
+    display(), modify(), get_args(), set_args(), and save().
 
-    Example
-    -------
-        from src.api import new_network
+    Genealogy API
+    -------------
+        n1 = load_network("drawn_graph.graphml")   # root node (no parent)
+        n2 = n1.transition_to()                    # opens editor, returns child
+        n3 = n2.transition_to()                    # second generation
 
-        snet = new_network()                   # draw a graph interactively
-        snet.display()                         # inspect it visually
-        snet.modify()                          # edit it
+        from src.api import calculate_probability
+        formula = calculate_probability(n1, n2)     # symbolic P(n1 → n2), like evaluate_symbolic()
+        p = formula.evaluate_numeric()              # numeric value
+        probs = formula.evaluate_batch(args_list)   # scan many spin assignments efficiently
 
-        args = snet.get_args()                 # [SpinArg("j_1", Symbol("j_1")), ...]
-        args[0].value = 1.5
-        snet.set_args(args)
+        from src.api import TreeVisualizer
+        TreeVisualizer.display_tree(n1)            # visualise the genealogy
 
-        formula = snet.evaluate_symbolic()
-        formula.save("norm.pdf", "pdf")
-
-        result = formula.evaluate_numeric()
-        print(result)
+    Jupyter display
+    ---------------
+        Displaying a SpinNetwork in a Jupyter cell automatically renders
+        the graph as an embedded image via _repr_html_().
     """
 
-    def __init__(self, graph: Graph) -> None:
+    def __init__(
+        self,
+        graph: Graph,
+        parent_transition: Optional[Transition] = None,
+    ) -> None:
         """
-        Wrap an existing Graph object.
-
         Parameters
         ----------
         graph : Graph
             The underlying trivalent spin network graph.
+        parent_transition : Transition or None
+            The incoming Transition that produced this state, or None for the
+            root of the genealogy tree.
         """
+        import uuid
+
         self._graph: Graph = graph
+        self._parent_transition: Optional[Transition] = parent_transition
+        self._children: List[Transition] = []
+        # Short unique ID used in display and __repr__
+        self._id: str = uuid.uuid4().hex[:8]
 
     # ------------------------------------------------------------------
-    # Delegation methods
+    # Genealogy properties
+    # ------------------------------------------------------------------
+
+    @property
+    def parent_transition(self) -> Optional[Transition]:
+        """The Transition that produced this state, or None if this is the root."""
+        return self._parent_transition
+
+    @property
+    def children(self) -> Tuple[Transition, ...]:
+        """Outgoing Transitions to child states (immutable view)."""
+        return tuple(self._children)
+
+    def _add_child_transition(self, t: Transition) -> None:
+        """Internal: register a new outgoing Transition."""
+        self._children.append(t)
+
+    # ------------------------------------------------------------------
+    # Evolution
+    # ------------------------------------------------------------------
+
+    def transition_to(self) -> "SpinNetwork":
+        """
+        Launch the interactive editor and return the resulting child SpinNetwork.
+
+        Opens the TransitionTool GUI (Tkinter) loaded with the current graph.
+        The user can add edges, perform reconnections, and press S to compute.
+        The tool writes its results to a JSON file which this method reads back
+        to construct the Transition and child SpinNetwork.
+
+        Returns
+        -------
+        SpinNetwork
+            The new child state produced by the transition.
+
+        Raises
+        ------
+        RuntimeError
+            If the editor is closed without completing a computation (S key).
+
+        Note
+        ----
+            In Jupyter, run  %gui tk  in a cell before calling this.
+        """
+        import json
+        import tkinter as tk
+        from scripts.transition_to import TransitionTool
+
+        # Save the current graph to a temp directory so TransitionTool can load it.
+        # TransitionTool always writes its output to <same_dir>/transition_to_graph.*
+        tmp_dir = tempfile.mkdtemp()
+        tmp_input = os.path.join(tmp_dir, "input.graphml")
+        self._graph.save(tmp_input)
+
+        root = tk.Tk()
+        TransitionTool(root, tmp_input)
+        root.mainloop()
+
+        json_path = os.path.join(tmp_dir, "transition_to_graph_transition.json")
+        graphml_path = os.path.join(tmp_dir, "transition_to_graph.graphml")
+
+        if not os.path.exists(json_path):
+            raise RuntimeError(
+                "Transition not completed.  Press S (Save) inside the editor "
+                "before closing the window."
+            )
+
+        with open(json_path) as fh:
+            data = json.load(fh)
+
+        # Load the child graph
+        child_nx = _load_graphml(graphml_path)
+        child_graph = Graph(child_nx)
+
+        # Compute produced_open_ends: new degree-1 nodes in child not in parent
+        parent_nx = self._graph._nx_graph
+        child_nx_g = child_graph._nx_graph
+        parent_open = frozenset(str(n) for n, d in parent_nx.degree() if d == 1)
+        child_open = frozenset(str(n) for n, d in child_nx_g.degree() if d == 1)
+        produced_open_ends = child_open - parent_open
+
+        # Reconstruct added_graph from the explicitly added edges in the JSON.
+        # Reconnection nodes are not included here; the added_graph captures only
+        # the new edges the user explicitly placed (used for norm(G_Δ)).
+        added_nx: nx.MultiGraph = nx.MultiGraph()
+        for edge_info in data.get("added_edges", []):
+            nodes = edge_info["nodes"]
+            n1, n2 = nodes[0], nodes[1]
+            label = edge_info.get("label", 1.0)
+            added_nx.add_edge(n1, n2, label=label)
+        added_graph = Graph(added_nx)
+
+        # Parse reconnection triplets (c, s, t) and consumed open-end labels
+        theta_triplets = []
+        for r in data.get("reconnections", []):
+            new_edge = r.get("new_edge", {})
+            old_edges = r.get("old_edges", [])
+            if len(old_edges) == 2 and "label" in new_edge:
+                theta_triplets.append(
+                    (new_edge["label"], old_edges[0]["label"], old_edges[1]["label"])
+                )
+
+        # No probability is read here: scripts/transition_to.py only records
+        # structural metadata (added_edges, reconnections).  The transition
+        # probability is always computed on demand by calculate_probability().
+        t = Transition(
+            parent=self,
+            added_graph=added_graph,
+            produced_open_ends=produced_open_ends,
+            theta_triplets=tuple(theta_triplets),
+        )
+
+        child = SpinNetwork(child_graph, parent_transition=t)
+        t._link_child(child)
+        self._add_child_transition(t)
+
+        # Clean up temp directory
+        try:
+            import shutil
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+        except Exception:
+            pass
+
+        return child
+
+    # ------------------------------------------------------------------
+    # Lineage traversal
+    # ------------------------------------------------------------------
+
+    def lineage_to(self, other: "SpinNetwork") -> List[Transition]:
+        """
+        Return the ordered list of Transitions on the path from self to other.
+
+        Walks up the parent chain from other until self is reached.
+
+        Parameters
+        ----------
+        other : SpinNetwork
+            Must be a descendant of self in the genealogy tree.
+
+        Returns
+        -------
+        list of Transition
+            The Transitions [T1, T2, …] such that
+            self --T1--> … --Tn--> other.
+
+        Raises
+        ------
+        LineageError
+            If other is not a descendant of self.
+        """
+        path: List[Transition] = []
+        current: SpinNetwork = other
+        while current is not self:
+            pt = current._parent_transition
+            if pt is None:
+                raise LineageError(
+                    f"No lineage path found: {other!r} is not a descendant of {self!r}."
+                )
+            path.append(pt)
+            current = pt.parent
+        return list(reversed(path))
+
+    def _genealogy_depth(self) -> int:
+        """Return the number of transitions from the root to this node."""
+        depth = 0
+        current: SpinNetwork = self
+        while current._parent_transition is not None:
+            depth += 1
+            current = current._parent_transition.parent
+        return depth
+
+    # ------------------------------------------------------------------
+    # Delegation methods (Phase 1 API – unchanged)
     # ------------------------------------------------------------------
     # Python note: these one-liner methods are the "delegation" pattern.
     # In C++ you would do the same by holding a member object and calling
@@ -1092,6 +1436,10 @@ class SpinNetwork:
         """Assign numeric spin values.  See Graph.set_args()."""
         self._graph.set_args(args)
 
+    def get_edge_range(self, label: str) -> Optional[Tuple[float, float]]:
+        """Triangle-inequality range for a free label.  See Graph.get_edge_range()."""
+        return self._graph.get_edge_range(label)
+
     def save(self, path: str) -> None:
         """Save to a .graphml file.  See Graph.save()."""
         self._graph.save(path)
@@ -1104,8 +1452,81 @@ class SpinNetwork:
         """Evaluate numerically.  See Graph.evaluate_numeric()."""
         return self._graph.evaluate_numeric(args)
 
+    # ------------------------------------------------------------------
+    # Display
+    # ------------------------------------------------------------------
+
+    def _repr_html_(self) -> str:
+        """
+        Jupyter rich display: render the graph as an embedded PNG image.
+
+        Shown automatically when a SpinNetwork is the last expression in a
+        Jupyter cell.  Uses matplotlib + networkx for rendering.
+        """
+        import base64
+        import io
+
+        import matplotlib.pyplot as plt
+
+        g = self._graph._nx_graph
+
+        # Build node positions from stored attributes; fall back to spring layout
+        pos = {}
+        for n, attrs in g.nodes(data=True):
+            raw = attrs.get("pos")
+            if isinstance(raw, (list, tuple)) and len(raw) == 2:
+                pos[n] = (float(raw[0]), float(raw[1]))
+            elif "x" in attrs and "y" in attrs:
+                pos[n] = (float(attrs["x"]), float(attrs["y"]))
+        if len(pos) < g.number_of_nodes():
+            pos = nx.spring_layout(g, seed=42)
+
+        fig, ax = plt.subplots(figsize=(4, 3))
+        nx.draw(
+            g, pos=pos, ax=ax,
+            with_labels=True,
+            node_size=250,
+            node_color="#aec6cf",
+            font_size=7,
+        )
+        edge_labels = {
+            (u, v): str(d.get("label", ""))
+            for u, v, d in g.edges(data=True)
+        }
+        nx.draw_networkx_edge_labels(g, pos=pos, edge_labels=edge_labels, ax=ax, font_size=6)
+
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", bbox_inches="tight", dpi=80)
+        plt.close(fig)
+        buf.seek(0)
+        b64 = base64.b64encode(buf.read()).decode()
+
+        depth = self._genealogy_depth()
+        parent_id = (
+            self._parent_transition.parent._id
+            if self._parent_transition is not None
+            else "root"
+        )
+
+        return (
+            f'<div style="font-family:monospace;border:1px solid #ddd;'
+            f'padding:6px;display:inline-block;margin:4px">'
+            f'<b>SpinNetwork</b> <code>{self._id}</code><br>'
+            f'Parent: <code>{parent_id}</code> | '
+            f'Depth: {depth} | '
+            f'Children: {len(self._children)}<br>'
+            f'<img src="data:image/png;base64,{b64}"/>'
+            f'</div>'
+        )
+
     def __repr__(self) -> str:
-        return f"SpinNetwork({self._graph!r})"
+        n_nodes = self._graph._nx_graph.number_of_nodes()
+        n_edges = self._graph._nx_graph.number_of_edges()
+        depth = self._genealogy_depth()
+        return (
+            f"SpinNetwork(id={self._id}, nodes={n_nodes}, "
+            f"edges={n_edges}, depth={depth})"
+        )
 
 
 # ===========================================================================
@@ -1198,3 +1619,29 @@ def load_network(path: str) -> SpinNetwork:
     """
     nx_graph = _load_graphml(path)
     return SpinNetwork(Graph(nx_graph))
+
+
+# ===========================================================================
+# Phase 2 re-exports  –  convenience imports from sub-modules
+# ===========================================================================
+
+from src.probability import calculate_probability  # noqa: E402
+from src.visualizer import TreeVisualizer          # noqa: E402
+
+# LineageError and Transition are already imported at the top of this file
+# (from src.evolution) and are therefore part of the public API automatically.
+
+__all__ = [
+    # Phase 1
+    "SpinArg",
+    "Formula",
+    "Graph",
+    "SpinNetwork",
+    "new_network",
+    "load_network",
+    # Phase 2
+    "Transition",
+    "LineageError",
+    "calculate_probability",
+    "TreeVisualizer",
+]

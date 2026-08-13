@@ -94,8 +94,10 @@ class TestLargeSpins(unittest.TestCase):
 
     def test_very_large_spin_theta(self):
         """Test theta symbol with very large spins"""
-        # Test theta symbol directly
-        result = self.evaluator.theta_symbol(100, 100, 100)
+        # theta_symbol returns (sign_exponent, magnitude); the signed value
+        # is (-1)^round(sign_exponent) * magnitude
+        sign_exp, magnitude = self.evaluator.theta_symbol(100, 100, 100)
+        result = ((-1.0) ** int(round(sign_exp))) * magnitude
 
         import math
         self.assertIsInstance(result, float)
@@ -104,10 +106,13 @@ class TestLargeSpins(unittest.TestCase):
 
     def test_very_large_spin_delta(self):
         """Test delta symbol with very large spins"""
-        result = self.evaluator.delta_symbol(100)
+        # delta_symbol returns (sign_exponent, magnitude) like theta_symbol
+        sign_exp, magnitude = self.evaluator.delta_symbol(100)
+        result = ((-1.0) ** int(round(sign_exp))) * magnitude
 
         import math
         self.assertIsInstance(result, float)
+        # Δ_100 = (-1)^200 × 201 = +201
         self.assertGreater(result, 0)
         # Should be finite
         self.assertFalse(math.isinf(result))

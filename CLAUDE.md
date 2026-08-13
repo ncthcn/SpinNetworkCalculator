@@ -23,28 +23,42 @@ Computational tool for spin network norms using symbolic graph reduction and Wig
 ## Quick Reference
 
 ### Primary Workflows
+```python
+# Workflow 1: Norm calculation (library API)
+from src.api import new_network, load_network
+snet = new_network()                      # opens drawing GUI
+formula = snet.evaluate_symbolic()        # full reduction pipeline
+formula.save("result.pdf", "pdf")         # or "result.txt", "txt"
+result = formula.evaluate_numeric()       # numerical value
+
+# Workflow 2: Norm from saved expression
+from src.api import Formula
+formula = Formula.load("canon_norm_expression.txt")
+result = formula.evaluate_numeric()
+
+# Workflow 3: Transition (GUI produces child network, no computation)
+n2 = n1.transition_to()                   # opens GUI, returns child SpinNetwork
+
+# Workflow 4: Transition probability (API)
+from src.api import calculate_probability
+formula = calculate_probability(n1, n2)   # symbolic, like evaluate_symbolic()
+p = formula.evaluate_numeric()            # numeric value
+probs = formula.evaluate_batch(args_list) # scan many spin assignments
+
+# Workflow 5: Graph comparison
+```
+
 ```bash
-# Workflow 1: Norm calculation
-python scripts/graph.py              # Draw graph interactively
-python scripts/compute_norm.py       # Symbolic reduction → PDFs + .txt
-python scripts/evaluate_norm.py      # Numerical evaluation
-
-# Workflow 2: Reconnection probabilities (GUI)
-python scripts/transition_to.py drawn_graph.graphml
-
-# Workflow 3: Probabilities (CLI)
-python scripts/compute_all_probabilities.py drawn_graph.graphml 1-2 3-4
-
-# Workflow 4: Graph comparison
 python scripts/compare_graphs.py drawn_graph.graphml
-
-# Workflow 5: Evaluate from saved expression
-python scripts/evaluate_formula.py canon_norm_expression.txt
 ```
 
 ### Key Files by Purpose
 | Purpose | File |
 |---------|------|
+| Public library API | `src/api.py` |
+| Genealogy / transitions | `src/evolution.py` |
+| Probability calculation | `src/probability.py` |
+| Tree visualization | `src/visualizer.py` |
 | Graph editor | `scripts/graph.py` |
 | Symbolic reduction | `src/graph_reducer.py` |
 | Numerical eval | `src/spin_evaluator.py` |
@@ -54,8 +68,6 @@ python scripts/evaluate_formula.py canon_norm_expression.txt
 | Utilities | `src/utils.py` |
 | Orientations | `src/orientation.py` |
 | Graph comparison | `scripts/compare_graphs.py` |
-| Symbolic probability | `scripts/compute_symbolic_probability.py` |
-| Formula evaluation | `scripts/evaluate_formula.py` |
 
 ### Graph Editor Keys (scripts/graph.py)
 `N` add node | `E` add edge | `M` move | `D` delete node | `X` delete edge | `Z` undo | `S` save
@@ -68,6 +80,10 @@ Input Graph → Glue Open Edges → F-moves → Triangle Reductions → Expand 6
 ```
 
 ### Module Responsibilities
+- **api.py**: Public library entry point; `SpinNetwork`, `Graph`, `Formula`, `SpinArg` classes; `new_network()`, `load_network()` factory functions
+- **evolution.py**: `Transition` (genealogy edge), `LineageError`; `Transition.compose()` for multi-hop paths
+- **probability.py**: `calculate_probability(n_in, n_out) -> Formula` standalone function
+- **visualizer.py**: `TreeVisualizer.display_tree()`, `ascii_tree()` for genealogy plots
 - **graph_reducer.py**: F-moves, triangle reductions, 6j symbol insertion
 - **norm_reducer.py**: Kronecker constraints, Regge symmetries, canonicalization
 - **spin_evaluator.py**: wigxjpf interface, JAX/multiprocessing backends, theta/delta symbols
@@ -89,17 +105,14 @@ Input Graph → Glue Open Edges → F-moves → Triangle Reductions → Expand 6
 - Core deps: networkx, matplotlib, sympy, numpy, scipy, pywigxjpf
 - Optional: jax (GPU acceleration)
 - Output files:
-  - `drawn_graph.graphml` — user-drawn graph
+  - `drawn_graph.graphml` — user-drawn graph (via `graph.save()`)
   - `norm_expression.pdf` — raw symbolic expression
   - `canon_norm_expression.pdf` — canonical expression (PDF)
-  - `canon_norm_expression.txt` — canonical expression (text, input for `evaluate_formula.py`)
-  - `transition_to_graph.graphml` — reconnected graph
-  - `transition_to_graph_norm_G1.txt` — original graph norm expression
-  - `transition_to_graph_norm_G2.txt` — reconnected graph norm expression
-  - `transition_to_graph_symbolic_probability.txt` — probability formula
-  - `transition_to_graph_transition.json` — full probability results (per-channel, norms)
+  - `canon_norm_expression.txt` — canonical expression (text, reload via `Formula.load()`)
+  - `transition_to_graph.graphml` — child graph from `transition_to()` GUI
+  - `transition_to_graph_transition.json` — structural metadata (added edges, reconnections)
   - `graph_snapshots/graph.png` — visualization snapshot
-  - `{input_basename}_kuratowski.png` — K₅/K₃,₃ obstruction subgraph saved by `compute_norm.py` when the glued graph is non-planar (e.g. `drawn_graph_kuratowski.png`); not produced for planar graphs
+  - `{input_basename}_kuratowski.png` — K₅/K₃,₃ obstruction subgraph (non-planar graphs only)
 
 ## Testing
 ```bash
@@ -117,19 +130,20 @@ pytest tests/test_ranges.py          # Range calculation tests
 ```
 ├── scripts/           # User-facing scripts
 │   ├── graph.py                         # Interactive graph editor
-│   ├── compute_norm.py                  # Symbolic computation
-│   ├── evaluate_norm.py                 # Numerical evaluation
-│   ├── compute_probability.py           # Single reconnection probability
+│   ├── transition_to.py                 # Transition GUI (produces child graph)
+│   ├── compute_probability.py           # Single reconnection probability (CLI)
 │   ├── compute_all_probabilities.py     # Full probability distribution (CLI)
-│   ├── compute_symbolic_probability.py  # Symbolic probability formula
-│   ├── evaluate_formula.py              # Evaluate expression from .txt file
-│   ├── transition_to.py                 # Reconnection GUI
+│   ├── compute_symbolic_probability.py  # Symbolic probability formula (CLI)
 │   ├── compare_graphs.py                # Automated graph comparison workflow
 │   ├── compare_graphs_cli.py            # Graph comparison (CLI)
 │   ├── inspect_graph.py                 # Graph inspection
 │   ├── modify_graph.py                  # Interactive graph modification GUI
 │   └── README_COMPARISON.md             # Graph comparison workflow docs
 ├── src/               # Core library
+│   ├── api.py                      # Public API (SpinNetwork, Graph, Formula, SpinArg)
+│   ├── evolution.py                # Transition class, LineageError
+│   ├── probability.py              # calculate_probability()
+│   ├── visualizer.py               # TreeVisualizer
 │   ├── graph_reducer.py            # F-moves, triangle reductions
 │   ├── norm_reducer.py             # Canonicalization
 │   ├── spin_evaluator.py           # Numerical evaluation
@@ -147,9 +161,7 @@ pytest tests/test_ranges.py          # Range calculation tests
 │   ├── test_range_improvements.py
 │   ├── test_ranges.py
 │   ├── test_reconnection_workflow.py
-│   ├── test_symbols.py
-│   └── test_gui_probability_workflow.py
-├── legacy/            # Deprecated (main.py)
+│   └── test_symbols.py
 └── graph_snapshots/   # Generated images
 ```
 
@@ -166,5 +178,4 @@ pytest tests/test_ranges.py          # Range calculation tests
 - 6j symbols: Uses pywigxjpf C++ backend
 
 ### Debugging reductions
-- Use `--animate` flag with `compute_norm.py` for step visualization
 - Check `graph_snapshots/` for intermediate states

@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """
 Test the reconnection and probability calculation workflow programmatically.
+
+The test builds its own small spin network fixture (numeric labels, four
+open edges) instead of reading drawn_graph.graphml, so it does not depend
+on whatever graph the user last drew in the editor.
 """
 
 import os
@@ -11,6 +15,31 @@ import json
 import networkx as nx
 import tempfile
 import shutil
+
+
+def make_fixture_graph_file():
+    """
+    Write a small test network to a temporary GraphML file and return its path.
+
+    Structure: two internal trivalent nodes (3, 4) joined by one internal
+    edge; each also carries two open edges ending in degree-1 leaf nodes.
+    All labels are spin 1, so every vertex satisfies the triangle inequality.
+
+        1 ---- 3 ---- 4 ---- 2      (open, internal, open)
+               |      |
+               5      6             (open, open)
+    """
+    G = nx.MultiGraph()
+    G.add_edge('1', '3', label=1.0)   # open edge at leaf 1
+    G.add_edge('2', '4', label=1.0)   # open edge at leaf 2
+    G.add_edge('3', '4', label=1.0)   # internal edge
+    G.add_edge('3', '5', label=1.0)   # open edge at leaf 5
+    G.add_edge('4', '6', label=1.0)   # open edge at leaf 6
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.graphml', delete=False) as f:
+        path = f.name
+    nx.write_graphml(G, path)
+    return path
 
 def load_graph(file_path):
     """Load graph from GraphML."""
@@ -65,7 +94,7 @@ def reconnect_edges(graph, edge1, edge2):
 
     # Determine other endpoints
     other1 = v1 if endpoint1 == u1 else u1
-    other2 = v2 if endpoint2 == u2 else v2
+    other2 = v2 if endpoint2 == u2 else u2
 
     # Create new open edge with combined label (using triangle inequality rule)
     new_label = abs(label1 - label2)  # Minimum possible value
@@ -93,11 +122,8 @@ def test_workflow():
     print("TESTING RECONNECTION & PROBABILITY WORKFLOW")
     print("="*70)
 
-    # Load original graph
-    original_file = "drawn_graph.graphml"
-    if not os.path.exists(original_file):
-        print(f"Error: {original_file} not found")
-        return False
+    # Build the self-contained fixture graph (see make_fixture_graph_file)
+    original_file = make_fixture_graph_file()
 
     print(f"\n[1] Loading original graph: {original_file}")
     graph = load_graph(original_file)
@@ -112,14 +138,23 @@ def test_workflow():
         label = data.get('label', '?')
         print(f"    {i}. ({u}, {v}) with label={label}")
 
-    if len(open_edges) < 2:
-        print("  Error: Need at least 2 open edges for reconnection")
-        return False
+    assert len(open_edges) >= 2, "Fixture must have at least 2 open edges"
 
-    # Perform reconnection
-    print("\n[3] Reconnecting first two open edges...")
+    # Perform reconnection.  Pick two open edges attached to DIFFERENT
+    # internal nodes, so the reconnection creates a proper new edge between
+    # them (pairing two open edges of the same node would give a self-loop).
+    # GraphML loading does not preserve edge insertion order, so we cannot
+    # simply take open_edges[0] and open_edges[1].
+    def internal_endpoint(g, edge):
+        u, v, key, data = edge
+        return u if g.degree(u) >= 3 else v
+
+    print("\n[3] Reconnecting two open edges at different nodes...")
     edge1 = open_edges[0]
-    edge2 = open_edges[1]
+    edge2 = next(
+        e for e in open_edges[1:]
+        if internal_endpoint(graph, e) != internal_endpoint(graph, edge1)
+    )
 
     reconnected_graph, reconnection_data = reconnect_edges(
         graph.copy(), edge1, edge2
@@ -163,6 +198,9 @@ def test_workflow():
         norm2 = compute_norm(reconnected_file, quiet=True)
         print(f"    ||G₂|| = {norm2}")
 
+        assert norm1 != 0, "Original norm must be non-zero"
+        assert norm2 != 0, "Reconnected norm must be non-zero"
+
         norm_ratio = norm2 / norm1 if norm1 != 0 else 0
         print(f"    ||G₂||/||G₁|| = {norm_ratio}")
 
@@ -197,33 +235,32 @@ def test_workflow():
         print(f"  PROBABILITY: p = {probability:.15e}")
         print(f"  {'★'*70}")
 
-    except Exception as e:
-        print(f"  Error computing probability: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+        # A physical probability must be finite and non-negative
+        import math
+        assert probability >= 0
+        assert not math.isnan(probability)
+        assert not math.isinf(probability)
 
     finally:
         # Cleanup temp files
         print("\n[6] Cleaning up temporary files...")
         try:
+            os.unlink(original_file)
             os.unlink(reconnected_file)
             os.unlink(recon_data_file)
             print("  ✓ Cleanup complete")
-        except:
+        except OSError:
             pass
 
     print("\n" + "="*70)
     print("TEST COMPLETE: Workflow successful!")
     print("="*70 + "\n")
 
-    return True
-
 
 if __name__ == "__main__":
     try:
-        success = test_workflow()
-        sys.exit(0 if success else 1)
+        test_workflow()
+        sys.exit(0)
     except KeyboardInterrupt:
         print("\n\nInterrupted by user.")
         sys.exit(1)

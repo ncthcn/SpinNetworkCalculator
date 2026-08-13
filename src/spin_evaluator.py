@@ -63,8 +63,8 @@ try:
     JAX_AVAILABLE = True
     # Try to detect Metal backend (Apple Silicon)
     try:
-        jax.devices('gpu')
-        JAX_GPU_AVAILABLE = True
+        non_cpu = [d for d in jax.devices() if d.platform != 'cpu']
+        JAX_GPU_AVAILABLE = bool(non_cpu)
     except:
         JAX_GPU_AVAILABLE = False
 except ImportError:
@@ -135,7 +135,9 @@ class SpinNetworkEvaluator:
             # Priority: GPU > CPU parallel > fallback serial (never use serial by default)
             if JAX_GPU_AVAILABLE:
                 self.backend = 'jax'
-                print(f"🚀 Using JAX GPU backend (detected {len(jax.devices('gpu'))} GPU(s))")
+                non_cpu_devs = [d for d in jax.devices() if d.platform != 'cpu']
+                platform_name = non_cpu_devs[0].platform if non_cpu_devs else 'GPU'
+                print(f"🚀 Using JAX {platform_name} backend (detected {len(non_cpu_devs)} accelerator(s))")
             elif JAX_AVAILABLE:
                 self.backend = 'jax'
                 print("🚀 Using JAX CPU backend")
@@ -222,7 +224,6 @@ class SpinNetworkEvaluator:
         Returns:
         --------
         tuple (sign_exponent, magnitude) where result = (-1)^sign_exponent * magnitude
-        For backward compatibility, returns float if power is integer.
 
         FORMULA:
             θ(j,k,l) = (-1)^(j+k+l) × (j+k+l+1)! / [(j+k-l)!(j-k+l)!(-j+k+l)!]
@@ -888,6 +889,9 @@ class FormulaEvaluator:
     Supported functions in formula strings:
       theta(j1, j2, j3)              - Theta symbol (signed)
       delta(j)                       - Delta symbol (signed)
+      deltatheta(c, s, t)             - Δ(c)/Θ(c,s,t), 0 if inadmissible (used
+                                        by calculate_probability())
+      safe_div(num, den)              - num/den, 0 if den == 0
       W6j(j1, j2, j3, j4, j5, j6)   - Wigner 6j symbol
       Sum('F', min, max, lambda F: …) - Summation over half/integer steps
       Standard math: sqrt, abs, exp, log, sin, cos, pi, ...
@@ -915,6 +919,30 @@ class FormulaEvaluator:
             sign_exp, mag = ev.delta_symbol(j, power)
             return ((-1.0) ** int(round(sign_exp))) * mag
 
+        def deltatheta(c, s, t, power=1.0):
+            """Δ(c) / Θ(c, s, t)^power for a reconnection triplet.
+
+            Returns exactly 0 when Θ is inadmissible (triangle inequality
+            violated) instead of raising a division error — this is the
+            physical convention used for transition probabilities: an
+            inadmissible reconnection contributes zero.
+            """
+            th_sign, th_mag = ev.theta_symbol(c, s, t, power)
+            if th_mag == 0.0:
+                return 0.0
+            d_sign, d_mag = ev.delta_symbol(c, power)
+            sign_exp = d_sign - th_sign
+            return ((-1.0) ** int(round(sign_exp))) * (d_mag / th_mag)
+
+        def safe_div(numerator, denominator):
+            """numerator / denominator, defined as 0 when denominator == 0.
+
+            A norm of exactly zero means the associated state/transition is
+            physically forbidden, so the probability is 0 rather than
+            undefined.
+            """
+            return 0.0 if denominator == 0.0 else numerator / denominator
+
         def W6j(j1, j2, j3, j4, j5, j6, power=1.0):
             return ev.wigner_6j(j1, j2, j3, j4, j5, j6, power)
 
@@ -931,6 +959,8 @@ class FormulaEvaluator:
         ns.update({
             'theta': theta,
             'delta': delta,
+            'deltatheta': deltatheta,
+            'safe_div': safe_div,
             'W6j': W6j,
             'Sum': Sum,
             'abs': abs,
@@ -957,7 +987,12 @@ class FormulaEvaluator:
         """
         ns = dict(self._base_namespace)
         if variables:
-            ns.update(variables)
+            # Sanitize the variable NAMES the same way the formula string is
+            # sanitized below.  Graph edge labels may contain prime notation
+            # (e.g. "n''"), but the formula string uses the Python-safe form
+            # ("n_p_p"); without this, eval() cannot find the variable and
+            # raises NameError.
+            ns.update({_sanitize_primes(k): v for k, v in variables.items()})
         # Pass ns as globals (not locals) so that lambdas created inside eval
         # can resolve free variables (round, theta, W6j, ...) through their
         # __globals__, which is always the globals dict, never the locals dict.
@@ -966,7 +1001,7 @@ class FormulaEvaluator:
         # string literals, for formula strings generated before this was fixed.
         formula = _sanitize_primes(formula)
         try:
-            return float(eval(formula, ns))
+            return abs(float(eval(formula, ns)))
         except Exception as e:
             raise ValueError(f"Failed to evaluate formula '{formula}': {e}") from e
 

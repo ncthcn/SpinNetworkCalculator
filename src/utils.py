@@ -11,6 +11,8 @@ import networkx as nx
 # This function checks both at once for a single set of three labels.
 def vertex_satisfies_triangular_conditions(labels):
     a, b, c = labels
+    if not all(isinstance(x, (int, float)) for x in (a, b, c)):
+        return True  # symbolic labels are validated later during summation
     if (a + b + c) % 1 != 0:  # integer-sum check
         return False
     return (
@@ -35,6 +37,51 @@ def check_triangular_condition(graph):
                         labels.append(label)
             if len(labels) == 3 and not vertex_satisfies_triangular_conditions(labels):
                 raise ValueError(f"Triangular condition not satisfied at node {node}")
+
+# -----------------------------------------------------------------------
+# Allowed range for a labelled edge (triangle inequality at its vertices)
+# -----------------------------------------------------------------------
+
+# Given a graph and the label of one of its edges, find the tightest
+# [j_min, j_max] half-integer range that label may take without violating
+# the triangular inequality |a-b| <= label <= a+b at either endpoint.
+# Only endpoints where BOTH other incident edges are already numeric can
+# constrain the range; open ends (degree < 3) and vertices where a second
+# edge is still symbolic contribute no bound from that side. Bounds from
+# every edge/vertex sharing this label are intersected together.
+# Returns None if no vertex could constrain it (caller should fall back to
+# a default range, e.g. when every neighbouring edge is also symbolic).
+def edge_triangle_range(nx_graph, label):
+    label_str = str(label)
+    j_min, j_max = 0.0, None
+
+    for u, v, k, data in nx_graph.edges(keys=True, data=True):
+        if str(data.get("label")) != label_str:
+            continue
+        for node in (u, v):
+            if nx_graph.degree(node) != 3:
+                continue  # open end: no third edge at this vertex to bound it
+            others = [
+                edata.get("label")
+                for nbr, edict in nx_graph[node].items()
+                for ek, edata in edict.items()
+                if str(edata.get("label")) != label_str
+            ]
+            if len(others) == 2 and all(is_numeric_label(x) for x in others):
+                a, b = (float(x) for x in others)
+                j_min = max(j_min, abs(a - b))
+                j_max = (a + b) if j_max is None else min(j_max, a + b)
+
+    if j_max is None:
+        return None
+    return (j_min, j_max)
+
+# Expands a (j_min, j_max) range from edge_triangle_range() into the list of
+# individual half-integer spin values, stepping by 1 (the coupling step for
+# a fixed pair of other edges — j and j+1 both satisfy the same triangle).
+def spin_values_in_range(j_min, j_max, step=1.0):
+    n_steps = int(round((j_max - j_min) / step))
+    return [j_min + i * step for i in range(n_steps + 1)]
 
 # -----------------------------------------------------------------------
 # Face cycles and topology

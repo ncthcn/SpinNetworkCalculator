@@ -7,7 +7,6 @@ A computational tool for calculating spin network norms and probabilities. This 
 ## Documentation Quick Links
 
 - **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes (for collaborators)
-- **[PROBABILITY_WORKFLOW.md](PROBABILITY_WORKFLOW.md)** - Compute reconnection probabilities
 - **[PARALLEL_ACCELERATION.md](PARALLEL_ACCELERATION.md)** - GPU and parallel evaluation
 - **[scripts/README_COMPARISON.md](scripts/README_COMPARISON.md)** - Graph comparison workflow
 - **This README** - Comprehensive documentation
@@ -277,39 +276,43 @@ and benchmarks.
 
 ### Reconnection Probability Workflow
 
-**See [PROBABILITY_WORKFLOW.md](PROBABILITY_WORKFLOW.md) for complete documentation.**
+The transition probability between two spin network states is computed via the `calculate_probability()` function.  The transition itself is created interactively with `transition_to()`, which opens a GUI to modify the graph (reconnect open ends, add edges) and saves the resulting child network.
 
-Quick workflow (GUI):
-1. Create a graph with open edges and save it: `snet = new_network(); snet.save("drawn_graph.graphml")`
-2. Launch reconnection GUI: `python scripts/transition_to.py drawn_graph.graphml`
-3. In the GUI:
-   - Click two open edges (orange)
-   - Press C to connect
-   - Choose "YES - All possible values" or "NO" and input specific value
-   - Press S to save & compute
+`calculate_probability(n1, n2)` mirrors `Graph.evaluate_symbolic()`: it returns a symbolic `Formula`, not a number.  Call `formula.evaluate_numeric()` for a single value or `formula.evaluate_batch(args_list)` to scan many spin assignments efficiently (one shared evaluator for the whole batch) — exactly like any other `Formula`.
 
-**Features:**
-- **Visual selection** of which edges to reconnect
-- **Automatic computation** of all possible edge values (through the triangle inequality)
-- **Normalization test** verifies Σp = 1 (physical consistency)
+```python
+from src.api import load_network, calculate_probability, SpinArg, TreeVisualizer
+
+n1 = load_network("drawn_graph.graphml")
+
+# Open GUI: select open nodes, press C to reconnect, S to save
+n2 = n1.transition_to()
+
+# Build the symbolic probability formula, then evaluate it
+formula = calculate_probability(n1, n2)
+p = formula.evaluate_numeric()
+print(f"P = {p}")
+
+# Scan a batch of spin assignments (e.g. for a symbolic edge "j_1")
+args_list = [[SpinArg("j_1", v)] for v in (0.5, 1.0, 1.5, 2.0)]
+probs = formula.evaluate_batch(args_list)
+
+# Visualise the genealogy tree
+TreeVisualizer.display_tree(n1)
+```
 
 The probability formula is:
 ```
-p(c,...,z) = abs(Δ(c)⋅⋅⋅Δ(z) / [Θ(a,b,c)⋅⋅⋅Θ(x,y,z)] × ||G₂||/||G₁||)
+P = |Δ(c₁)⋯Δ(cₙ) / [Θ(c₁,s₁,t₁)⋯Θ(cₙ,sₙ,tₙ)]  ×  ||G₂|| / (||G₁|| × ||GΔ||)|
 ```
 
-Example output:
-```
-Probability distribution:
-  New Edge     Probability
-  0.0          0.000000e+00
-  1.0          1.000000e+00
-  2.0          0.000000e+00
-  TOTAL        1.000000e+00
+where `cᵢ` are new edge labels from reconnections, `sᵢ,tᵢ` are the reconnected edges, and `GΔ` is the subgraph of explicitly added edges.  A zero denominator (`||G₁||×||GΔ||`) or an inadmissible `Θ(cᵢ,sᵢ,tᵢ)` contributes 0 rather than raising a division error.
 
-✓ PASSED: Probabilities sum to 1
-  Physical consistency verified!
-```
+**In the GUI:**
+- Orange nodes/edges are open ends
+- Select two open nodes → press **C** to reconnect, enter the new edge label
+- Press **E** to add a new edge
+- Press **S** to save and exit
 
 ### Creating and Editing a Spin Network
 
@@ -518,7 +521,6 @@ Spin_Networks_Project_full/
 ├── Documentation
 │   ├── README.md                        # This file - comprehensive guide
 │   ├── QUICKSTART.md                    # 5-minute quick start
-│   ├── PROBABILITY_WORKFLOW.md          # Reconnection probability guide
 │   ├── PARALLEL_ACCELERATION.md         # GPU/parallel evaluation guide
 │   └── requirements.txt                 # Python dependencies
 │
@@ -526,18 +528,21 @@ Spin_Networks_Project_full/
 │   ├── graph.py                         # GraphEditor class  (new_network())
 │   ├── inspect_graph.py                 # GraphInspector class  (Graph.display())
 │   ├── modify_graph.py                  # GraphModifier class  (Graph.modify())
+│   ├── transition_to.py                 # Transition GUI  (SpinNetwork.transition_to())
 │   │
-│   └── Reconnection / comparison scripts (standalone CLI tools)
-│       ├── transition_to.py                 # Reconnection GUI
+│   └── Standalone CLI tools
+│       ├── compute_probability.py           # Single reconnection probability (CLI)
+│       ├── compute_all_probabilities.py     # Full probability distribution (CLI)
+│       ├── compute_symbolic_probability.py  # Symbolic probability formula (CLI)
 │       ├── compare_graphs.py                # Automated graph comparison workflow
 │       ├── compare_graphs_cli.py            # Graph comparison (CLI)
-│       ├── compute_probability.py           # Single reconnection probability
-│       ├── compute_all_probabilities.py     # Full probability distribution (CLI)
-│       ├── compute_symbolic_probability.py  # Symbolic probability formula
 │       └── README_COMPARISON.md             # Graph comparison workflow docs
 │
 ├── Core Library (src/)
 │   ├── api.py                   # Public library API (SpinNetwork, Graph, Formula, SpinArg)
+│   ├── evolution.py             # Transition class, LineageError
+│   ├── probability.py           # calculate_probability()
+│   ├── visualizer.py            # TreeVisualizer
 │   ├── drawing.py               # Graph visualization, Kuratowski plots
 │   ├── gluer.py                 # Graph gluing operations
 │   ├── graph_reducer.py         # F-moves and triangle reductions
@@ -548,23 +553,19 @@ Spin_Networks_Project_full/
 │   ├── orientation.py           # Reference orientation calculations
 │   └── reduction_animator.py    # Reduction step animation (GIFs)
 │
-├── Generated Files (examples; names are user-controlled via the API)
+├── Generated Files (names are user-controlled via the API)
 │   ├── drawn_graph.graphml                      # saved by new_network() / Graph.save()
 │   ├── <name>.pdf                               # saved by formula.save("name.pdf","pdf")
 │   ├── <name>.txt                               # saved by formula.save("name.txt","txt")
 │   │
-│   └── Reconnection / comparison outputs
-│       ├── transition_to_graph.graphml
-│       ├── transition_to_graph_norm_G1.txt
-│       ├── transition_to_graph_norm_G2.txt
-│       ├── transition_to_graph_symbolic_probability.txt
-│       ├── transition_to_graph_transition.json
+│   └── Transition outputs  (from transition_to())
+│       ├── transition_to_graph.graphml          # child graph
+│       ├── transition_to_graph_transition.json  # structural metadata
 │       ├── graph_snapshots/graph.png
-│       └── {input_basename}_kuratowski.png      # K₅/K₃,₃ subgraph (non-planar graphs only)
+│       └── {input_basename}_kuratowski.png      # K₅/K₃,₃ subgraph (non-planar only)
 │
 └── Other
     ├── tests/                   # Test suite (pytest)
-    ├── legacy/                  # Deprecated (main.py)
     └── .gitignore               # Git ignore rules
 ```
 

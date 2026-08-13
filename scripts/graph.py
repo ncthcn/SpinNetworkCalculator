@@ -372,9 +372,10 @@ class GraphEditor:
         # Convert screen coordinates to world coordinates
         wx, wy = self.screen_to_world(x, y)
         node_id = max(self.nodes.keys(), default=0) + 1
+        # Snapshot BEFORE mutating, so undo restores the graph without this node
+        self.save_state(f"Add node {node_id}")
         self.nodes[node_id] = (wx, wy)
         self.graph.add_node(node_id, pos=(wx, wy))
-        self.save_state(f"Add node {node_id}")
         self.redraw_all()
         self.update_stats()
         print(f"✓ Node {node_id} added at ({wx:.0f}, {wy:.0f})")
@@ -411,6 +412,9 @@ class GraphEditor:
         if label is None:
             return
 
+        # Snapshot BEFORE mutating, so undo restores the graph without this edge
+        self.save_state(f"Add edge {node1}-{node2}")
+
         # Temporarily add edge
         self.graph.add_edge(node1, node2, label=label)
 
@@ -421,9 +425,8 @@ class GraphEditor:
                     f"Edge with label {label} violates triangular inequality!\n" +
                     f"For edges j₁, j₂, j₃ at a node: |j₁-j₂| ≤ j₃ ≤ j₁+j₂")
                 self.graph.remove_edge(node1, node2)
+                self.history.pop()  # edge was rolled back: drop the useless undo entry
                 return
-
-        self.save_state(f"Add edge {node1}-{node2}")
         # Fix reference orientation the moment a vertex becomes trivalent.
         for node in (node1, node2):
             if self.graph.degree(node) == 3:
