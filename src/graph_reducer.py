@@ -15,6 +15,23 @@ os.makedirs("graph_snapshots", exist_ok=True)
 # never clash across multiple F-moves in one reduction.
 F_COUNTER = {"value": 0}
 
+
+class ReductionError(RuntimeError):
+    """
+    Raised when reduce_all_cycles cannot reduce a graph to a pure number.
+
+    A completed reduction always consumes the whole graph: every edge is
+    traded for an algebraic factor, so the terminal graph has zero edges
+    (verified for the theta graph, the tetrahedron, and F-move cases).
+
+    If edges remain, the accumulated coefficient list is only a *partial*
+    product and the value derived from it is wrong. Returning it silently --
+    as this module used to -- yields a plausible-looking number with no
+    indication that anything failed, which is the most dangerous possible
+    failure mode for a scientific code. We raise instead.
+    """
+
+
 # -----------------------------------------------------------------------
 # Coefficient builders
 # -----------------------------------------------------------------------
@@ -278,7 +295,12 @@ def apply_triangle_reduction(term):
     dv_node = external_neighbor_in_trivalent(G, v, tri)
     fw_node = external_neighbor_in_trivalent(G, w, tri)
 
-    if not all([au_node, dv_node, fw_node]):
+    # MUST compare against None explicitly, never rely on truthiness: a node
+    # may legitimately be *named* 0 (or "", or False), and `not all([...])`
+    # would then treat a perfectly good neighbour as "not found" and silently
+    # abandon the reduction. That produced a norm of 1 instead of 9216 for 6
+    # of the 24 node-labelings of the very same tetrahedron.
+    if au_node is None or dv_node is None or fw_node is None:
         return None
 
     # Read all labels before any graph modification.
@@ -288,6 +310,12 @@ def apply_triangle_reduction(term):
     d = get_edge_label(G, v, dv_node)   # external at v
     e = get_edge_label(G, u, v)         # triangle edge u-v
     f = get_edge_label(G, w, fw_node)   # external at w
+
+    # Same reasoning for the labels: spin 0 is a valid label, so only a
+    # genuinely absent edge (None) may abort the reduction. This mirrors the
+    # guard in f_move_recouple_term.
+    if any(x is None for x in [a, b, c, d, e, f]):
+        return None
 
     # Keep w as the surviving node; remove u and v (and their triangle edges).
     T = w
@@ -471,6 +499,48 @@ def graph_signature(G):
 # significant step so that a GIF/PDF can be produced.
 # Returns a single-element list [term] for compatibility with callers that
 # expect a list of terms (the reduction is always deterministic here).
+def _assert_fully_reduced(term, why):
+    """
+    Guard the exit paths of reduce_all_cycles against silent partial results.
+
+    Parameters
+    ----------
+    term : dict
+        The term about to be returned, with keys "graph" and "coeffs".
+    why : str
+        Human-readable description of which exit path was taken, used to make
+        the error message actionable.
+
+    Raises
+    ------
+    ReductionError
+        If any edge remains in term["graph"]. See the class docstring for why
+        leftover edges mean the coefficient product is incomplete.
+    """
+    G = term["graph"]
+    if G.number_of_edges() == 0:
+        return
+
+    remaining = [
+        (str(u), str(v), data.get("label"))
+        for u, v, data in G.edges(data=True)
+    ]
+    degrees = sorted({d for _, d in G.degree()})
+    raise ReductionError(
+        f"Reduction did not complete: {why}. "
+        f"{G.number_of_edges()} edge(s) and {G.number_of_nodes()} node(s) "
+        f"remain, so the {len(term['coeffs'])} accumulated coefficient(s) form "
+        f"only a partial product and any value derived from them would be "
+        f"wrong.\n"
+        f"  Remaining edges (u, v, label): {remaining[:10]}"
+        f"{' ...' if len(remaining) > 10 else ''}\n"
+        f"  Vertex degrees present: {degrees} (the reduction moves assume every "
+        f"internal vertex is trivalent, i.e. degree exactly 3).\n"
+        f"This usually means the input graph is not trivalent, or is "
+        f"non-planar in a way the face-finding fallback cannot handle."
+    )
+
+
 def reduce_all_cycles(glued_graph, animator=None):
     term = {"graph": glued_graph, "coeffs": []}
 
@@ -517,6 +587,12 @@ def reduce_all_cycles(glued_graph, animator=None):
 
         if not C or len(C) <= 3:
             if not changed:
+                _assert_fully_reduced(
+                    term,
+                    "no face longer than 3 remains, but the local reductions "
+                    "(theta / 2-cycle / triangle / degree-2 / loop) made no "
+                    "further progress"
+                )
                 if animator:
                     animator.add_step(
                         term["graph"],
@@ -539,6 +615,9 @@ def reduce_all_cycles(glued_graph, animator=None):
                     highlight_nodes=list(C),
                     operation="f-move"
                 )
+            _assert_fully_reduced(
+                term, f"no F-move is applicable to the face {C}"
+            )
             return [term]
 
         if animator:
@@ -560,4 +639,5 @@ def reduce_all_cycles(glued_graph, animator=None):
             description="Safety cap: Maximum iteration limit reached.",
             operation="triangle"
         )
+    _assert_fully_reduced(term, f"the {max_iters}-iteration safety cap was hit")
     return [term]

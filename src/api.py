@@ -193,6 +193,41 @@ def _save_graphml(graph: nx.MultiGraph, path: str) -> None:
     nx.write_graphml(graph_copy, path)
 
 
+def _open_end_labels(graph: nx.MultiGraph, node_names) -> Tuple:
+    """
+    Return the spin label carried by each named open end, in a stable order.
+
+    An open end is a degree-1 node, so it has exactly one incident edge and
+    that edge's label is the spin flowing out of the network there.
+
+    Parameters
+    ----------
+    graph : nx.MultiGraph
+        The graph the nodes belong to (here always the parent).
+    node_names : iterable of str
+        Node names as strings.  Callers compare node identities across a
+        GraphML round trip, where numeric names may be int on one side and str
+        on the other, so lookup is done through a str-keyed index.
+
+    Returns
+    -------
+    tuple
+        One label per resolvable node, ordered by node name for determinism.
+        Nodes that cannot be resolved are skipped rather than raising: they
+        are not open ends of this graph.
+    """
+    by_name = {str(n): n for n in graph.nodes()}
+    labels = []
+    for name in sorted(node_names):
+        node = by_name.get(name)
+        if node is None:
+            continue
+        for _u, _v, data in graph.edges(node, data=True):
+            labels.append(data.get("label"))
+            break  # degree 1: exactly one incident edge
+    return tuple(labels)
+
+
 def _atomic_label_tokens(label_str: str) -> List[str]:
     """
     Extract the atomic variable names from an edge-label string.
@@ -413,15 +448,15 @@ class Formula:
         args : list[SpinArg], optional
             Additional or overriding spin assignments.  If omitted, uses
             the values stored by previous set_args() calls.
-        backend : {'auto', 'jax', 'multiprocessing', 'serial'}, optional
+        backend : {'auto', 'serial', 'multiprocessing'}, optional
             Computation backend for the summation over F-variables.
 
-            - 'auto'           picks the fastest available option (default)
-            - 'jax'            uses JAX/GPU; requires  pip install jax  (and
-                               pip install jax-metal  on Apple Silicon)
-            - 'multiprocessing' parallelises over CPU cores using Python's
-                               multiprocessing module
-            - 'serial'         single-threaded; easiest to debug
+            - 'auto'            resolves to 'serial' (default)
+            - 'serial'          single-threaded
+            - 'multiprocessing' splits the outermost summation across CPU
+                                cores. Only worth it for very large sums
+                                (break-even ~350,000 terms) and only from a
+                                script guarded by  if __name__ == "__main__":
 
         max_two_j : int, optional
             Pre-allocates wigxjpf tables up to spin j = max_two_j / 2.
@@ -481,7 +516,15 @@ class Formula:
         finally:
             evaluator.cleanup()  # always release the underlying wigxjpf C++ resources
 
-        return result
+        # THE modulus, applied exactly once, here at the boundary.
+        #
+        # Every factor inside the formula (theta, delta, the (-1)^... signs)
+        # carries its own sign and must keep it, because those signs cancel
+        # against each other during the summation. Only the final quantity --
+        # the norm -- is positive by definition, so abs() belongs here and
+        # nowhere earlier. FormulaEvaluator.evaluate() returns the signed
+        # value precisely so that this stays the single point of truncation.
+        return abs(result)
 
     def evaluate_batch(
         self,
@@ -501,7 +544,7 @@ class Formula:
         args_list : list[list[SpinArg]]
             Each inner list is one complete set of spin assignments, in
             the same format as the args parameter of evaluate_numeric().
-        backend : {'auto', 'jax', 'multiprocessing', 'serial'}, optional
+        backend : {'auto', 'serial', 'multiprocessing'}, optional
             See evaluate_numeric() for details.
         max_two_j : int, optional
             See evaluate_numeric() for details.
@@ -529,40 +572,43 @@ class Formula:
 
         # Initialise once and reuse across all entries — avoids repeated
         # wigxjpf table allocation, which is the expensive part
-        evaluator = FormulaEvaluator(max_two_j=max_two_j, backend=backend)
-        try:
-            results = []
-            for single_args in args_list:
-                # Build variable dict for this entry (same logic as
-                # evaluate_numeric, including prime-name normalisation)
-                variables: dict = {}
-                for arg in self._args:
+        # Resolve every entry's variable bindings up front, so the whole batch
+        # can be dispatched to the worker pool in one go rather than one
+        # round-trip per entry.
+        variable_sets: List[Optional[dict]] = []
+        for single_args in args_list:
+            # Build variable dict for this entry (same logic as
+            # evaluate_numeric, including prime-name normalisation)
+            variables: dict = {}
+            for arg in self._args:
+                if arg.is_numeric:
+                    variables[_sanitize_primes(arg.label)] = float(arg.value)
+            if single_args:
+                for arg in single_args:
                     if arg.is_numeric:
                         variables[_sanitize_primes(arg.label)] = float(arg.value)
-                if single_args:
-                    for arg in single_args:
-                        if arg.is_numeric:
-                            variables[_sanitize_primes(arg.label)] = float(arg.value)
 
-                unassigned = [
-                    a.label for a in self._args
-                    if _sanitize_primes(a.label) not in variables
-                ]
-                if unassigned:
-                    raise ValueError(
-                        f"Unassigned variables in batch entry: {unassigned}"
-                    )
-
-                results.append(
-                    evaluator.evaluate(
-                        self._formula_string,
-                        variables=variables if variables else None,
-                    )
+            unassigned = [
+                a.label for a in self._args
+                if _sanitize_primes(a.label) not in variables
+            ]
+            if unassigned:
+                raise ValueError(
+                    f"Unassigned variables in batch entry: {unassigned}"
                 )
+
+            variable_sets.append(variables if variables else None)
+
+        # Initialise once and reuse across all entries — avoids repeated
+        # wigxjpf table allocation, which is the expensive part
+        evaluator = FormulaEvaluator(max_two_j=max_two_j, backend=backend)
+        try:
+            signed = evaluator.evaluate_many(self._formula_string, variable_sets)
         finally:
             evaluator.cleanup()
 
-        return results
+        # abs() at the boundary, once per returned norm — see evaluate_numeric.
+        return [abs(value) for value in signed]
 
     # ------------------------------------------------------------------
     # Persistence
@@ -1028,7 +1074,7 @@ class Graph:
           3. F-moves and triangle reductions  (graph_reducer.py)
           4. Kronecker delta simplifications   (norm_reducer.py)
           5. 6j → Wigner 6j expansion
-          6. Canonicalisation (Regge symmetries, sorting)
+          6. Canonicalisation (24-fold tetrahedral 6j symmetry, sorting)
 
         The result is cached.  Calling this again on an unchanged graph
         returns the cached Formula instantly.  The cache is invalidated
@@ -1085,7 +1131,9 @@ class Graph:
                     expanded_coeffs.append(coeff)
             term["coeffs"] = expanded_coeffs
 
-        # Step 6: canonicalise (apply Regge symmetries, sort arguments)
+        # Step 6: canonicalise. NOTE: norm_reducer applies the 24-element
+        # tetrahedral symmetry group of the 6j symbol (column permutations
+        # and upper/lower swaps), NOT Regge's additional 72-element group.
         canon_terms = canonicalise_terms(clean_terms)
 
         # Build the Formula, passing the names of the graph's free variables
@@ -1310,8 +1358,59 @@ class SpinNetwork:
         with open(json_path) as fh:
             data = json.load(fh)
 
-        # Load the child graph
-        child_nx = _load_graphml(graphml_path)
+        child = self.transition_from_metadata(_load_graphml(graphml_path), data)
+
+        # Clean up temp directory
+        try:
+            import shutil
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+        except Exception:
+            pass
+
+        return child
+
+    def transition_from_metadata(
+        self,
+        child_nx: nx.MultiGraph,
+        data: dict,
+    ) -> "SpinNetwork":
+        """
+        Build a child SpinNetwork from a child graph plus transition metadata.
+
+        This is the headless equivalent of transition_to(): it performs exactly
+        the parsing and linking that transition_to() does once the GUI has
+        closed, so a transition can be scripted, replayed from saved files, or
+        tested without a display.
+
+        Parameters
+        ----------
+        child_nx : nx.MultiGraph
+            The child graph (e.g. from _load_graphml on a saved .graphml).
+        data : dict
+            Transition metadata in the schema written by
+            scripts/transition_to.py, i.e.
+
+                {"added_edges":   [{"nodes": [u, v], "label": j}, ...],
+                 "reconnections": [{"old_edges": [{"label": s}, {"label": t}],
+                                    "new_edge":  {"label": c}}, ...]}
+
+        Returns
+        -------
+        SpinNetwork
+            The child, already linked into the genealogy tree.
+
+        Example
+        -------
+            import json
+            from src.api import load_network, _load_graphml
+
+            n1 = load_network("drawn_graph.graphml")
+            with open("transition_to_graph_transition.json") as fh:
+                meta = json.load(fh)
+            n2 = n1.transition_from_metadata(
+                _load_graphml("transition_to_graph.graphml"), meta
+            )
+        """
         child_graph = Graph(child_nx)
 
         # Compute produced_open_ends: new degree-1 nodes in child not in parent
@@ -1321,18 +1420,50 @@ class SpinNetwork:
         child_open = frozenset(str(n) for n, d in child_nx_g.degree() if d == 1)
         produced_open_ends = child_open - parent_open
 
-        # Reconstruct added_graph from the explicitly added edges in the JSON.
-        # Reconnection nodes are not included here; the added_graph captures only
-        # the new edges the user explicitly placed (used for norm(G_Δ)).
+        # Reconstruct G_Δ, the subgraph whose norm divides the probability.
+        #
+        # This is NOT just the edges the user drew.  An added edge attaches to a
+        # node of the parent that was not yet saturated (degree < 3), and the
+        # parent's own edge at that attachment point belongs to the subgraph
+        # too -- otherwise the attachment node is left non-trivalent and its
+        # norm is wrong.  In the recorded example, omitting step 2 gave
+        # ‖G_Δ‖ = Δ(0.5) = 2 instead of Θ(0.5, 0.5, 1.0) = 6, making the
+        # probability a factor of 3 too large.
+        #
+        # Node names are normalised with str(): scripts/transition_to.py stores
+        # numeric names as int, while _load_graphml keeps them as str.
         added_nx: nx.MultiGraph = nx.MultiGraph()
+
+        # 1) The edges the user explicitly added.
         for edge_info in data.get("added_edges", []):
             nodes = edge_info["nodes"]
-            n1, n2 = nodes[0], nodes[1]
-            label = edge_info.get("label", 1.0)
-            added_nx.add_edge(n1, n2, label=label)
+            added_nx.add_edge(
+                str(nodes[0]), str(nodes[1]), label=edge_info.get("label", 1.0)
+            )
+
+        # 2) The parent's open edges at each attachment node.  The same nodes
+        #    supply the Δ(j) factors below, so the two stay consistent by
+        #    construction.
+        parent_by_name = {str(n): n for n in parent_nx.nodes()}
+        attachment_nodes = [
+            (name, parent_by_name[name])
+            for name in sorted(added_nx.nodes())
+            if name in parent_by_name and parent_nx.degree(parent_by_name[name]) < 3
+        ]
+
+        consumed_labels = []
+        for name, node in attachment_nodes:
+            for u, v, edge_data in parent_nx.edges(node, data=True):
+                other = v if u == node else u
+                label = edge_data.get("label", 1.0)
+                consumed_labels.append(label)
+                if not added_nx.has_edge(name, str(other)):
+                    added_nx.add_edge(name, str(other), label=label)
+
         added_graph = Graph(added_nx)
 
-        # Parse reconnection triplets (c, s, t) and consumed open-end labels
+        # Parse reconnection triplets (c, s, t).  Each becomes a
+        # deltatheta(c, s, t) = Δ(c)/Θ(c, s, t) factor in the probability.
         theta_triplets = []
         for r in data.get("reconnections", []):
             new_edge = r.get("new_edge", {})
@@ -1341,28 +1472,39 @@ class SpinNetwork:
                 theta_triplets.append(
                     (new_edge["label"], old_edges[0]["label"], old_edges[1]["label"])
                 )
+            else:
+                # Never drop a reconnection silently: its Δ/Θ factor is part of
+                # the probability, so a malformed record must be visible.
+                raise ValueError(
+                    "Malformed reconnection record in transition metadata: "
+                    f"{r!r}. Expected exactly two 'old_edges' each with a "
+                    "'label', and a 'new_edge' with a 'label'. Dropping it "
+                    "would silently omit its Delta/Theta factor from the "
+                    "transition probability."
+                )
 
-        # No probability is read here: scripts/transition_to.py only records
-        # structural metadata (added_edges, reconnections).  The transition
-        # probability is always computed on demand by calculate_probability().
+        # Δ(j) factors: the parent open ends consumed at the attachment points
+        # of the added edges -- i.e. consumed OUTSIDE any reconnection.  Open
+        # ends that took part in a reconnection are already represented by that
+        # reconnection's Δ(c)/Θ(c,s,t) triplet and must not be counted twice;
+        # they are excluded automatically here because a reconnection records no
+        # 'added_edges', so its nodes are never attachment nodes.
+        #
+        # These are exactly the labels collected in step 2 above, which is why
+        # the Δ(j) numerator and the ‖G_Δ‖ denominator always agree.
+        old_open_end_labels = tuple(consumed_labels)
+
         t = Transition(
             parent=self,
             added_graph=added_graph,
             produced_open_ends=produced_open_ends,
             theta_triplets=tuple(theta_triplets),
+            old_open_end_labels=old_open_end_labels,
         )
 
         child = SpinNetwork(child_graph, parent_transition=t)
         t._link_child(child)
         self._add_child_transition(t)
-
-        # Clean up temp directory
-        try:
-            import shutil
-            shutil.rmtree(tmp_dir, ignore_errors=True)
-        except Exception:
-            pass
-
         return child
 
     # ------------------------------------------------------------------

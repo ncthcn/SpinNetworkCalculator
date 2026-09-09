@@ -77,6 +77,10 @@ python scripts/compare_graphs.py drawn_graph.graphml
 ### Pipeline
 ```
 Input Graph → Glue Open Edges → F-moves → Triangle Reductions → Expand 6j → Canonicalize → Evaluate
+
+Reduction is polynomial; the final summation is exponential in the number of
+F-variables. Failure to fully reduce raises ReductionError (never a partial result).
+abs() is applied once, at the api.py boundary, not inside the evaluator.
 ```
 
 ### Module Responsibilities
@@ -85,8 +89,8 @@ Input Graph → Glue Open Edges → F-moves → Triangle Reductions → Expand 6
 - **probability.py**: `calculate_probability(n_in, n_out) -> Formula` standalone function
 - **visualizer.py**: `TreeVisualizer.display_tree()`, `ascii_tree()` for genealogy plots
 - **graph_reducer.py**: F-moves, triangle reductions, 6j symbol insertion
-- **norm_reducer.py**: Kronecker constraints, Regge symmetries, canonicalization
-- **spin_evaluator.py**: wigxjpf interface, JAX/multiprocessing backends, theta/delta symbols
+- **norm_reducer.py**: Kronecker constraints, 24-fold tetrahedral 6j symmetry, canonicalization
+- **spin_evaluator.py**: wigxjpf interface, serial/multiprocessing backends, theta/delta symbols
 - **gluer.py**: Creates theta graph by gluing open edges
 - **utils.py**: Triangle inequality checks, face cycles, range computation
 - **orientation.py**: Reference orientation and layout phase calculations
@@ -103,7 +107,6 @@ Input Graph → Glue Open Edges → F-moves → Triangle Reductions → Expand 6
 ### Technical
 - Python 3.7+
 - Core deps: networkx, matplotlib, sympy, numpy, scipy, pywigxjpf
-- Optional: jax (GPU acceleration)
 - Output files:
   - `drawn_graph.graphml` — user-drawn graph (via `graph.save()`)
   - `norm_expression.pdf` — raw symbolic expression
@@ -119,10 +122,13 @@ Input Graph → Glue Open Edges → F-moves → Triangle Reductions → Expand 6
 pytest tests/                        # All tests
 pytest tests/test_integration.py     # Pipeline tests
 pytest tests/test_graph_reducer.py   # Reduction tests
+pytest tests/test_validation.py      # Validation vs sympy / closed forms / known norms
 pytest tests/test_symbols.py         # Wigner symbol tests
 pytest tests/test_orientation.py     # Orientation tests
 pytest tests/test_reconnection_workflow.py  # Reconnection probability tests
-pytest tests/test_multi_sum.py       # Multi-variable summation tests
+# NOTE: tests/test_multi_sum.py defines no test functions; it runs at import
+# time and writes test_triple_sum.pdf into the repo root. It is a demo script,
+# not a test.
 pytest tests/test_ranges.py          # Range calculation tests
 ```
 
@@ -134,6 +140,8 @@ pytest tests/test_ranges.py          # Range calculation tests
 │   ├── compute_probability.py           # Single reconnection probability (CLI)
 │   ├── compute_all_probabilities.py     # Full probability distribution (CLI)
 │   ├── compute_symbolic_probability.py  # Symbolic probability formula (CLI)
+│   ├── check_backends.py                # Verifies serial == parallel
+│   ├── benchmark_backends.py            # Measures the parallel break-even point
 │   ├── compare_graphs.py                # Automated graph comparison workflow
 │   ├── compare_graphs_cli.py            # Graph comparison (CLI)
 │   ├── inspect_graph.py                 # Graph inspection
@@ -156,7 +164,8 @@ pytest tests/test_ranges.py          # Range calculation tests
 ├── tests/             # Test suite
 │   ├── test_graph_reducer.py
 │   ├── test_integration.py
-│   ├── test_multi_sum.py
+│   ├── test_multi_sum.py                # (demo script; defines no tests)
+│   ├── test_validation.py               # Independent numerical validation
 │   ├── test_orientation.py
 │   ├── test_range_improvements.py
 │   ├── test_ranges.py

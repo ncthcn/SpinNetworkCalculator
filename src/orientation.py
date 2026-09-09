@@ -230,26 +230,29 @@ def phase_factor_for_transposition(
     edge_b: EdgeRef,
     edge_c: EdgeRef,
 ) -> complex:
-    """Compute the phase factor for one adjacent transposition at a trivalent vertex.
+    """Compute the phase factor for one transposition at a trivalent vertex.
 
-    Swapping the edges with labels *a* and *b* (while *c* is the spectator)
-    contributes::
+    For a vertex carrying edge labels (a, b, c)::
 
-        (-1) ** (2 * c * (a + b - c))
+        (b, a, c) = (-1) ** (a + b + c + 4*(a*b + b*c + a*c)) * (a, b, c)
 
-    For a valid spin-network vertex ``a + b - c`` is a non-negative integer and
-    ``2c`` is an integer, so the exponent is always an integer.
+    The exponent is **symmetric** in a, b and c, so every pairwise
+    transposition at the vertex carries the same factor -- which is what one
+    expects, since a trivalent vertex admits only two cyclic orders and any
+    transposition swaps between them.
+
+    The ``4*(...)`` term makes the exponent an integer even when the labels are
+    half-integers: each product of two half-integers is a multiple of 1/4.
 
     Parameters
     ----------
     graph : nx.MultiGraph
         The spin network graph (used to read edge labels).
-    edge_a : EdgeRef
-        First edge being swapped.
-    edge_b : EdgeRef
-        Second edge being swapped.
+    edge_a, edge_b : EdgeRef
+        The two edges being swapped.
     edge_c : EdgeRef
-        The spectator (third) edge at the vertex.
+        The spectator (third) edge at the vertex.  It enters the exponent
+        symmetrically with the other two.
 
     Returns
     -------
@@ -259,9 +262,20 @@ def phase_factor_for_transposition(
     a = _edge_label(graph, edge_a)
     b = _edge_label(graph, edge_b)
     c = _edge_label(graph, edge_c)
-    exponent = 2.0 * c * (a + b - c)
-    exponent_int = round(exponent)
-    return complex((-1) ** exponent_int)
+    return complex(vertex_phase(a, b, c))
+
+
+def vertex_phase(a: float, b: float, c: float) -> float:
+    """
+    Sign acquired by swapping any two edges at a vertex carrying (a, b, c).
+
+        (-1) ** (a + b + c + 4*(a*b + b*c + a*c))
+
+    Kept as a plain numeric helper so the reduction moves can call it without
+    constructing edge references.
+    """
+    exponent = (a + b + c) + 4.0 * (a * b + b * c + a * c)
+    return float((-1) ** int(round(exponent)))
 
 
 # ---------------------------------------------------------------------------

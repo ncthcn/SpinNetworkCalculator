@@ -153,24 +153,45 @@ class TestPhaseFactorForTransposition:
         G.add_edge(2, 3, label=lc)   # edge_c (spectator) = (2,3,0)
         return G
 
+    # phase = (-1) ** (a + b + c + 4*(a*b + b*c + a*c))
+
     def test_integer_labels_spin_1(self):
-        # a=b=c=1: exponent = 2*1*(1+1-1) = 2 → phase = +1
+        # (1,1,1): 3 + 4*(1+1+1) = 15, odd -> -1
         G = self._graph_with_edges(1, 1, 1)
         result = phase_factor_for_transposition(G, (1,2,0), (1,3,0), (2,3,0))
-        assert result == complex(1)
+        assert result == complex(-1)
 
     def test_half_integer_labels(self):
-        # a=b=1/2, c=0: exponent = 2*0*(1-0) = 0 → phase = +1
+        # (1/2,1/2,0): 1 + 4*(1/4+0+0) = 2, even -> +1
         G = self._graph_with_edges(0.5, 0.5, 0)
         result = phase_factor_for_transposition(G, (1,2,0), (1,3,0), (2,3,0))
         assert result == complex(1)
 
     def test_known_minus_one(self):
-        # a=b=1, c=1/2: exponent = 2*(1/2)*(1+1-1/2) = 1*1.5 = 1.5 …
-        # Try a=1/2, b=1/2, c=1: exponent = 2*1*(0.5+0.5-1) = 2*0 = 0 → +1
+        # (1/2,1/2,1): 2 + 4*(1/4 + 1/2 + 1/2) = 2 + 5 = 7, odd -> -1
         G = self._graph_with_edges(0.5, 0.5, 1)
         result = phase_factor_for_transposition(G, (1,2,0), (1,3,0), (2,3,0))
-        assert result == complex(1)
+        assert result == complex(-1)
+
+    def test_phase_is_symmetric_in_all_three_labels(self):
+        """
+        A trivalent vertex has only two cyclic orders, so every pairwise
+        transposition must carry the same factor -- the exponent is symmetric.
+        """
+        import itertools
+        for labels in [(1, 1, 1), (0.5, 0.5, 1), (1, 1, 2), (1.5, 1.5, 1), (0.5, 1, 1.5)]:
+            phases = set()
+            for perm in itertools.permutations(labels):
+                G = self._graph_with_edges(*perm)
+                phases.add(phase_factor_for_transposition(G, (1,2,0), (1,3,0), (2,3,0)))
+            assert len(phases) == 1, f"phase not symmetric for {labels}: {phases}"
+
+    def test_applying_the_swap_twice_is_the_identity(self):
+        """Two transpositions return the original cyclic order, so phase^2 = 1."""
+        for labels in [(1, 1, 1), (0.5, 0.5, 1), (1.5, 1.5, 1), (2, 2, 2)]:
+            G = self._graph_with_edges(*labels)
+            p = phase_factor_for_transposition(G, (1,2,0), (1,3,0), (2,3,0))
+            assert p * p == complex(1)
 
     def test_result_is_plus_or_minus_one(self):
         for a, b, c in [(1, 1, 1), (0.5, 0.5, 0), (0.5, 1, 0.5), (1, 1.5, 0.5)]:

@@ -20,11 +20,3 @@ Pillow>=9.0.0
 # Pytest for running the test suite (pytest tests/)
 pytest>=7.0.0
 
-# Optional: JAX for GPU acceleration (Apple Metal, CUDA, or CPU)
-# For Apple Silicon (M1/M2/M3):
-#   pip install jax-metal
-# For CUDA GPUs:
-#   pip install jax[cuda]
-# For CPU only:
-#   pip install jax
-jax>=0.4.0

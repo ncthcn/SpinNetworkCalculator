@@ -280,23 +280,37 @@ def to_doubled(x):
 # Summation range computation for F-moves
 # -----------------------------------------------------------------------
 
-# When an F-move introduces a new intermediate spin F, its allowed range
-# follows from two triangle inequalities simultaneously:
-#   |b - d| ≤ F ≤ b + d   and   |a - c| ≤ F ≤ a + c
-# So Fmin = max(|b-d|, |a-c|) and Fmax = min(b+d, a+c), both in doubled units.
-# Returns None if the parity of the two bounds is inconsistent (no valid F).
+# When an F-move introduces a new intermediate spin F, its allowed range is
+# fixed by the triangle inequality at the TWO VERTICES THE NEW F EDGE TOUCHES.
+#
+# f_move_recouple_term (graph_reducer.py) rewires the cycle so that afterwards
+#     u_node carries (b, c, F)      and      v_node carries (a, d, F)
+# -- u keeps its edge to b_node and gains the edge to c_node, while v keeps its
+# edge to d_node and gains the edge to a_node.  expand_6j_symbolic confirms the
+# same pairing: it emits Theta(b, c, f) and Theta(a, d, f), one per F vertex.
+#
+# Hence the two simultaneous conditions are
+#     |b - c| <= F <= b + c      and      |a - d| <= F <= a + d
+# so Fmin = max(|b-c|, |a-d|) and Fmax = min(b+c, a+d), in doubled units.
+#
+# NOTE: this previously paired (b,d) and (a,c) -- neither of which is a vertex
+# of the graph.  That gave a range that was both too narrow and offset: for
+# a=2, b=1, d=2, c=1 it returned 1..3 where the true support is 0..2, silently
+# dropping the F=0 term from every norm.
+#
+# Returns None if the parity of the two conditions is inconsistent (no valid F).
 # All arguments must be numeric; use f_range_with_symbolic for mixed cases.
 def f_range_symbolic(a, b, d, c):
     if not all(map(is_numeric_label, [a, b, d, c])):
         return None
     A, B, D, C = map(to_doubled, (a, b, d, c))
-    Fmin = max(abs(B - D), abs(A - C))
-    Fmax = min(B + D, A + C)
-    parity_ac = (A + C) % 2
-    parity_bd = (B + D) % 2
-    if parity_ac != parity_bd:
+    Fmin = max(abs(B - C), abs(A - D))
+    Fmax = min(B + C, A + D)
+    parity_bc = (B + C) % 2
+    parity_ad = (A + D) % 2
+    if parity_bc != parity_ad:
         return None
-    return {"Fmin": Fmin, "Fmax": Fmax, "parity": parity_ac}
+    return {"Fmin": Fmin, "Fmax": Fmax, "parity": parity_bc}
 
 
 # Extended version of f_range_symbolic that also handles symbolic labels
@@ -342,21 +356,18 @@ def f_range_with_symbolic(a, b, d, c, known_ranges=None):
     c_min, c_max = get_value_range(c)
     d_min, d_max = get_value_range(d)
 
-    bd_diff_min = max(0, abs(b_min - d_max) if b_min >= d_max else 0,
-                         abs(b_max - d_min) if b_max <= d_min else 0)
-    bd_diff_max = max(abs(b_min - d_min), abs(b_max - d_max),
-                      abs(b_min - d_max), abs(b_max - d_min))
+    # The two conditions pair (b, c) and (a, d) -- the vertices the new F edge
+    # touches.  See the comment on f_range_symbolic.
+    bc_diff_min = max(0, abs(b_min - c_max) if b_min >= c_max else 0,
+                         abs(b_max - c_min) if b_max <= c_min else 0)
+    ad_diff_min = max(0, abs(a_min - d_max) if a_min >= d_max else 0,
+                         abs(a_max - d_min) if a_max <= d_min else 0)
 
-    ac_diff_min = max(0, abs(a_min - c_max) if a_min >= c_max else 0,
-                         abs(a_max - c_min) if a_max <= c_min else 0)
-    ac_diff_max = max(abs(a_min - c_min), abs(a_max - c_max),
-                      abs(a_min - c_max), abs(a_max - c_min))
+    bc_sum_max = b_max + c_max
+    ad_sum_max = a_max + d_max
 
-    bd_sum_max = b_max + d_max
-    ac_sum_max = a_max + c_max
-
-    fmin = max(bd_diff_min, ac_diff_min)
-    fmax = min(bd_sum_max, ac_sum_max)
+    fmin = max(bc_diff_min, ad_diff_min)
+    fmax = min(bc_sum_max, ad_sum_max)
 
     if fmin > fmax:
         return None
@@ -375,13 +386,33 @@ def f_range_with_symbolic(a, b, d, c, known_ranges=None):
         else:
             return f"{op}({x_str}, {y_str})"
 
-    bd_diff = build_expr('abs_diff', b, d) if not is_numeric_label(b) or not is_numeric_label(d) else str(abs(to_doubled(b) - to_doubled(d)))
-    ac_diff = build_expr('abs_diff', a, c) if not is_numeric_label(a) or not is_numeric_label(c) else str(abs(to_doubled(a) - to_doubled(c)))
-    fmin_expr = build_expr('max', bd_diff, ac_diff)
+    # IMPORTANT — units.  The integer Fmin/Fmax above are in DOUBLED units
+    # (get_value_range doubles numeric labels), because they feed the
+    # known_ranges tightening in graph_reducer.  The *string* expressions below
+    # are used verbatim by terms_to_formula_string, which does NOT divide them
+    # by 2, so they must be in ordinary spin units.  A symbolic name substitutes
+    # to a spin value, so a numeric label must be emitted as its spin value too
+    # -- using to_doubled() here would make one side of the max()/min() twice
+    # the other.
+    def num(x):
+        v = float(x)
+        return str(int(v)) if v == int(v) else str(v)
 
-    bd_sum = build_expr('sum', b, d) if not is_numeric_label(b) or not is_numeric_label(d) else str(to_doubled(b) + to_doubled(d))
-    ac_sum = build_expr('sum', a, c) if not is_numeric_label(a) or not is_numeric_label(c) else str(to_doubled(a) + to_doubled(c))
-    fmax_expr = build_expr('min', bd_sum, ac_sum)
+    bc_diff = (build_expr('abs_diff', b, c)
+               if not is_numeric_label(b) or not is_numeric_label(c)
+               else num(abs(float(b) - float(c))))
+    ad_diff = (build_expr('abs_diff', a, d)
+               if not is_numeric_label(a) or not is_numeric_label(d)
+               else num(abs(float(a) - float(d))))
+    fmin_expr = build_expr('max', bc_diff, ad_diff)
+
+    bc_sum = (build_expr('sum', b, c)
+              if not is_numeric_label(b) or not is_numeric_label(c)
+              else num(float(b) + float(c)))
+    ad_sum = (build_expr('sum', a, d)
+              if not is_numeric_label(a) or not is_numeric_label(d)
+              else num(float(a) + float(d)))
+    fmax_expr = build_expr('min', bc_sum, ad_sum)
 
     return {
         "Fmin": fmin,

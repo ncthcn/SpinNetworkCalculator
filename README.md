@@ -7,7 +7,7 @@ A computational tool for calculating spin network norms and probabilities. This 
 ## Documentation Quick Links
 
 - **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes (for collaborators)
-- **[PARALLEL_ACCELERATION.md](PARALLEL_ACCELERATION.md)** - GPU and parallel evaluation
+- **[PARALLEL_ACCELERATION.md](PARALLEL_ACCELERATION.md)** - Backends and measured performance
 - **[scripts/README_COMPARISON.md](scripts/README_COMPARISON.md)** - Graph comparison workflow
 - **This README** - Comprehensive documentation
 
@@ -68,17 +68,17 @@ pip install -r requirements.txt
 This installs:
 - Core dependencies: networkx, matplotlib, sympy, pybind11, pywigxjpf
 - NumPy for vectorization
-- SciPy for special functions (required for theta/delta symbols with large spins)
-- JAX for GPU/parallel acceleration (optional but recommended)
+- SciPy for `gammaln`, used by the theta symbol at large spins
+- sympy, also used by the validation tests as an independent 6j reference
 
-**For Apple Silicon (M1/M2/M3) GPU acceleration:**
-```bash
-pip install jax-metal
-```
+**There is no GPU acceleration.** The dominant cost is the Wigner 6j symbol,
+computed by wigxjpf — a C library that array frameworks such as JAX cannot
+trace, `jit` or `vmap`. JAX support was removed because it could not help; see
+[Computation Backends](#computation-backends).
 
 **Alternative (manual installation):**
 ```bash
-pip install networkx matplotlib sympy pybind11 pywigxjpf numpy scipy jax
+pip install networkx matplotlib sympy pybind11 pywigxjpf numpy scipy
 ```
 
 ### Step 2: Verify Installation
@@ -199,10 +199,9 @@ from src.api import Formula
 f2 = Formula.load("result.txt")
 
 # ── Numerical evaluation ───────────────────────────────────────────────────
-result = formula.evaluate_numeric()                          # default: auto-select backend
+result = formula.evaluate_numeric()                          # default backend (serial)
 result = formula.evaluate_numeric([SpinArg("j_1", 2.0)])    # pass overrides directly
-result = formula.evaluate_numeric(backend="jax")             # GPU (requires JAX)
-result = formula.evaluate_numeric(backend="multiprocessing") # parallel CPU
+result = formula.evaluate_numeric(backend="multiprocessing") # only for very large sums
 result = formula.evaluate_numeric(backend="serial")          # single-threaded
 result = formula.evaluate_numeric(max_two_j=2000)            # allow large spins (> j=100)
 
@@ -247,28 +246,58 @@ arg.is_numeric     # True after assigning a float
 
 ### Computation Backends
 
-Both `evaluate_numeric()` and `evaluate_batch()` accept a `backend` keyword that controls how the Wigner 6j sums are evaluated:
+Both `evaluate_numeric()` and `evaluate_batch()` accept a `backend` keyword. **The
+default is fine for essentially all networks** — the figures below are measured, and
+reproducible with `python scripts/benchmark_backends.py`.
 
-| Backend | When to use | Requirement |
-|---|---|---|
-| `"auto"` (default) | Picks the best available: JAX → multiprocessing → serial | None |
-| `"jax"` | GPU acceleration (fastest for large graphs) | `pip install jax` + `jax-metal` on Apple Silicon |
-| `"multiprocessing"` | Parallel CPU cores | None (stdlib) |
-| `"serial"` | Single thread; deterministic and easiest to debug | None |
+| Backend | What it does |
+|---|---|
+| `"auto"` (default) | Resolves to `"serial"` |
+| `"serial"` | Single thread |
+| `"multiprocessing"` | Splits the outermost summation across cores. Times a pilot slice first and stays serial unless the work clearly exceeds the ~1 s startup cost |
+
+**There is no GPU acceleration, and none is possible without replacing wigxjpf.**
+The dominant cost is the Wigner 6j symbol, computed by wigxjpf — a C library that
+array frameworks cannot trace into.
+
+**CPU parallelism only pays off for very large summations.** Each worker must be
+spawned and must re-allocate its own wigxjpf tables:
+
+| Quantity | Measured (8-core arm64 macOS, `max_two_j=200`) |
+|---|---|
+| Pool startup + wigxjpf init, 7 workers | ~0.8–1.0 s |
+| Serial cost per summation term | ~2.6 µs |
+| **Break-even** | **~350,000 summation terms** |
+| Speedup at 2.7 M terms | 2.55× |
+
+Below that break-even, parallelism is *slower* — by up to three orders of magnitude.
+
+Using `"multiprocessing"` has two constraints, both enforced automatically:
+
+1. Your script must guard its entry point with `if __name__ == "__main__":`, because
+   the `spawn` start method re-imports `__main__` in every worker.
+2. It is disabled in notebooks and interactive sessions, where that re-import cannot
+   work at all (the classic "multiprocessing hangs in Jupyter"), and falls back to
+   serial rather than hanging.
+
+Serial and parallel results are **bitwise identical** — verified in
+`tests/test_validation.py::TestBackendDispatch`.
 
 The `max_two_j` parameter pre-allocates wigxjpf tables for spins up to `max_two_j/2`
 (default `200` → j up to 100). Raise it for larger spins; lower it to save memory:
 
 ```python
-# Large spins with GPU
-result = formula.evaluate_numeric(backend="jax", max_two_j=2000)
+# Large spins
+result = formula.evaluate_numeric(max_two_j=2000)
 
 # Memory-constrained environment
-result = formula.evaluate_numeric(backend="serial", max_two_j=100)
+result = formula.evaluate_numeric(max_two_j=100)
+
+# Very large multi-variable summation, from a guarded script
+result = formula.evaluate_numeric(backend="multiprocessing")
 ```
 
-See **[PARALLEL_ACCELERATION.md](PARALLEL_ACCELERATION.md)** for JAX installation details
-and benchmarks.
+See **[PARALLEL_ACCELERATION.md](PARALLEL_ACCELERATION.md)** for the full measurements.
 
 ---
 
@@ -358,7 +387,7 @@ If you need even finer control, access `FormulaEvaluator` directly:
 
 ```python
 from src.spin_evaluator import FormulaEvaluator
-evaluator = FormulaEvaluator(max_two_j=4000, backend="jax")
+evaluator = FormulaEvaluator(max_two_j=4000)
 result = evaluator.evaluate(formula_string, variables={"j_1": 500.0})
 evaluator.cleanup()
 ```
@@ -446,7 +475,7 @@ Triangle Reductions (reduces 3-cycles)
     ↓
 Expand 6j → W6j (with theta/delta factors)
     ↓
-Canonicalize (combine duplicates, apply Regge symmetries)
+Canonicalize (combine duplicates, 24-fold tetrahedral 6j symmetry)
     ↓
 Numerical Evaluation (compute 6j values via wigxjpf)
     ↓
@@ -521,7 +550,7 @@ Spin_Networks_Project_full/
 ├── Documentation
 │   ├── README.md                        # This file - comprehensive guide
 │   ├── QUICKSTART.md                    # 5-minute quick start
-│   ├── PARALLEL_ACCELERATION.md         # GPU/parallel evaluation guide
+│   ├── PARALLEL_ACCELERATION.md         # Backends and measured performance
 │   └── requirements.txt                 # Python dependencies
 │
 ├── GUI modules (scripts/)               # used internally by src/api.py
@@ -534,6 +563,8 @@ Spin_Networks_Project_full/
 │       ├── compute_probability.py           # Single reconnection probability (CLI)
 │       ├── compute_all_probabilities.py     # Full probability distribution (CLI)
 │       ├── compute_symbolic_probability.py  # Symbolic probability formula (CLI)
+│       ├── check_backends.py                # Verifies serial == parallel
+│       ├── benchmark_backends.py            # Measures the parallel break-even point
 │       ├── compare_graphs.py                # Automated graph comparison workflow
 │       ├── compare_graphs_cli.py            # Graph comparison (CLI)
 │       └── README_COMPARISON.md             # Graph comparison workflow docs
@@ -546,7 +577,7 @@ Spin_Networks_Project_full/
 │   ├── drawing.py               # Graph visualization, Kuratowski plots
 │   ├── gluer.py                 # Graph gluing operations
 │   ├── graph_reducer.py         # F-moves and triangle reductions
-│   ├── norm_reducer.py          # Canonicalization and Regge symmetries
+│   ├── norm_reducer.py          # Canonicalization (tetrahedral 6j symmetry)
 │   ├── spin_evaluator.py        # Numerical evaluation with wigxjpf
 │   ├── LaTeX_rendering.py       # PDF generation
 │   ├── utils.py                 # Utility functions
@@ -565,7 +596,8 @@ Spin_Networks_Project_full/
 │       └── {input_basename}_kuratowski.png      # K₅/K₃,₃ subgraph (non-planar only)
 │
 └── Other
-    ├── tests/                   # Test suite (pytest)
+    ├── tests/                   # Test suite  (run: pytest tests/)
+    │   └── test_validation.py   # Validation vs sympy / closed forms / known norms
     └── .gitignore               # Git ignore rules
 ```
 
@@ -580,17 +612,61 @@ This section will be updated as soon as the paper is submitted.
 
 ---
 
+### Validation
+
+The numerical core is checked against sources independent of this codebase:
+
+```bash
+pytest tests/test_validation.py -v
+```
+
+| What is checked | Against what |
+|---|---|
+| Every Wigner 6j symbol | `sympy.physics.wigner`, exhaustively, all integer and half-integer arguments up to 2j = 3 — zero mismatches |
+| θ and Δ | Factorial closed forms re-derived from scratch in the test file |
+| 6j orthogonality | Evaluated *through* the `Sum()` machinery, so the summation bounds are on trial too |
+| ‖closed θ net‖ | Θ(1,1,2)² = 900 |
+| ‖tetrahedron‖ | θ(1,1,1)⁴ · W6j(1,1,1,1,1,1)² = 9216 |
+| Node-naming invariance | The tetrahedron norm is identical under all 24 relabelings of its vertices |
+| Backend agreement | Serial and parallel results are bitwise identical |
+| **Transition sum rule** | **Σ_c P(c) = 1** over every admissible reconnection channel — see below |
+| 6j canonicalisation | Symbols merged by the 24-fold tetrahedral key always have equal numerical value |
+
+#### The transition sum rule
+
+A reconnection merges two open legs *s* and *t* at a new trivalent vertex
+carrying (*s*, *t*, *c*). Summing the transition probability over every
+admissible channel *c* gives exactly **1** — the network has to go somewhere.
+
+This is the strongest single check in the suite: it exercises the norms, the
+Δ(c)/Θ(c,s,t) factor and the direction of the ratio simultaneously. Verified
+for six parameter sets in `tests/test_probability.py::TestNormalisation`;
+removing the Δ/Θ factor breaks 18 tests.
+
+Run the whole suite with `pytest tests/`.
+
 ### Known Limitations
 
-- **Memory**: Very large j values (>1000) require substantial RAM for wigxjpf tables (scales as O(j²))
-- **Planar graphs**: Non-planar graphs work but are slower
-- **Conservative ranges**: Symbolic F-variables use conservative ranges (0-20) which may include extra iterations
-- **6j with JAX**: Wigner 6j symbols still use C++ backend (pywigxjpf), not fully GPU-accelerated yet
+- **Trivalent only**: Every internal node must have exactly 3 edges. A graph that
+  violates this now raises `ReductionError` rather than returning a partial product.
+- **SU(2) only**: Classical (q → 1) symbols. No q-deformation, no quantum dimensions,
+  no higher-valence intertwiners.
+- **Planarity**: Face enumeration relies on a planar embedding. Non-planar graphs fall
+  back to a minimum cycle basis computed on the *simple-graph* projection, which
+  discards parallel edges — treat non-planar results with caution.
+- **Evaluation cost is exponential** in the number of F-variables: the summation is a
+  Cartesian product over their ranges, so cost grows as ∏ₖ(rangeₖ). Graph *reduction*
+  is only polynomial; the summation is what limits problem size.
+- **Conservative ranges**: When bounds cannot be derived symbolically, F-variables fall
+  back to 0–20, which adds inadmissible terms that evaluate to zero but still cost time.
+- **Memory**: Very large j (>1000) needs substantial RAM for wigxjpf tables (O(j²)).
+- **No GPU path**: See [Computation Backends](#computation-backends). This is a
+  property of wigxjpf, not a missing feature.
 
 ### Numerical Stability for Large Spins
 
 The evaluator automatically handles large spin values (j up to 1000+) using:
-- **Hybrid approach for theta**: Cached factorials for j ≤ 100, log-gamma for j > 100
+- **Hybrid approach for theta**: Cached factorials for j ≤ 50, log-gamma for j > 50
 - **Log-space for delta**: Always computes `(2j+1)^(2j)` as `exp(2j × log(2j+1))`
 - **Vectorized operations**: Uses `scipy.special.gammaln` for efficient array computations
 - **No overflow**: All factorial and power computations remain numerically stable

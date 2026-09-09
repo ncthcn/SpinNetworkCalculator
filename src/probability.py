@@ -20,7 +20,15 @@ Where:
   - G_Delta = the added-edges subgraph (norm = 1 if no edges were added)
   - The Delta/Theta factor arises from each reconnection vertex: each
     reconnection triplet (c, s, t) contributes Delta(c) / Theta(c, s, t),
-    and each consumed parent open end j contributes Delta(j).
+    and each parent open end j consumed OUTSIDE a reconnection contributes
+    Delta(j).  Open ends that took part in a reconnection are already
+    represented by that reconnection's triplet and are not counted twice;
+    SpinNetwork.transition_from_metadata() makes that split.
+
+Normalisation
+-------------
+Summed over every admissible channel c of a reconnection, these probabilities
+come to exactly 1.  See tests/test_probability.py::TestNormalisation.
   - Both denominators (norm(G_in) x norm(G_Delta)) and each Theta(c, s, t)
     are treated as "0 in, 0 out": a norm or Theta symbol that is exactly
     zero means the state/reconnection is physically forbidden, so the
@@ -99,9 +107,20 @@ def calculate_probability(
         probs = formula.evaluate_batch(args_list)         # scan efficiently
     """
     from src.api import Formula, Graph
+    from src.evolution import LineageError
 
     # --- Resolve the path, composing multi-hop transitions into one -----
     transitions = network_in.lineage_to(network_out)
+    if not transitions:
+        # lineage_to() returns [] only when the two arguments are the same
+        # object. There is no transition, so there is no transition
+        # probability -- raise the same error type as any other bad pair
+        # rather than letting transitions[0] fail with a bare IndexError.
+        raise LineageError(
+            "calculate_probability() needs two distinct states: "
+            f"{network_in!r} was compared with itself. "
+            "Create a child with transition_to() and pass that as network_out."
+        )
     t = transitions[0]
     for tx in transitions[1:]:
         t = t.compose(tx)

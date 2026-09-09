@@ -19,11 +19,14 @@ myenv\Scripts\activate     # On Windows
 # 4. Install dependencies
 pip install -r requirements.txt
 
-# Optional: For M1/M2/M3 Macs, add GPU acceleration
-pip install jax-metal
 ```
 
-**Note:** JAX provides automatic GPU/parallel acceleration. On M3 Macs with `jax-metal`, expect 10-100x speedup.
+**Note on speed:** there is no GPU acceleration. The dominant cost is the
+Wigner 6j symbol, computed by wigxjpf — a C library that array frameworks
+cannot trace into. CPU parallelism
+(`backend="multiprocessing"`) only pays off above roughly 350,000 summation
+terms; below that it is slower, so the default is serial. Measure it yourself
+with `python scripts/benchmark_backends.py`.
 
 ## Usage (Every Time)
 
@@ -96,15 +99,16 @@ In the GUI:
 
 ### Console Output During Evaluation:
 ```
-Using multiprocessing backend (11 workers)
+Using serial backend (pass backend='multiprocessing' for very large summations)
 Initializing wigxjpf tables for max 2j = 200...
+✓ Wigxjpf initialized and ready
 
-Evaluating term 1/1...
-  Computing summation over 3 variable(s)...
-    Total iterations: 6,174
-
-SPIN NETWORK NORM = -6.658558117818342e+01
+SPIN NETWORK NORM = 6.658558117818342e+01
 ```
+
+The norm is returned as a non-negative number: the individual factors (θ, Δ,
+the (−1)^… prefactors) keep their signs throughout the calculation, and the
+modulus is applied once at the very end.
 
 ## Common Issues
 
@@ -140,6 +144,7 @@ No special configuration needed — just specify `max_two_j` for memory allocati
 ## Need More Help?
 
 - Full guide: [README.md](README.md)
-- GPU/parallel details: [PARALLEL_ACCELERATION.md](PARALLEL_ACCELERATION.md)
+- Backends and measured performance: [PARALLEL_ACCELERATION.md](PARALLEL_ACCELERATION.md)
+- Validation against known results: `pytest tests/test_validation.py -v`
 - Graph comparison: [scripts/README_COMPARISON.md](scripts/README_COMPARISON.md)
 - Interactive tutorial: `tutorial.ipynb`

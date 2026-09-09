@@ -9,14 +9,19 @@ EDUCATIONAL OVERVIEW:
 1. WHAT WE'RE COMPUTING:
    The norm of a spin network, which is a product of:
    - Wigner 6j symbols (SU(2) recoupling coefficients)
-   - Theta symbols θ(j1,j2,j3) = √[(2j1+1)(2j2+1)(2j3+1)]
-   - Delta symbols Δ_j = √(2j+1)
+   - Theta symbols
+         θ(j,k,l) = (-1)^(j+k+l) × (j+k+l+1)! / [(j+k-l)!(j-k+l)!(-j+k+l)!]
+   - Delta symbols
+         Δ_j = (-1)^(2j) × (2j+1)
    - Sign factors (-1)^(...)
-   - Summations over intermediate integers
+   - Summations over intermediate spins
 
-   NOTE: The final result is returned as an ABSOLUTE VALUE since spin network
-   norms are positive by definition. Sign conventions in the calculation may
-   produce negative intermediate values, but the physical norm is |result|.
+   SIGNS: every factor above carries its own sign and keeps it throughout the
+   computation -- the signs cancel against one another, so discarding them
+   early gives the wrong magnitude. The modulus is a property of the *norm*,
+   not of the individual factors, and is therefore applied exactly once at the
+   very end, by Formula.evaluate_numeric() in src/api.py, immediately before
+   the norm is returned to the caller.
 
 2. WHY WIGXJPF:
    - Uses prime factorization to avoid overflow
@@ -49,28 +54,14 @@ EDUCATIONAL OVERVIEW:
 import pywigxjpf as wig
 import numpy as np
 from typing import List, Dict, Any, Tuple, Optional
+import ast
 import math
 import itertools
 from multiprocessing import Pool, cpu_count
 import os
+import sys
+import time
 from functools import lru_cache
-
-# Optional GPU acceleration imports
-try:
-    import jax
-    import jax.numpy as jnp
-    from jax import jit, vmap
-    JAX_AVAILABLE = True
-    # Try to detect Metal backend (Apple Silicon)
-    try:
-        non_cpu = [d for d in jax.devices() if d.platform != 'cpu']
-        JAX_GPU_AVAILABLE = bool(non_cpu)
-    except:
-        JAX_GPU_AVAILABLE = False
-except ImportError:
-    JAX_AVAILABLE = False
-    JAX_GPU_AVAILABLE = False
-
 
 # Cached factorial for performance optimization
 @lru_cache(maxsize=512)
@@ -94,7 +85,8 @@ class SpinNetworkEvaluator:
         evaluator.cleanup()
     """
 
-    def __init__(self, max_two_j: int = 200, backend: str = 'auto', n_workers: Optional[int] = None):
+    def __init__(self, max_two_j: int = 200, backend: str = 'auto',
+                 n_workers: Optional[int] = None, verbose: bool = True):
         """
         Initialize the evaluator with wigxjpf tables.
 
@@ -111,15 +103,30 @@ class SpinNetworkEvaluator:
             etc.
 
         backend : str
-            Computation backend: 'auto', 'jax', 'multiprocessing', or 'serial'
-            - 'auto': Automatically select best available (JAX GPU > multiprocessing > serial)
-            - 'jax': Force JAX backend (requires jax installation)
-            - 'multiprocessing': Use CPU parallelization
-            - 'serial': Single-threaded (original behavior)
+            Computation backend: 'auto', 'serial', or 'multiprocessing'
+            - 'auto'            : resolves to 'serial' (the default). See the
+                                  comment in the body for the measurements
+                                  behind that choice.
+            - 'serial'          : single-threaded.
+            - 'multiprocessing' : split the outermost summation across CPU
+                                  cores. Only worth it for very large sums
+                                  (break-even ~350,000 terms); the evaluator
+                                  times a pilot slice and falls back to serial
+                                  below that. REQUIRES the calling script to
+                                  guard its entry point with
+                                  `if __name__ == "__main__":`, because the
+                                  'spawn' start method re-imports __main__ in
+                                  every worker. Automatically disabled in
+                                  notebooks and interactive sessions, where
+                                  that re-import cannot work.
 
         n_workers : int, optional
             Number of parallel workers for multiprocessing backend.
             Defaults to cpu_count() - 1.
+
+        verbose : bool
+            Print backend/table messages. Worker processes pass False so a
+            parallel run does not emit one banner per core.
 
         MEMORY USAGE:
             The tables scale as O(max_two_j^2), so be mindful for large j.
@@ -128,33 +135,45 @@ class SpinNetworkEvaluator:
         """
         self.max_two_j = max_two_j
         self.initialized = False
+        self.verbose = verbose
         self.n_workers = n_workers or max(1, cpu_count() - 1)
 
-        # Select backend - always prefer parallel/GPU unless explicitly set to serial
+        def say(msg):
+            if verbose:
+                print(msg)
+
+        # Backend selection.
+        #
+        # 'auto' resolves to SERIAL, deliberately. Two measured reasons:
+        #
+        #   1. Parallelism has a ~1 s fixed cost here (spawning workers and
+        #      re-allocating the wigxjpf tables in each). At ~2.6 us per
+        #      summation term that is a break-even of roughly 350,000 terms --
+        #      more than almost any real formula reaches. Below that, the
+        #      "parallel" backend is slower, by up to three orders of
+        #      magnitude. Run scripts/benchmark_backends.py to reproduce.
+        #
+        #   2. On macOS and Windows the 'spawn' start method re-imports the
+        #      caller's __main__ inside every worker. A user script without an
+        #      `if __name__ == "__main__":` guard therefore RE-RUNS ITSELF once
+        #      per worker. Defaulting to that would be a trap.
+        #
+        # Pass backend='multiprocessing' explicitly for the genuinely large
+        # multi-variable summations where it pays off (measured 2.5x at 2.7M
+        # terms). Even then the evaluator times a pilot slice first and stays
+        # serial unless the work clearly exceeds the startup cost.
         if backend == 'auto':
-            # Priority: GPU > CPU parallel > fallback serial (never use serial by default)
-            if JAX_GPU_AVAILABLE:
-                self.backend = 'jax'
-                non_cpu_devs = [d for d in jax.devices() if d.platform != 'cpu']
-                platform_name = non_cpu_devs[0].platform if non_cpu_devs else 'GPU'
-                print(f"🚀 Using JAX {platform_name} backend (detected {len(non_cpu_devs)} accelerator(s))")
-            elif JAX_AVAILABLE:
-                self.backend = 'jax'
-                print("🚀 Using JAX CPU backend")
-            else:
-                self.backend = 'multiprocessing'
-                print(f"🚀 Using multiprocessing backend ({self.n_workers} workers)")
-        elif backend == 'serial':
-            # Serial only if explicitly requested (for debugging/testing)
             self.backend = 'serial'
-            print("⚠️  Using serial backend (single-threaded, slow - only for debugging)")
+            say("Using serial backend "
+                "(pass backend='multiprocessing' for very large summations)")
+        elif backend == 'serial':
+            self.backend = 'serial'
+            say("Using serial backend (single-threaded)")
         else:
             self.backend = backend
-            if backend == 'jax' and not JAX_AVAILABLE:
-                raise ImportError("JAX backend requested but JAX not installed. Install with: pip install jax")
-            print(f"🚀 Using {backend} backend")
+            say(f"🚀 Using {backend} backend")
 
-        print(f"Initializing wigxjpf tables for max 2j = {max_two_j}...")
+        say(f"Initializing wigxjpf tables for max 2j = {max_two_j}...")
 
         # Initialize for 6j symbols (wigner_type=6)
         wig.wig_table_init(max_two_j, 6)
@@ -164,7 +183,7 @@ class SpinNetworkEvaluator:
         wig.wig_temp_init(max_two_j)
 
         self.initialized = True
-        print("✓ Wigxjpf initialized and ready")
+        say("✓ Wigxjpf initialized and ready")
 
     def cleanup(self):
         """
@@ -176,7 +195,8 @@ class SpinNetworkEvaluator:
             wig.wig_temp_free()
             wig.wig_table_free()
             self.initialized = False
-            print("✓ Wigxjpf memory freed")
+            if getattr(self, "verbose", True):
+                print("✓ Wigxjpf memory freed")
 
     def __del__(self):
         """Destructor - cleanup if user forgets"""
@@ -531,8 +551,6 @@ class SpinNetworkEvaluator:
             sum_result = self._evaluate_sum_serial(coeffs, sum_vars)
         elif self.backend == 'multiprocessing':
             sum_result = self._evaluate_sum_parallel(coeffs, sum_vars)
-        elif self.backend == 'jax':
-            sum_result = self._evaluate_sum_jax(coeffs, sum_vars)
         else:
             # Fallback to serial
             sum_result = self._evaluate_sum_serial(coeffs, sum_vars)
@@ -630,58 +648,34 @@ class SpinNetworkEvaluator:
 
         print(f"    Split into {len(chunks)} chunks of ~{chunk_size} iterations each")
 
-        # Create worker function that evaluates a chunk
-        def evaluate_chunk(chunk):
-            """Evaluate a chunk of summation combinations."""
-            chunk_sum = 0.0
-            for sum_values in chunk:
-                substitutions = dict(zip(var_names, sum_values))
+        # The chunk worker MUST be a module-level function, not a closure.
+        # This code previously defined evaluate_chunk() inline and handed it to
+        # Pool.map; nested functions cannot be pickled, so it raised as soon as
+        # it was reached. It went unnoticed because 'auto' used to select the
+        # JAX backend, which silently fell back to the serial path (JAX has
+        # since been removed entirely: it cannot trace the wigxjpf C library).
+        if not _multiprocessing_is_usable():
+            print("    Multiprocessing unavailable in this context; using serial.")
+            return self._evaluate_sum_serial(coeffs, sum_vars)
 
-                # Track sign exponents and magnitudes separately
-                term_sign_exponent = 0.0
-                term_magnitude = 1.0
-                for c in coeffs:
-                    if not isinstance(c, dict):
-                        continue
-                    typ = c.get("type")
-                    if typ == "sum":
-                        continue
-
-                    depends_on_sum = self._depends_on_sum_var(c, sum_vars.keys())
-                    if depends_on_sum:
-                        result = self._evaluate_coefficient(c, substitutions)
-                        # Handle (sign_exponent, magnitude) tuple
-                        if isinstance(result, tuple):
-                            sign_exp, mag = result
-                            term_sign_exponent += sign_exp
-                            term_magnitude *= mag
-                        else:
-                            term_magnitude *= result
-
-                # Combine sign and magnitude for this term
-                term_sign = (-1.0) ** int(round(term_sign_exponent))
-                term_value = term_sign * term_magnitude
-                chunk_sum += term_value
-            return chunk_sum
-
-        # Parallel evaluation
-        with Pool(processes=self.n_workers) as pool:
-            chunk_results = pool.map(evaluate_chunk, chunks)
+        tasks = [
+            (coeffs, sum_vars, var_names, chunk, self.max_two_j)
+            for chunk in chunks
+        ]
+        try:
+            with Pool(
+                processes=min(self.n_workers, len(chunks)),
+                initializer=_parallel_worker_init,
+                initargs=(self.max_two_j,),
+            ) as pool:
+                chunk_results = pool.map(_legacy_worker_evaluate_chunk, tasks)
+        except Exception as exc:
+            # Never fail the calculation because parallelism is unavailable.
+            print(f"    Parallel evaluation unavailable ({exc}); using serial.")
+            return self._evaluate_sum_serial(coeffs, sum_vars)
 
         sum_result = sum(chunk_results)
         return sum_result
-
-    def _evaluate_sum_jax(self, coeffs, sum_vars):
-        """
-        JAX-accelerated evaluation of N-variable summation.
-
-        For now, falls back to serial for 6j symbols (wigxjpf is not JAX-compatible).
-        But vectorizes theta and delta computations.
-        """
-        # TODO: Full JAX implementation requires JAX-compatible Wigner 6j
-        # For now, use vectorized NumPy for theta/delta and fall back to serial loop
-        print("    JAX backend: Using vectorized theta/delta with serial 6j evaluation")
-        return self._evaluate_sum_serial(coeffs, sum_vars)
 
     def _depends_on_sum_var(self, coeff: Dict, sum_var_names: set) -> bool:
         """Check if a coefficient depends on any summation variable."""
@@ -846,6 +840,119 @@ class SpinNetworkEvaluator:
 # FORMULA EVALUATOR
 # ============================================================================
 
+# ---------------------------------------------------------------------------
+# Multiprocessing workers
+# ---------------------------------------------------------------------------
+#
+# These MUST live at module level. The previous implementation passed a nested
+# closure to Pool.map, which is unpicklable and therefore could never have run
+# on macOS (spawn start method). Module-level functions pickle by qualified
+# name, so they work under both fork and spawn.
+#
+# Each worker process builds its own FormulaEvaluator once, in the Pool
+# initializer, because allocating the wigxjpf tables is the expensive part and
+# must not be repeated per task.
+
+_WORKER_EVALUATOR: Optional["FormulaEvaluator"] = None
+
+
+def _multiprocessing_is_usable() -> bool:
+    """
+    Is it safe to start a worker Pool in this process?
+
+    On macOS (and Windows) Python's default start method is 'spawn', which
+    re-imports the parent's __main__ module inside every child. That works for
+    a normal script, but NOT when __main__ cannot be re-imported:
+
+      * an interactive interpreter or a heredoc  (__main__.__file__ is absent
+        or the literal '<stdin>')
+      * a Jupyter notebook
+
+    In those contexts each child fails to import __main__ and the Pool retries
+    forever -- the process hangs rather than raising, so a try/except around
+    Pool() cannot save us. This is the "multiprocessing freezes in Jupyter"
+    problem noted in PARALLEL_ACCELERATION.md.
+
+    We therefore check up front and fall back to serial evaluation, which is
+    always correct, just slower.
+    """
+    try:
+        import multiprocessing as _mp
+        if _mp.get_start_method(allow_none=False) == "fork":
+            # fork copies the parent wholesale; no re-import, always safe here.
+            return True
+    except Exception:
+        return False
+
+    main_module = sys.modules.get("__main__")
+    main_file = getattr(main_module, "__file__", None)
+    if not main_file:
+        return False  # notebook / interactive / stdin
+    try:
+        return os.path.isfile(main_file)
+    except Exception:
+        return False
+
+
+def _parallel_worker_init(max_two_j: int) -> None:
+    """Pool initializer: build this process's evaluator exactly once."""
+    global _WORKER_EVALUATOR
+    _WORKER_EVALUATOR = FormulaEvaluator(
+        max_two_j=max_two_j, backend="serial", verbose=False
+    )
+
+
+def _parallel_worker_evaluate_chunk(task) -> float:
+    """Evaluate one sub-range of the outermost summation."""
+    formula, variables, _max_two_j, chunk = task
+    return _WORKER_EVALUATOR._evaluate_here(formula, variables, outer_chunk=chunk)
+
+
+def _parallel_worker_evaluate_variables(task) -> float:
+    """Evaluate the whole formula for one set of variable bindings."""
+    formula, variables = task
+    return _WORKER_EVALUATOR._evaluate_here(formula, variables)
+
+
+def _legacy_worker_evaluate_chunk(task) -> float:
+    """
+    Evaluate one chunk of the Cartesian summation product for the legacy
+    canonical-term path (SpinNetworkEvaluator.evaluate), used by scripts/.
+
+    Replaces the unpicklable closure that made the multiprocessing backend
+    unusable. All arguments are plain dicts/lists/tuples, so they pickle under
+    both the fork and spawn start methods.
+    """
+    coeffs, sum_vars, var_names, chunk, _max_two_j = task
+    ev = _WORKER_EVALUATOR._ev
+    sum_var_names = set(sum_vars.keys())
+
+    chunk_sum = 0.0
+    for sum_values in chunk:
+        substitutions = dict(zip(var_names, sum_values))
+
+        # Sign exponents and magnitudes are tracked separately so that the
+        # (-1)^... factors combine exactly instead of through repeated
+        # floating-point multiplication.
+        term_sign_exponent = 0.0
+        term_magnitude = 1.0
+        for c in coeffs:
+            if not isinstance(c, dict) or c.get("type") == "sum":
+                continue
+            if not ev._depends_on_sum_var(c, sum_var_names):
+                continue
+            result = ev._evaluate_coefficient(c, substitutions)
+            if isinstance(result, tuple):
+                sign_exp, mag = result
+                term_sign_exponent += sign_exp
+                term_magnitude *= mag
+            else:
+                term_magnitude *= result
+
+        chunk_sum += ((-1.0) ** int(round(term_sign_exponent))) * term_magnitude
+    return chunk_sum
+
+
 def _sanitize_primes(formula: str) -> str:
     """Replace prime notation in variable names with _p, skipping string literals.
 
@@ -904,9 +1011,52 @@ class FormulaEvaluator:
         fe.cleanup()
     """
 
-    def __init__(self, max_two_j: int = 200, backend: str = 'auto'):
-        self._ev = SpinNetworkEvaluator(max_two_j, backend=backend)
+    def __init__(self, max_two_j: int = 200, backend: str = 'auto',
+                 verbose: bool = True):
+        self._ev = SpinNetworkEvaluator(max_two_j, backend=backend,
+                                        verbose=verbose)
         self._base_namespace = self._build_namespace()
+
+    def evaluate_many(
+        self,
+        formula: str,
+        variable_sets: List[Optional[Dict[str, float]]],
+    ) -> List[float]:
+        """
+        Evaluate one formula for many variable bindings, in parallel.
+
+        This is the embarrassingly-parallel case -- scanning a formula over a
+        range of spin assignments -- and it is what Formula.evaluate_batch()
+        uses. Unlike splitting a single summation, no linearity argument is
+        needed here: the evaluations are completely independent.
+
+        Returns
+        -------
+        list[float]
+            Signed values, one per entry of variable_sets, in the same order.
+        """
+        formula = _sanitize_primes(formula)
+
+        serial = (
+            self._ev.backend == "serial"
+            or len(variable_sets) < 2
+            or self._ev.n_workers < 2
+            or not _multiprocessing_is_usable()
+        )
+        if not serial:
+            tasks = [(formula, v) for v in variable_sets]
+            try:
+                with Pool(
+                    processes=min(self._ev.n_workers, len(tasks)),
+                    initializer=_parallel_worker_init,
+                    initargs=(self._ev.max_two_j,),
+                ) as pool:
+                    return [float(x) for x in
+                            pool.map(_parallel_worker_evaluate_variables, tasks)]
+            except Exception:
+                pass  # fall through to the serial path below
+
+        return [self._evaluate_here(formula, v) for v in variable_sets]
 
     def _build_namespace(self) -> dict:
         ev = self._ev
@@ -972,7 +1122,21 @@ class FormulaEvaluator:
 
     def evaluate(self, formula: str, variables: Optional[Dict[str, float]] = None) -> float:
         """
-        Evaluate a formula string numerically.
+        Evaluate a formula string numerically, preserving its sign.
+
+        SIGN CONVENTION
+        ---------------
+        This returns the SIGNED value. Individual factors (theta, delta, the
+        (-1)^... prefactors) legitimately carry signs and must keep them all
+        the way through the computation, because they cancel against each
+        other. Taking the modulus is a property of the *norm*, not of formula
+        evaluation, so it is applied once at the very end by
+        Formula.evaluate_numeric() / evaluate_batch() in src/api.py -- right
+        before the norm is handed back to the caller.
+
+        (This function used to return abs(...), which made every sign error in
+        the reduction pipeline invisible and prevented callers from inspecting
+        intermediate quantities.)
 
         Parameters
         ----------
@@ -984,8 +1148,43 @@ class FormulaEvaluator:
         Returns
         -------
         float
+            The signed value of the expression.
+        """
+        formula = _sanitize_primes(formula)
+
+        # 'serial' means "evaluate it right here"; anything else may be
+        # distributed across processes if the formula's shape allows it.
+        if self._ev.backend != "serial":
+            parallel = self._try_parallel_evaluate(formula, variables)
+            if parallel is not None:
+                return parallel
+
+        return self._evaluate_here(formula, variables)
+
+    # ------------------------------------------------------------------
+    # Serial core
+    # ------------------------------------------------------------------
+
+    def _evaluate_here(
+        self,
+        formula: str,
+        variables: Optional[Dict[str, float]] = None,
+        outer_chunk: Optional[Tuple[float, float]] = None,
+    ) -> float:
+        """
+        Evaluate the (already prime-sanitised) formula in this process.
+
+        Parameters
+        ----------
+        outer_chunk : (lo, hi), optional
+            Restrict the OUTERMOST Sum to this sub-range instead of its full
+            range. Nested sums are unaffected. This is how a worker process
+            evaluates its slice of a parallel run; see _try_parallel_evaluate
+            for why summing the slices reproduces the whole.
         """
         ns = dict(self._base_namespace)
+        if outer_chunk is not None:
+            ns["Sum"] = self._make_chunked_sum(outer_chunk)
         if variables:
             # Sanitize the variable NAMES the same way the formula string is
             # sanitized below.  Graph edge labels may contain prime notation
@@ -997,13 +1196,253 @@ class FormulaEvaluator:
         # can resolve free variables (round, theta, W6j, ...) through their
         # __globals__, which is always the globals dict, never the locals dict.
         ns["__builtins__"] = {"__import__": None}
-        # Sanitize prime notation (e.g. z' -> z_p, n'' -> n_p_p) outside
-        # string literals, for formula strings generated before this was fixed.
-        formula = _sanitize_primes(formula)
         try:
-            return abs(float(eval(formula, ns)))
+            return float(eval(formula, ns))
         except Exception as e:
             raise ValueError(f"Failed to evaluate formula '{formula}': {e}") from e
+
+    @staticmethod
+    def _make_chunked_sum(chunk):
+        """
+        Build a Sum() that restricts only its FIRST invocation to `chunk`.
+
+        The first Sum call encountered during evaluation is the outermost one
+        (a nested Sum can only be reached by calling the outer sum's lambda).
+        We mark the outer call as consumed *before* invoking the lambda, so
+        nested sums run over their full ranges as usual.
+        """
+        state = {"outer_consumed": False}
+        lo_chunk, hi_chunk = chunk
+
+        def Sum(var_name, min_val, max_val, func):
+            if state["outer_consumed"]:
+                lo, hi = float(min_val), float(max_val)
+            else:
+                state["outer_consumed"] = True
+                lo, hi = float(lo_chunk), float(hi_chunk)
+            total = 0.0
+            v = lo
+            while v <= hi + 1e-9:
+                total += func(v)
+                v += 1.0
+            return total
+
+        return Sum
+
+    # ------------------------------------------------------------------
+    # Parallel evaluation
+    # ------------------------------------------------------------------
+
+    # Fixed cost of going parallel: spawning the workers AND re-allocating the
+    # wigxjpf tables inside each one. Measured at 0.97 s for 7 workers at
+    # max_two_j=200 on an 8-core arm64 macOS box (see
+    # scripts/benchmark_backends.py, which reproduces this number). It is
+    # dominated by process startup, so it varies little with problem size.
+    #
+    # This is large: at ~2.6 us per summation term, roughly 435,000 terms of
+    # serial work are needed before parallelism breaks even. A naive threshold
+    # of a few dozen iterations -- which is what an untested implementation
+    # tends to pick -- makes the "parallel" backend three orders of magnitude
+    # SLOWER than serial on ordinary problems.
+    _PARALLEL_STARTUP_SECONDS = 1.0
+
+    # Safety margin on the break-even estimate: only parallelise when the
+    # predicted saving clearly exceeds the startup cost.
+    _PARALLEL_SPEEDUP_MARGIN = 1.5
+
+    # How many outer-sum values to evaluate when timing the pilot.
+    _PILOT_ITERATIONS = 2
+
+    def _try_parallel_evaluate(
+        self, formula: str, variables: Optional[Dict[str, float]]
+    ) -> Optional[float]:
+        """
+        Attempt to evaluate `formula` by splitting its outermost summation
+        across worker processes.
+
+        WHY THIS IS CORRECT
+        -------------------
+        We only do this when the whole expression is a *product* in which the
+        outermost Sum appears exactly once (checked with the ast module in
+        _outer_sum_is_a_linear_factor). The expression is then
+
+            value = C * S,      S = sum_{v in [lo, hi]} f(v)
+
+        with C independent of v. Splitting [lo, hi] into disjoint chunks and
+        summing the per-chunk evaluations gives
+
+            sum_chunks C * S_chunk = C * sum_chunks S_chunk = C * S
+
+        which is exactly the serial result. If the Sum is used non-linearly
+        (raised to a power, in a denominator, passed as a function argument --
+        as happens in the safe_div() form that calculate_probability()
+        produces) the identity does not hold, so we return None and the caller
+        falls back to serial rather than risk a wrong number.
+
+        Returns
+        -------
+        float or None
+            None means "not parallelisable, evaluate serially".
+        """
+        if not _multiprocessing_is_usable():
+            return None
+
+        if not self._outer_sum_is_a_linear_factor(formula):
+            return None
+
+        bounds = self._probe_outer_sum(formula, variables)
+        if bounds is None:
+            return None
+
+        lo, hi = bounds
+        n_iterations = int(math.floor(hi - lo + 1e-9)) + 1
+
+        n_workers = max(1, min(self._ev.n_workers, n_iterations))
+        if n_workers < 2:
+            return None
+
+        # Decide with a timed pilot rather than an iteration count.
+        #
+        # An iteration count is the wrong measure because the outer sum may be
+        # short while each of its terms contains deeply nested sums -- the
+        # expensive case this exists for. Timing a couple of real outer values
+        # and extrapolating captures the nesting, and self-calibrates to the
+        # machine instead of hard-coding one box's speed.
+        pilot_n = min(self._PILOT_ITERATIONS, n_iterations)
+        pilot_start = time.perf_counter()
+        try:
+            self._evaluate_here(
+                formula, variables, outer_chunk=(lo, lo + pilot_n - 1)
+            )
+        except Exception:
+            return None
+        pilot_seconds = time.perf_counter() - pilot_start
+
+        estimated_serial = pilot_seconds * (n_iterations / pilot_n)
+        # Parallel wins when  startup + T/n < T, i.e. T > startup*n/(n-1).
+        break_even = (
+            self._PARALLEL_STARTUP_SECONDS
+            * n_workers / (n_workers - 1)
+            * self._PARALLEL_SPEEDUP_MARGIN
+        )
+        if estimated_serial < break_even:
+            return None
+
+        # Split [lo, hi] into n_workers contiguous chunks on the integer grid
+        # of offsets from lo (the summation steps by 1).
+        per_worker = math.ceil(n_iterations / n_workers)
+        chunks = []
+        start = 0
+        while start < n_iterations:
+            stop = min(start + per_worker, n_iterations)
+            chunks.append((lo + start, lo + stop - 1))
+            start = stop
+
+        tasks = [
+            (formula, variables, self._ev.max_two_j, chunk) for chunk in chunks
+        ]
+        try:
+            with Pool(
+                processes=len(chunks),
+                initializer=_parallel_worker_init,
+                initargs=(self._ev.max_two_j,),
+            ) as pool:
+                partials = pool.map(_parallel_worker_evaluate_chunk, tasks)
+        except Exception:
+            # Any multiprocessing problem (unavailable start method, pickling,
+            # a sandbox that forbids fork) must degrade to a correct serial
+            # answer rather than propagate.
+            return None
+
+        return float(sum(partials))
+
+    @staticmethod
+    def _outer_sum_is_a_linear_factor(formula: str) -> bool:
+        """
+        True if the formula's outermost Sum(...) occurs exactly once and only
+        as a factor of a multiplication chain, so that chunking it is exact.
+
+        See _try_parallel_evaluate for the algebra this guarantees.
+        """
+        try:
+            tree = ast.parse(formula, mode="eval")
+        except SyntaxError:
+            return False
+
+        # Record each Sum call together with its chain of ancestors.
+        parents: Dict[ast.AST, ast.AST] = {}
+        for node in ast.walk(tree):
+            for child in ast.iter_child_nodes(node):
+                parents[child] = node
+
+        def is_sum_call(node):
+            return (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "Sum"
+            )
+
+        def enclosing_sum_count(node):
+            """How many Sum calls this node sits inside."""
+            count = 0
+            cur = parents.get(node)
+            while cur is not None:
+                if is_sum_call(cur):
+                    count += 1
+                cur = parents.get(cur)
+            return count
+
+        top_level_sums = [
+            node
+            for node in ast.walk(tree)
+            if is_sum_call(node) and enclosing_sum_count(node) == 0
+        ]
+        if len(top_level_sums) != 1:
+            # Zero sums: nothing to split. More than one: the "first call"
+            # identified at run time would be ambiguous under reordering.
+            return False
+
+        # Every ancestor up to the root must be a multiplication, so the sum's
+        # value enters the result linearly.
+        node = top_level_sums[0]
+        cur = parents.get(node)
+        while cur is not None and not isinstance(cur, ast.Expression):
+            if not (isinstance(cur, ast.BinOp) and isinstance(cur.op, ast.Mult)):
+                return False
+            cur = parents.get(cur)
+        return True
+
+    def _probe_outer_sum(
+        self, formula: str, variables: Optional[Dict[str, float]]
+    ) -> Optional[Tuple[float, float]]:
+        """
+        Discover the outermost Sum's [lo, hi] without doing the work.
+
+        We evaluate the formula with Sum replaced by a recorder that captures
+        the bounds and returns 0.0 *without* calling the lambda -- so nested
+        sums are never entered and the probe is cheap.
+        """
+        recorded: Dict[str, float] = {}
+
+        def probe_sum(var_name, min_val, max_val, func):
+            if not recorded:
+                recorded["lo"] = float(min_val)
+                recorded["hi"] = float(max_val)
+            return 0.0
+
+        ns = dict(self._base_namespace)
+        ns["Sum"] = probe_sum
+        if variables:
+            ns.update({_sanitize_primes(k): v for k, v in variables.items()})
+        ns["__builtins__"] = {"__import__": None}
+        try:
+            eval(formula, ns)
+        except Exception:
+            return None
+
+        if not recorded:
+            return None
+        return recorded["lo"], recorded["hi"]
 
     def cleanup(self):
         self._ev.cleanup()
@@ -1029,7 +1468,7 @@ def evaluate_spin_network(canonical_terms: List[Dict], max_two_j: int = 200,
     canonical_terms : output from canonicalise_terms()
     max_two_j : maximum 2*j value expected
     backend : str
-        Computation backend: 'auto', 'jax', 'multiprocessing', or 'serial'
+        Computation backend: 'auto', 'serial', or 'multiprocessing'
     n_workers : int, optional
         Number of parallel workers (for multiprocessing backend)
 
@@ -1045,8 +1484,8 @@ def evaluate_spin_network(canonical_terms: List[Dict], max_two_j: int = 200,
         result = evaluate_spin_network(canon_terms, max_two_j=100,
                                       backend='multiprocessing', n_workers=8)
 
-        # Use JAX GPU acceleration
-        result = evaluate_spin_network(canon_terms, max_two_j=100, backend='jax')
+        # Force CPU parallelism (large summations only)
+        result = evaluate_spin_network(canon_terms, max_two_j=100, backend='multiprocessing')
     """
     evaluator = SpinNetworkEvaluator(max_two_j, backend=backend, n_workers=n_workers)
     try:
@@ -1071,15 +1510,13 @@ def benchmark_backends(canonical_terms: List[Dict], max_two_j: int = 200) -> Dic
 
     EXAMPLE:
         times = benchmark_backends(canon_terms)
-        # Output: {'serial': 5.23, 'multiprocessing': 1.45, 'jax': 0.87}
+        # Output: {'serial': 5.23, 'multiprocessing': 1.45}
     """
     import time
 
     results = {}
     backends_to_test = ['serial', 'multiprocessing']
 
-    if JAX_AVAILABLE:
-        backends_to_test.append('jax')
 
     print("\n" + "=" * 70)
     print("BACKEND PERFORMANCE BENCHMARK")
