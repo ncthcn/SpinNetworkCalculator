@@ -954,7 +954,7 @@ class Graph:
         self._dirty = True
         self._formula = None  # invalidate the cached formula
 
-    def get_edge_range(self, label: str) -> Optional[Tuple[float, float]]:
+    def get_edge_range(self, label: str, args: Optional[List[SpinArg]] = None) -> Optional[Tuple[float, float]]:
         """
         Return the (j_min, j_max) range a free edge label may take without
         violating the triangular inequality at the vertex/vertices its
@@ -986,7 +986,37 @@ class Graph:
         """
         from src.utils import edge_triangle_range
 
-        return edge_triangle_range(self._nx_graph, label)
+        return edge_triangle_range(self._nx_graph, label, args)
+
+    def args_list_from_args(self, args: List[SpinArg]) -> Tuple[str, Tuple[float, float], List[List[SpinArg]]]:
+        from src.utils import spin_values_in_range
+
+        free_args = [arg for arg in args if not arg.is_numeric]
+        print(f"Free args: {free_args}")
+        if not free_args:
+            raise ValueError(f"No free variables — all are already assigned.")
+        elif len(free_args) > 1:
+            print("")
+            raise ValueError(f"Too many free variables - only one should be given")
+        else:
+            scanned_label = free_args[0].label
+            print(f"Scanning variable: '{scanned_label}'")
+
+            print(f"args: {args}")
+            rng = self.get_edge_range(scanned_label, args)
+            print(f"Range: {rng}")
+            if rng is not None:
+                spin_values = spin_values_in_range(*rng)
+                print(f"Triangle-allowed range: [{rng[0]}, {rng[1]}] with integer step 1")
+                args_list = [
+                    [SpinArg(arg.label, v if arg.label == scanned_label else arg.value) for arg in args]
+                    for v in spin_values
+                ]
+                return scanned_label, rng, args_list
+            else:
+                # No vertex touching this edge had both other edges numeric yet
+                # (e.g. every neighbour is also symbolic).
+                print("Couldn't derive a triangle-allowed range (neighbouring edges still symbolic)")
 
     # ------------------------------------------------------------------
     # GUI methods
@@ -1578,9 +1608,13 @@ class SpinNetwork:
         """Assign numeric spin values.  See Graph.set_args()."""
         self._graph.set_args(args)
 
-    def get_edge_range(self, label: str) -> Optional[Tuple[float, float]]:
+    def get_edge_range(self, label: str, args: Optional[List[SpinArg]] = None) -> Optional[Tuple[float, float]]:
         """Triangle-inequality range for a free label.  See Graph.get_edge_range()."""
-        return self._graph.get_edge_range(label)
+        return self._graph.get_edge_range(label, args)
+
+    def args_list_from_args(self, args: List[SpinArg]) -> Tuple[str, Tuple[float, float], List[List[SpinArg]]]:
+        """List of all allowed args for a single symbolic label."""
+        return self._graph.args_list_from_args(args)
 
     def save(self, path: str) -> None:
         """Save to a .graphml file.  See Graph.save()."""

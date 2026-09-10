@@ -1,4 +1,6 @@
 import networkx as nx
+from typing import Optional, List
+from api import SpinArg
 
 # -----------------------------------------------------------------------
 # Triangular conditions
@@ -51,7 +53,7 @@ def check_triangular_condition(graph):
 # every edge/vertex sharing this label are intersected together.
 # Returns None if no vertex could constrain it (caller should fall back to
 # a default range, e.g. when every neighbouring edge is also symbolic).
-def edge_triangle_range(nx_graph, label):
+def edge_triangle_range(nx_graph, label, args: Optional[List[SpinArg]] = None):
     label_str = str(label)
     j_min, j_max = 0.0, None
 
@@ -67,10 +69,14 @@ def edge_triangle_range(nx_graph, label):
                 for ek, edata in edict.items()
                 if str(edata.get("label")) != label_str
             ]
-            if len(others) == 2 and all(is_numeric_label(x) for x in others):
-                a, b = (float(x) for x in others)
-                j_min = max(j_min, abs(a - b))
-                j_max = (a + b) if j_max is None else min(j_max, a + b)
+            if len(others) == 2:
+                if args is not None:
+                    arg_map = {str(a.label): a.value for a in args}
+                    others = [arg_map.get(str(x), x) for x in others]
+                if all(is_numeric_label(x) for x in others):
+                    a, b = (float(x) for x in others)
+                    j_min = max(j_min, abs(a - b))
+                    j_max = (a + b) if j_max is None else min(j_max, a + b)
 
     if j_max is None:
         return None
@@ -82,6 +88,7 @@ def edge_triangle_range(nx_graph, label):
 def spin_values_in_range(j_min, j_max, step=1.0):
     n_steps = int(round((j_max - j_min) / step))
     return [j_min + i * step for i in range(n_steps + 1)]
+
 
 # -----------------------------------------------------------------------
 # Face cycles and topology
