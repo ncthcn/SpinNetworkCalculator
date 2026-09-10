@@ -73,3 +73,7 @@ Desktop.ini
 # Linux
 *~
 .directorytest_*.pdf
+
+# Claude
+CLAUDE.md
+.claude/

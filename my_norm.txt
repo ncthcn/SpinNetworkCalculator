@@ -1,3 +1,0 @@
-# Spin network expression — my_norm.txt
-# Evaluate with: python scripts/evaluate_formula.py "$(grep -v '^#' my_norm.txt)"
-theta(a, b, c) * theta(c, d, e) * theta(b, d, f) * W6j(a, b, c, d, e, f, 2) * (-1)**round(- a - 2*b - c + d - 2*e + f)

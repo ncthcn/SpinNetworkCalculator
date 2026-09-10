@@ -10,6 +10,7 @@ A computational tool for calculating spin network norms and probabilities. This 
 - **[PARALLEL_ACCELERATION.md](PARALLEL_ACCELERATION.md)** - Backends and measured performance
 - **[scripts/README_COMPARISON.md](scripts/README_COMPARISON.md)** - Graph comparison workflow
 - **This README** - Comprehensive documentation
+- [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/ncthcn/SpinNetworkCalculator/Cleaning?urlpath=%2Fdoc%2Ftree%2Ftutorial.ipynb)
 
 ---
 
