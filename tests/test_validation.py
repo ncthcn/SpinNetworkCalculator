@@ -1,3 +1,19 @@
+#     SPDX-License-Identifier: GPL-3.0-or-later
+#     Copyright (C) 2026, N. Cohen, University of Vienna & IQOQI Vienna
+
+#     This program is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU General Public License as published by
+#     the Free Software Foundation, either version 3 of the License, or
+#     (at your option) any later version.
+
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+
+#     You should have received a copy of the GNU General Public License
+#     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 Validation of the numerical core against independently-known results.
 
@@ -42,7 +58,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from src.api import Graph
 from src.gluer import glue_open_edges
 from src.graph_reducer import ReductionError, reduce_all_cycles
-from src.api import SpinArg
+from src.api import UnitArg
 from src.utils import f_range_symbolic, f_range_with_symbolic
 from src.spin_evaluator import (
     FormulaEvaluator,
@@ -859,7 +875,7 @@ class TestSummationRangeCompleteness:
 
         formula = Graph(symbolic_nx).evaluate_symbolic()
         substituted = formula.evaluate_numeric(
-            [SpinArg(k, v) for k, v in self.SPINS.items()]
+            [UnitArg(k, v) for k, v in self.SPINS.items()]
         )
         assert numeric == pytest.approx(substituted, rel=1e-9), (
             f"numeric-first gives {numeric!r}, symbolic-then-substitute gives "

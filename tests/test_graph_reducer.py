@@ -1,3 +1,19 @@
+#     SPDX-License-Identifier: GPL-3.0-or-later
+#     Copyright (C) 2026, N. Cohen, University of Vienna & IQOQI Vienna
+
+#     This program is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU General Public License as published by
+#     the Free Software Foundation, either version 3 of the License, or
+#     (at your option) any later version.
+
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+
+#     You should have received a copy of the GNU General Public License
+#     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 Unit tests for graph reduction operations
 """
@@ -76,28 +92,6 @@ class TestFullReduction(unittest.TestCase):
         for term in results:
             self.assertIn("graph", term)
             self.assertIn("coeffs", term)
-
-    def test_reduce_with_animator(self):
-        """Test that reduction works with animator"""
-        from src.reduction_animator import ReductionAnimator
-
-        G = nx.MultiGraph()
-        G.add_edge(0, 1, label=1)
-        G.add_edge(1, 2, label=1)
-        G.add_edge(2, 0, label=1)
-
-        animator = ReductionAnimator(output_dir="test_animation_output")
-
-        results = reduce_all_cycles(G, animator=animator)
-
-        # Should have captured steps
-        self.assertGreater(len(animator.steps), 0)
-
-        # Clean up test output
-        import shutil
-        import os
-        if os.path.exists("test_animation_output"):
-            shutil.rmtree("test_animation_output")
 
 
 if __name__ == '__main__':

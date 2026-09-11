@@ -1,10 +1,25 @@
+#     SPDX-License-Identifier: GPL-3.0-or-later
+#     Copyright (C) 2026, N. Cohen, University of Vienna & IQOQI Vienna
+
+#     This program is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU General Public License as published by
+#     the Free Software Foundation, either version 3 of the License, or
+#     (at your option) any later version.
+
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+
+#     You should have received a copy of the GNU General Public License
+#     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 SpinNetworkCalculator – Public Library API
 ==========================================
 This module is the main entry point for using SpinNetworkCalculator as a
-Python library (e.g. in a Jupyter Notebook).  In the old workflow, every
-step was a separate script that wrote files to disk.  This module wraps the
-same mathematical pipeline in a clean in-memory API.
+Python library (e.g. in a Jupyter Notebook).  It wraps the mathematical 
+pipeline in a clean in-memory API.
 
 Quick-start
 -----------
@@ -24,7 +39,7 @@ Quick-start
 
 Classes
 -------
-SpinArg     – one free spin variable (label + assigned value)
+UnitArg     – one free spin variable (label + assigned value)
 Graph       – trivalent spin network graph with evaluation methods
 SpinNetwork – user-facing wrapper around Graph (extend with future methods here)
 Formula     – symbolic norm expression; supports numeric evaluation and saving
@@ -61,17 +76,17 @@ from src.evolution import LineageError, Transition  # noqa: E402
 
 
 # ===========================================================================
-# SpinArg  –  one free spin variable
+# UnitArg  –  one free spin variable
 # ===========================================================================
 
 @dataclass
-class SpinArg:
+class UnitArg:
     """
-    One free spin variable in a spin network.
+    One free unit variable in a spin network.
 
     When a graph edge carries a *symbolic* label (e.g. "j_3") instead of a
     concrete number (e.g. 1.5), that label becomes a free variable represented
-    by a SpinArg.  The user must assign a numeric value to every SpinArg
+    by a UnitArg.  The user must assign a numeric value to every UnitArg
     before the norm can be evaluated numerically.
 
     Attributes
@@ -80,19 +95,6 @@ class SpinArg:
         The edge-label name as it appears in the graph (e.g. "j_3", "a").
     value : float or sympy expression
         Starts as a sympy.Symbol (symbolic); becomes a float once assigned.
-
-    --- Python note for C++ readers ---
-    @dataclass is roughly equivalent to a C++ struct with an auto-generated
-    constructor.  It creates __init__, __repr__, and __eq__ automatically.
-    Attributes are accessed and modified directly (arg.value = 1.5) without
-    getter/setter methods.
-
-    Example
-    -------
-        args = snet.get_args()
-        print(args[0].label)     # "j_3"
-        args[0].value = 1.5      # direct assignment – no setter method needed
-        snet.set_args(args)
     """
 
     label: str
@@ -102,17 +104,14 @@ class SpinArg:
     def is_numeric(self) -> bool:
         """
         True when this variable holds a concrete number (int or float).
-
-        --- Python note ---
-        @property turns a method into a field-like readable attribute.
-        You write  arg.is_numeric  (no parentheses), not  arg.is_numeric().
-        This replaces the C++ pattern  bool isNumeric() const { ... }.
         """
-        return isinstance(self.value, (int, float))
+        from src.utils import is_numeric_label
+
+        return is_numeric_label(self.value)
 
     def __repr__(self) -> str:
         status = "numeric" if self.is_numeric else "symbolic"
-        return f"SpinArg(label={self.label!r}, value={self.value!r}, [{status}])"
+        return f"UnitArg(label={self.label!r}, value={self.value!r}, [{status}])"
 
 
 # ===========================================================================
@@ -124,9 +123,9 @@ def _load_graphml(path: str) -> nx.MultiGraph:
     Load a .graphml file and return a NetworkX MultiGraph.
 
     Edge labels are parsed from their stored string form to the correct
-    Python type (float, sympy.Symbol, or sympy expression) using the same
-    logic as compute_norm.py.  Node positions stored as x/y attributes are
-    converted to the 'pos' tuple attribute expected by the rest of the code.
+    Python type (float, sympy.Symbol, or sympy expression).  Node 
+    positions stored as x/y attributes are converted to the 'pos' tuple 
+    attribute expected by the rest of the code.
 
     Parameters
     ----------
@@ -195,10 +194,10 @@ def _save_graphml(graph: nx.MultiGraph, path: str) -> None:
 
 def _open_end_labels(graph: nx.MultiGraph, node_names) -> Tuple:
     """
-    Return the spin label carried by each named open end, in a stable order.
+    Return the unit label carried by each named open end, in a stable order.
 
     An open end is a degree-1 node, so it has exactly one incident edge and
-    that edge's label is the spin flowing out of the network there.
+    that edge's label is the unit flowing out of the network there.
 
     Parameters
     ----------
@@ -254,7 +253,7 @@ def _extract_free_variables(formula_string: str) -> List[str]:
     """
     Return all *free* variable names found in a formula string.
 
-    A variable is 'free' (i.e. a user-supplied spin value) when it:
+    A variable is 'free' (i.e. a user-supplied unit) when it:
       - appears as an identifier in the formula string, AND
       - is NOT a built-in function name (theta, delta, W6j, …), AND
       - is NOT a lambda-bound sum variable (e.g. 'lambda F_1:' makes F_1 bound).
@@ -276,7 +275,7 @@ def _extract_free_variables(formula_string: str) -> List[str]:
     from src.spin_evaluator import _sanitize_primes
     formula_string = _sanitize_primes(formula_string)
 
-    # These identifiers are internal function/keyword names, not spin variables
+    # These identifiers are internal function/keyword names, not unit variables
     BUILTINS = {
         "theta", "delta", "deltatheta", "safe_div", "W6j", "Sum", "lambda",
         "round", "abs", "max", "min", "int", "float", "str", "bool",
@@ -307,12 +306,12 @@ class Formula:
     never be instantiated directly by the user.  It holds the canonical
     list of reduction terms (Wigner 6j symbols, theta symbols, delta
     symbols, sign factors, …) and can evaluate them numerically once all
-    free spin variables have been assigned numeric values.
+    free unit variables have been assigned numeric values.
 
     Workflow
     --------
         formula = graph.evaluate_symbolic()    # expensive; graph caches it
-        args = formula.get_args()              # free spin variables
+        args = formula.get_args()              # free edge variables
         args[0].value = 1.5
         formula.set_args(args)
         result = formula.evaluate_numeric()    # fast once args are assigned
@@ -357,10 +356,10 @@ class Formula:
         else:
             self._formula_string = ""  # will be set by load()
 
-        # One SpinArg per free variable, initially holding a sympy.Symbol
+        # One UnitArg per free variable, initially holding a sympy.Symbol
         # sorted() ensures a deterministic order regardless of insertion order
-        self._args: List[SpinArg] = [
-            SpinArg(label=name, value=sympy.Symbol(name))
+        self._args: List[UnitArg] = [
+            UnitArg(label=name, value=sympy.Symbol(name))
             for name in sorted(free_arg_labels)
         ]
 
@@ -368,14 +367,14 @@ class Formula:
     # Argument management
     # ------------------------------------------------------------------
 
-    def get_args(self) -> List[SpinArg]:
+    def get_args(self) -> List[UnitArg]:
         """
         Return the list of free spin variables in this formula.
 
-        Returns copies of both the list AND each SpinArg it contains, so
-        mutating a returned SpinArg (args[0].value = 1.5) does NOT affect the
+        Returns copies of both the list AND each UnitArg it contains, so
+        mutating a returned UnitArg (args[0].value = 1.5) does NOT affect the
         Formula until you call set_args().  A plain list(self._args) would
-        copy only the list — SpinArg is a mutable dataclass, so the list
+        copy only the list — UnitArg is a mutable dataclass, so the list
         entries would still be the *same* objects as the Formula's internal
         ones, and args[0].value = 1.5 would silently mutate the Formula too
         (the C++ equivalent of returning a vector of pointers instead of a
@@ -383,20 +382,20 @@ class Formula:
 
         Returns
         -------
-        list[SpinArg]
+        list[UnitArg]
         """
         return [copy.copy(a) for a in self._args]
 
-    def set_args(self, args: List[SpinArg]) -> None:
+    def set_args(self, args: List[UnitArg]) -> None:
         """
         Assign numeric spin values to free variables in the formula.
 
-        Only SpinArgs with is_numeric == True are applied.  Symbolic ones
+        Only UnitArgs with is_numeric == True are applied.  Symbolic ones
         are silently skipped (the variable stays free).
 
         Parameters
         ----------
-        args : list[SpinArg]
+        args : list[UnitArg]
             The list returned by get_args(), with some values updated.
 
         Raises
@@ -436,7 +435,7 @@ class Formula:
 
     def evaluate_numeric(
         self,
-        args: Optional[List[SpinArg]] = None,
+        args: Optional[List[UnitArg]] = None,
         backend: str = "auto",
         max_two_j: int = 200,
     ) -> float:
@@ -445,7 +444,7 @@ class Formula:
 
         Parameters
         ----------
-        args : list[SpinArg], optional
+        args : list[UnitArg], optional
             Additional or overriding spin assignments.  If omitted, uses
             the values stored by previous set_args() calls.
         backend : {'auto', 'serial', 'multiprocessing'}, optional
@@ -501,8 +500,8 @@ class Formula:
         if unassigned:
             raise ValueError(
                 f"The following spin variables are still unassigned: {unassigned}.\n"
-                f"Assign them with formula.set_args([SpinArg('name', value), ...])\n"
-                f"or pass them directly: formula.evaluate_numeric([SpinArg(...)])."
+                f"Assign them with formula.set_args([UnitArg('name', value), ...])\n"
+                f"or pass them directly: formula.evaluate_numeric([UnitArg(...)])."
             )
 
         evaluator = FormulaEvaluator(max_two_j=max_two_j, backend=backend)
@@ -528,7 +527,7 @@ class Formula:
 
     def evaluate_batch(
         self,
-        args_list: List[List[SpinArg]],
+        args_list: List[List[UnitArg]],
         backend: str = "auto",
         max_two_j: int = 200,
     ) -> List[float]:
@@ -541,7 +540,7 @@ class Formula:
 
         Parameters
         ----------
-        args_list : list[list[SpinArg]]
+        args_list : list[list[UnitArg]]
             Each inner list is one complete set of spin assignments, in
             the same format as the args parameter of evaluate_numeric().
         backend : {'auto', 'serial', 'multiprocessing'}, optional
@@ -556,15 +555,15 @@ class Formula:
 
         Example
         -------
-            from src.api import SpinArg
+            from src.api import UnitArg
 
             formula = snet.evaluate_symbolic()
             # Evaluate for j_1 in {0.5, 1.0, 1.5, 2.0}
             args_list = [
-                [SpinArg("j_1", 0.5)],
-                [SpinArg("j_1", 1.0)],
-                [SpinArg("j_1", 1.5)],
-                [SpinArg("j_1", 2.0)],
+                [UnitArg("j_1", 0.5)],
+                [UnitArg("j_1", 1.0)],
+                [UnitArg("j_1", 1.5)],
+                [UnitArg("j_1", 2.0)],
             ]
             results = formula.evaluate_batch(args_list, backend="multiprocessing")
         """
@@ -724,7 +723,7 @@ class Formula:
         # Detect free variables from the formula string
         free_var_names = _extract_free_variables(formula_string)
         formula._args = [
-            SpinArg(label=name, value=sympy.Symbol(name))
+            UnitArg(label=name, value=sympy.Symbol(name))
             for name in free_var_names
         ]
 
@@ -795,7 +794,7 @@ class Graph:
         self._dirty: bool = True
 
         # Populated by _update_args(); one entry per symbolic edge label
-        self._args: List[SpinArg] = []
+        self._args: List[UnitArg] = []
         self._update_args()
 
     # ------------------------------------------------------------------
@@ -807,15 +806,15 @@ class Graph:
         Rescan all edge labels and rebuild self._args.
 
         Called automatically by __init__ and after any mutation
-        (modify(), set_args()).  Symbolic labels produce SpinArg entries;
+        (modify(), set_args()).  Symbolic labels produce UnitArg entries;
         numeric labels are silently skipped.  Duplicate labels across
-        multiple edges produce only one SpinArg entry.
+        multiple edges produce only one UnitArg entry.
         """
         import sympy
         from src.utils import is_numeric_label
 
         seen: set = set()
-        args: List[SpinArg] = []
+        args: List[UnitArg] = []
 
         for u, v, key, data in self._nx_graph.edges(keys=True, data=True):
             label = data.get("label")
@@ -833,7 +832,7 @@ class Graph:
             # Preserve the label as a sympy expression if it already is one;
             # otherwise create a new sympy.Symbol from its string name
             sym_value = label if hasattr(label, "free_symbols") else sympy.Symbol(label_str)
-            args.append(SpinArg(label=label_str, value=sym_value))
+            args.append(UnitArg(label=label_str, value=sym_value))
 
         self._args = args
 
@@ -884,41 +883,41 @@ class Graph:
     # Argument management (public)
     # ------------------------------------------------------------------
 
-    def get_args(self) -> List[SpinArg]:
+    def get_args(self) -> List[UnitArg]:
         """
         Return the list of free (symbolic) spin variables in this graph.
 
-        Returns copies of both the list AND each SpinArg it contains, so
-        mutating a returned SpinArg (args[0].value = 1.5) does NOT affect the
-        Graph until you call set_args().  SpinArg is a mutable dataclass, so
+        Returns copies of both the list AND each UnitArg it contains, so
+        mutating a returned UnitArg (args[0].value = 1.5) does NOT affect the
+        Graph until you call set_args().  UnitArg is a mutable dataclass, so
         a plain list(self._args) would copy the list but not its entries —
         those would still be the Graph's own objects, and mutating one would
         silently mutate the Graph too.
 
         Returns
         -------
-        list[SpinArg]
-            One SpinArg per unique symbolic edge label.  Empty if the graph
+        list[UnitArg]
+            One UnitArg per unique symbolic edge label.  Empty if the graph
             has only numeric labels.
         """
         return [copy.copy(a) for a in self._args]
 
-    def set_args(self, args: List[SpinArg]) -> None:
+    def set_args(self, args: List[UnitArg]) -> None:
         """
         Assign numeric spin values to symbolic edge labels.
 
-        For each SpinArg with is_numeric == True:
+        For each UnitArg with is_numeric == True:
           1. Validates that the assignment satisfies the triangular inequality
              at all vertices where all three edges are now numeric.
           2. Updates every edge in the graph that carries that label.
 
-        Symbolic SpinArgs (is_numeric == False) are silently skipped.
+        Symbolic UnitArgs (is_numeric == False) are silently skipped.
         After the call, _update_args() is called and the formula cache is
         invalidated.
 
         Parameters
         ----------
-        args : list[SpinArg]
+        args : list[UnitArg]
             The list returned by get_args(), with some values updated.
 
         Raises
@@ -954,7 +953,7 @@ class Graph:
         self._dirty = True
         self._formula = None  # invalidate the cached formula
 
-    def get_edge_range(self, label: str, args: Optional[List[SpinArg]] = None) -> Optional[Tuple[float, float]]:
+    def get_edge_range(self, label: str, args: Optional[List[UnitArg]] = None) -> Optional[Tuple[float, float]]:
         """
         Return the (j_min, j_max) range a free edge label may take without
         violating the triangular inequality at the vertex/vertices its
@@ -988,7 +987,7 @@ class Graph:
 
         return edge_triangle_range(self._nx_graph, label, args)
 
-    def args_list_from_args(self, args: List[SpinArg]) -> Tuple[str, Tuple[float, float], List[List[SpinArg]]]:
+    def args_list_from_args(self, args: List[UnitArg]) -> Tuple[str, Tuple[float, float], List[List[UnitArg]]]:
         from src.utils import spin_values_in_range
 
         free_args = [arg for arg in args if not arg.is_numeric]
@@ -1009,7 +1008,7 @@ class Graph:
                 spin_values = spin_values_in_range(*rng)
                 print(f"Triangle-allowed range: [{rng[0]}, {rng[1]}] with integer step 1")
                 args_list = [
-                    [SpinArg(arg.label, v if arg.label == scanned_label else arg.value) for arg in args]
+                    [UnitArg(arg.label, v if arg.label == scanned_label else arg.value) for arg in args]
                     for v in spin_values
                 ]
                 return scanned_label, rng, args_list
@@ -1173,7 +1172,7 @@ class Graph:
 
         return self._formula
 
-    def evaluate_numeric(self, args: Optional[List[SpinArg]] = None) -> float:
+    def evaluate_numeric(self, args: Optional[List[UnitArg]] = None) -> float:
         """
         Compute the numerical value of the spin network norm.
 
@@ -1184,7 +1183,7 @@ class Graph:
 
         Parameters
         ----------
-        args : list[SpinArg], optional
+        args : list[UnitArg], optional
             Spin value assignments.  Required unless all edge labels are
             already numeric or have been assigned via set_args().
 
@@ -1202,7 +1201,7 @@ class Graph:
             self._validate_args_triangular(args)
         return self.evaluate_symbolic().evaluate_numeric(args)
 
-    def _validate_args_triangular(self, args: List[SpinArg]) -> None:
+    def _validate_args_triangular(self, args: List[UnitArg]) -> None:
         """
         Check that the given assignments satisfy triangular conditions at
         every trivalent vertex once all symbolic labels are resolved.
@@ -1600,19 +1599,19 @@ class SpinNetwork:
         """Open the interactive editor window.  See Graph.modify()."""
         self._graph.modify()
 
-    def get_args(self) -> List[SpinArg]:
+    def get_args(self) -> List[UnitArg]:
         """Return free spin variables.  See Graph.get_args()."""
         return self._graph.get_args()
 
-    def set_args(self, args: List[SpinArg]) -> None:
+    def set_args(self, args: List[UnitArg]) -> None:
         """Assign numeric spin values.  See Graph.set_args()."""
         self._graph.set_args(args)
 
-    def get_edge_range(self, label: str, args: Optional[List[SpinArg]] = None) -> Optional[Tuple[float, float]]:
+    def get_edge_range(self, label: str, args: Optional[List[UnitArg]] = None) -> Optional[Tuple[float, float]]:
         """Triangle-inequality range for a free label.  See Graph.get_edge_range()."""
         return self._graph.get_edge_range(label, args)
 
-    def args_list_from_args(self, args: List[SpinArg]) -> Tuple[str, Tuple[float, float], List[List[SpinArg]]]:
+    def args_list_from_args(self, args: List[UnitArg]) -> Tuple[str, Tuple[float, float], List[List[UnitArg]]]:
         """List of all allowed args for a single symbolic label."""
         return self._graph.args_list_from_args(args)
 
@@ -1624,7 +1623,7 @@ class SpinNetwork:
         """Run the symbolic reduction pipeline.  See Graph.evaluate_symbolic()."""
         return self._graph.evaluate_symbolic()
 
-    def evaluate_numeric(self, args: Optional[List[SpinArg]] = None) -> float:
+    def evaluate_numeric(self, args: Optional[List[UnitArg]] = None) -> float:
         """Evaluate numerically.  See Graph.evaluate_numeric()."""
         return self._graph.evaluate_numeric(args)
 
@@ -1809,7 +1808,7 @@ from src.visualizer import TreeVisualizer          # noqa: E402
 
 __all__ = [
     # Phase 1
-    "SpinArg",
+    "UnitArg",
     "Formula",
     "Graph",
     "SpinNetwork",

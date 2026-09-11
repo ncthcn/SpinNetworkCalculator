@@ -1,4 +1,20 @@
 #!/usr/bin/env python3
+#     SPDX-License-Identifier: GPL-3.0-or-later
+#     Copyright (C) 2026, N. Cohen, University of Vienna & IQOQI Vienna
+
+#     This program is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU General Public License as published by
+#     the Free Software Foundation, either version 3 of the License, or
+#     (at your option) any later version.
+
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+
+#     You should have received a copy of the GNU General Public License
+#     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 Compute Reconnection Probability
 
@@ -78,7 +94,7 @@ def compute_norm_from_graph(graph, quiet=True):
 def _compute_norm_full(graph):
     """Run full norm pipeline; return (canon_terms, norm_float)."""
     glued_graph = glue_open_edges(graph)
-    terms = reduce_all_cycles(glued_graph, animator=None)
+    terms = reduce_all_cycles(glued_graph)
 
     clean_terms = []
     for T in terms:

@@ -1,3 +1,19 @@
+#     SPDX-License-Identifier: GPL-3.0-or-later
+#     Copyright (C) 2026, N. Cohen, University of Vienna & IQOQI Vienna
+
+#     This program is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU General Public License as published by
+#     the Free Software Foundation, either version 3 of the License, or
+#     (at your option) any later version.
+
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+
+#     You should have received a copy of the GNU General Public License
+#     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 Tests for src/probability.py -- the transition-probability formula.
 
@@ -35,7 +51,7 @@ import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.api import Formula, Graph, SpinArg, SpinNetwork, calculate_probability
+from src.api import Formula, Graph, UnitArg, SpinNetwork, calculate_probability
 from src.evolution import LineageError, Transition
 from src.probability import _delta_theta_factor_string, _label_literal
 from src.spin_evaluator import FormulaEvaluator
@@ -303,7 +319,7 @@ class TestCalculateProbability:
         n1 = SpinNetwork(closed_theta(("a", "a", "b")))
         _, n2 = link(n1, closed_theta(("a", "a", "b")))
         formula = calculate_probability(n1, n2)
-        value = formula.evaluate_numeric([SpinArg("a", 1.0), SpinArg("b", 2.0)])
+        value = formula.evaluate_numeric([UnitArg("a", 1.0), UnitArg("b", 2.0)])
         assert value == pytest.approx(1.0, rel=1e-9)
 
     def test_unassigned_variables_are_reported(self):
@@ -317,7 +333,7 @@ class TestCalculateProbability:
         _, n2 = link(n1, closed_theta(("a", "a", "b")))
         formula = calculate_probability(n1, n2)
 
-        args_list = [[SpinArg("a", a), SpinArg("b", 2.0)] for a in (1.0, 1.5, 2.0)]
+        args_list = [[UnitArg("a", a), UnitArg("b", 2.0)] for a in (1.0, 1.5, 2.0)]
         batch = formula.evaluate_batch(args_list)
         one_by_one = [formula.evaluate_numeric(a) for a in args_list]
         assert batch == pytest.approx(one_by_one, rel=1e-12)

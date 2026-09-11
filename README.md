@@ -159,7 +159,7 @@ In addition to the CLI scripts, the project provides a clean Python library API 
 
 | Class | Purpose |
 |---|---|
-| `SpinArg` | One free spin variable (edge label + assigned value) |
+| `UnitArg` | One free spin variable (edge label + assigned value) |
 | `Graph` | Trivalent graph with evaluation methods and formula cache |
 | `SpinNetwork` | User-facing wrapper around `Graph` (extend with future methods here) |
 | `Formula` | Symbolic norm expression; evaluates numerically and saves to file |
@@ -167,7 +167,7 @@ In addition to the CLI scripts, the project provides a clean Python library API 
 ### Full Workflow
 
 ```python
-from src.api import new_network, load_network, SpinArg
+from src.api import new_network, load_network, UnitArg
 
 # ── Option A: draw a new graph interactively ───────────────────────────────
 # Opens the graph editor GUI. Close it with S (Save & Exit).
@@ -182,7 +182,7 @@ snet.display()           # read-only visual inspector
 snet.modify()            # interactive editor (invalidates formula cache)
 
 # ── Manage free (symbolic) spin variables ──────────────────────────────────
-args = snet.get_args()   # list of SpinArg objects, one per symbolic edge label
+args = snet.get_args()   # list of UnitArg objects, one per symbolic edge label
 for a in args:
     print(a.label, a.value, a.is_numeric)
 
@@ -203,7 +203,7 @@ f2 = Formula.load("result.txt")
 
 # ── Numerical evaluation ───────────────────────────────────────────────────
 result = formula.evaluate_numeric()                          # default backend (serial)
-result = formula.evaluate_numeric([SpinArg("j_1", 2.0)])    # pass overrides directly
+result = formula.evaluate_numeric([UnitArg("j_1", 2.0)])    # pass overrides directly
 result = formula.evaluate_numeric(backend="multiprocessing") # only for very large sums
 result = formula.evaluate_numeric(backend="serial")          # single-threaded
 result = formula.evaluate_numeric(max_two_j=2000)            # allow large spins (> j=100)
@@ -211,10 +211,10 @@ result = formula.evaluate_numeric(max_two_j=2000)            # allow large spins
 # ── Batch evaluation over a range of spins ─────────────────────────────────
 # evaluate_batch shares one evaluator instance — much faster than looping evaluate_numeric()
 results = formula.evaluate_batch([
-    [SpinArg("j_1", 0.5)],
-    [SpinArg("j_1", 1.0)],
-    [SpinArg("j_1", 1.5)],
-    [SpinArg("j_1", 2.0)],
+    [UnitArg("j_1", 0.5)],
+    [UnitArg("j_1", 1.0)],
+    [UnitArg("j_1", 1.5)],
+    [UnitArg("j_1", 2.0)],
 ])
 # results == [f(0.5), f(1.0), f(1.5), f(2.0)]
 
@@ -232,9 +232,9 @@ snet.save("my_network.graphml")
 
 Re-running a Jupyter cell that calls `evaluate_symbolic()` on an unchanged graph returns the cached `Formula` instantly.
 
-### SpinArg: Python vs C++ idioms
+### UnitArg: Python vs C++ idioms
 
-`SpinArg` uses Python's `@dataclass` and `@property` instead of C++ getters/setters:
+`UnitArg` uses Python's `@dataclass` and `@property` instead of C++ getters/setters:
 
 ```python
 # C++ style (NOT how this works)
@@ -313,7 +313,7 @@ The transition probability between two spin network states is computed via the `
 `calculate_probability(n1, n2)` mirrors `Graph.evaluate_symbolic()`: it returns a symbolic `Formula`, not a number.  Call `formula.evaluate_numeric()` for a single value or `formula.evaluate_batch(args_list)` to scan many spin assignments efficiently (one shared evaluator for the whole batch) — exactly like any other `Formula`.
 
 ```python
-from src.api import load_network, calculate_probability, SpinArg, TreeVisualizer
+from src.api import load_network, calculate_probability, UnitArg, TreeVisualizer
 
 n1 = load_network("drawn_graph.graphml")
 
@@ -326,7 +326,7 @@ p = formula.evaluate_numeric()
 print(f"P = {p}")
 
 # Scan a batch of spin assignments (e.g. for a symbolic edge "j_1")
-args_list = [[SpinArg("j_1", v)] for v in (0.5, 1.0, 1.5, 2.0)]
+args_list = [[UnitArg("j_1", v)] for v in (0.5, 1.0, 1.5, 2.0)]
 probs = formula.evaluate_batch(args_list)
 
 # Visualise the genealogy tree
@@ -573,7 +573,7 @@ Spin_Networks_Project_full/
 │       └── README_COMPARISON.md             # Graph comparison workflow docs
 │
 ├── Core Library (src/)
-│   ├── api.py                   # Public library API (SpinNetwork, Graph, Formula, SpinArg)
+│   ├── api.py                   # Public library API (SpinNetwork, Graph, Formula, UnitArg)
 │   ├── evolution.py             # Transition class, LineageError
 │   ├── probability.py           # calculate_probability()
 │   ├── visualizer.py            # TreeVisualizer
@@ -678,7 +678,7 @@ The evaluator automatically handles large spin values (j up to 1000+) using:
 
 ## License
 
-MIT License
+GNU General Public License v3.0 (or later) — see [LICENSE](LICENSE).
 
 ---
 

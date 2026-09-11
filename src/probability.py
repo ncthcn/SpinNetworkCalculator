@@ -1,3 +1,19 @@
+#     SPDX-License-Identifier: GPL-3.0-or-later
+#     Copyright (C) 2026, N. Cohen, University of Vienna & IQOQI Vienna
+
+#     This program is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU General Public License as published by
+#     the Free Software Foundation, either version 3 of the License, or
+#     (at your option) any later version.
+
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+
+#     You should have received a copy of the GNU General Public License
+#     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 """
 Standalone probability calculator for spin network transitions.
 
@@ -103,7 +119,7 @@ def calculate_probability(
         args[0].value = 1.5
         p = formula.evaluate_numeric(args)               # single custom assignment
 
-        args_list = [[SpinArg("j_1", v)] for v in (0.5, 1.0, 1.5, 2.0)]
+        args_list = [[UnitArg("j_1", v)] for v in (0.5, 1.0, 1.5, 2.0)]
         probs = formula.evaluate_batch(args_list)         # scan efficiently
     """
     from src.api import Formula, Graph
@@ -158,7 +174,7 @@ def _label_literal(label) -> str:
     Render an edge label (float, numeric string, or symbolic name/expression)
     as a Python-expression literal suitable for embedding into a formula
     string.  Symbolic names are sanitised the same way terms_to_formula_string
-    does, so they line up with the SpinArg labels the resulting Formula
+    does, so they line up with the UnitArg labels the resulting Formula
     exposes via get_args().
     """
     from src.spin_evaluator import _sanitize_primes

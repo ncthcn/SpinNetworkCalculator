@@ -81,7 +81,7 @@ The same keywords work for batch evaluation:
 
 ```python
 results = formula.evaluate_batch(
-    [[SpinArg("j_1", v)] for v in [0.5, 1.0, 1.5, 2.0]],
+    [[UnitArg("j_1", v)] for v in [0.5, 1.0, 1.5, 2.0]],
     backend="multiprocessing",
 )
 ```

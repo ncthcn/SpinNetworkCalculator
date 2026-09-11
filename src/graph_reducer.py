@@ -1,3 +1,19 @@
+#     SPDX-License-Identifier: GPL-3.0-or-later
+#     Copyright (C) 2026, N. Cohen, University of Vienna & IQOQI Vienna
+
+#     This program is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU General Public License as published by
+#     the Free Software Foundation, either version 3 of the License, or
+#     (at your option) any later version.
+
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+
+#     You should have received a copy of the GNU General Public License
+#     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 import networkx as nx
 from copy import deepcopy
 from .utils import (list_face_cycles, pick_smallest_interior_face_gt3,
@@ -495,8 +511,6 @@ def graph_signature(G):
 # reductions apply — the graph is then fully reduced to a product of
 # algebraic coefficients.
 #
-# 'animator' is optional; if provided, it receives a snapshot after each
-# significant step so that a GIF/PDF can be produced.
 # Returns a single-element list [term] for compatibility with callers that
 # expect a list of terms (the reduction is always deterministic here).
 def _assert_fully_reduced(term, why):
@@ -541,16 +555,8 @@ def _assert_fully_reduced(term, why):
     )
 
 
-def reduce_all_cycles(glued_graph, animator=None):
+def reduce_all_cycles(glued_graph):
     term = {"graph": glued_graph, "coeffs": []}
-
-    if animator:
-        animator.add_step(
-            term["graph"],
-            title="Initial Glued Graph",
-            description="Starting graph after gluing open edges. Ready to begin reduction.",
-            operation="initial"
-        )
 
     max_iters = 10000
     for _ in range(max_iters):
@@ -573,14 +579,6 @@ def reduce_all_cycles(glued_graph, animator=None):
             changed = True
             cleanup_count += 1
 
-            if animator and cleanup_count % 3 == 0:
-                animator.add_step(
-                    term["graph"],
-                    title=f"Local Reductions (pass {cleanup_count})",
-                    description="Applying theta, 2-cycle, triangle, degree-2, and loop reductions.",
-                    operation="triangle"
-                )
-
         # --- 2) TRY F-MOVE ---
         cycles = list_face_cycles(term["graph"])
         C = pick_smallest_interior_face_gt3(cycles) if cycles else None
@@ -593,13 +591,6 @@ def reduce_all_cycles(glued_graph, animator=None):
                     "(theta / 2-cycle / triangle / degree-2 / loop) made no "
                     "further progress"
                 )
-                if animator:
-                    animator.add_step(
-                        term["graph"],
-                        title="Final Reduced Graph",
-                        description="All cycles reduced. Graph is now fully simplified!",
-                        operation="triangle"
-                    )
                 return [term]
             continue
 
@@ -607,37 +598,13 @@ def reduce_all_cycles(glued_graph, animator=None):
 
         if new_term is None:
             # A face > 3 exists but no F-move can be applied: stuck.
-            if animator:
-                animator.add_step(
-                    term["graph"],
-                    title="Reduction Complete (stuck)",
-                    description=f"Cannot apply F-move on face {C}. Reduction terminates here.",
-                    highlight_nodes=list(C),
-                    operation="f-move"
-                )
             _assert_fully_reduced(
                 term, f"no F-move is applicable to the face {C}"
             )
             return [term]
 
-        if animator:
-            animator.add_step(
-                new_term["graph"],
-                title=f"F-move Applied on {len(C)}-cycle",
-                description=f"Applied F-move recoupling on face {C}. Inserted 6j symbol.",
-                highlight_nodes=list(C),
-                operation="f-move"
-            )
-
         term = new_term
 
     # Safety cap: should not be reached for physically reasonable graphs.
-    if animator:
-        animator.add_step(
-            term["graph"],
-            title="Maximum Iterations Reached",
-            description="Safety cap: Maximum iteration limit reached.",
-            operation="triangle"
-        )
     _assert_fully_reduced(term, f"the {max_iters}-iteration safety cap was hit")
     return [term]
