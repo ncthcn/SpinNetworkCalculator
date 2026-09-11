@@ -165,7 +165,8 @@ def _transposition_sequence(
     reference: list,
     layout_order: list,
 ) -> list[tuple[int, int]]:
-    """Find the minimal sequence of adjacent swaps to sort *reference* into *layout_order*.
+    """Find the minimal sequence of adjacent swaps to sort *reference* into
+    *layout_order*.
 
     Uses an insertion-sort strategy: for each position in *layout_order* (left
     to right) find the target element in the current working copy of

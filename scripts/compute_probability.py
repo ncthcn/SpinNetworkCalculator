@@ -213,7 +213,8 @@ Example:
     if not os.path.exists(args.reconnection_data):
         print(f"Error: Reconnection data file '{args.reconnection_data}' not found.")
         print(
-            "\nPlease specify it with --reconnection-data or ensure it's saved alongside the reconnected graph."
+            "\nPlease specify it with --reconnection-data or ensure it's "
+            "saved alongside the reconnected graph."
         )
         sys.exit(1)
 
@@ -329,7 +330,8 @@ Example:
     delta_str = " * ".join(f"delta({_sanitize_py(str(c))})" for c in new_labels) or "1"
     theta_str = (
         " * ".join(
-            f"theta({_sanitize_py(str(a))}, {_sanitize_py(str(b))}, {_sanitize_py(str(c))})"
+            f"theta({_sanitize_py(str(a))}, {_sanitize_py(str(b))}, "
+            f"{_sanitize_py(str(c))})"
             for a, b, c in theta_triplets
         )
         or "1"
@@ -348,7 +350,8 @@ Example:
     with open(formula_file, "w") as f:
         f.write("# Reconnection probability formula\n")
         f.write(
-            f"# Evaluate: python scripts/evaluate_formula.py --formula-file {formula_file}\n"
+            "# Evaluate: python scripts/evaluate_formula.py "
+            f"--formula-file {formula_file}\n"
         )
         f.write(prob_formula + "\n")
     print(f"✓ Formula saved to: {formula_file}")

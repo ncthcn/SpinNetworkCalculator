@@ -479,10 +479,11 @@ class TestPipelineEndToEnd:
             norms[perm] = graph.evaluate_symbolic().evaluate_numeric()
 
         distinct = set(norms.values())
+        majority = max(distinct, key=list(norms.values()).count)
+        offenders = [p for p, v in norms.items() if v != majority]
         assert len(distinct) == 1, (
             f"norm depends on node naming: {sorted(distinct)}; "
-            f"offending permutations: "
-            f"{[p for p, v in norms.items() if v != max(distinct, key=list(norms.values()).count)]}"
+            f"offending permutations: {offenders}"
         )
         # theta(1,1,1)^4 * W6j(1,1,1,1,1,1)^2 = 24^4 / 36 = 9216
         assert distinct.pop() == pytest.approx(9216.0, rel=1e-9)

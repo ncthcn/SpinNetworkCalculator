@@ -965,7 +965,8 @@ class Graph:
                 if str(data.get("label")) == arg.label:
                     self._nx_graph.edges[u, v, k]["label"] = float(arg.value)
 
-        self._update_args()  # rebuild _args; newly numeric labels disappear from the list
+        # Rebuild _args; newly numeric labels disappear from the list
+        self._update_args()
         self._dirty = True
         self._formula = None  # invalidate the cached formula
 
@@ -1043,7 +1044,8 @@ class Graph:
                 # No vertex touching this edge had both other edges numeric yet
                 # (e.g. every neighbour is also symbolic).
                 print(
-                    "Couldn't derive a triangle-allowed range (neighbouring edges still symbolic)"
+                    "Couldn't derive a triangle-allowed range "
+                    "(neighbouring edges still symbolic)"
                 )
 
     # ------------------------------------------------------------------
@@ -1312,9 +1314,11 @@ class SpinNetwork:
         n3 = n2.transition_to()                    # second generation
 
         from src.api import calculate_probability
-        formula = calculate_probability(n1, n2)     # symbolic P(n1 → n2), like evaluate_symbolic()
+        # symbolic P(n1 → n2), like evaluate_symbolic()
+        formula = calculate_probability(n1, n2)
         p = formula.evaluate_numeric()              # numeric value
-        probs = formula.evaluate_batch(args_list)   # scan many spin assignments efficiently
+        # scan many spin assignments efficiently
+        probs = formula.evaluate_batch(args_list)
 
         from src.api import TreeVisualizer
         TreeVisualizer.display_tree(n1)            # visualise the genealogy

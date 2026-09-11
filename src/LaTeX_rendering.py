@@ -385,7 +385,8 @@ def terms_to_formula_string(terms):
     deltas, and W6j symbols. Multiple terms are joined with +.
 
     Returns a string such as:
-        "(-1)**round(F_1) * theta(1, 2, F_1) * Sum('F_1', 0, 2, lambda F_1: delta(F_1) * W6j(1,2,F_1,3,4,5))"
+        "(-1)**round(F_1) * theta(1, 2, F_1) * Sum('F_1', 0, 2,
+        lambda F_1: delta(F_1) * W6j(1,2,F_1,3,4,5))"
     """
     term_strs = []
 
@@ -465,7 +466,8 @@ def save_formula_txt(terms, filename):
     with open(filename, "w") as f:
         f.write(f"# Spin network expression — {base}\n")
         f.write(
-            f"# Evaluate with: python scripts/evaluate_formula.py \"$(grep -v '^#' {base})\"\n"
+            "# Evaluate with: python scripts/evaluate_formula.py "
+            f"\"$(grep -v '^#' {base})\"\n"
         )
         f.write(formula + "\n")
     print(f"Saved formula to {filename}")

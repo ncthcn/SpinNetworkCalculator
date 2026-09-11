@@ -55,7 +55,8 @@ def timed(evaluator, formula):
 def main():
     print(f"multiprocessing usable here: {_multiprocessing_is_usable()}")
     print(
-        f"start method __main__ file : {getattr(sys.modules['__main__'], '__file__', None)}"
+        "start method __main__ file : "
+        f"{getattr(sys.modules['__main__'], '__file__', None)}"
     )
     print()
 

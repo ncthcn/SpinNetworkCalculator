@@ -374,7 +374,8 @@ class GraphModifier:
             "add_node": ("Add Node", "Click anywhere to add a node", "#27ae60"),
             "add_edge": (
                 "Add Edge",
-                "1. Click first node (turns blue)\n2. Click second node\n3. Enter spin value",
+                "1. Click first node (turns blue)\n2. Click second node\n"
+                "3. Enter spin value",
                 "#3498db",
             ),
             "move_node": ("Move Node", "Click and HOLD, then drag a node", "#f39c12"),
@@ -415,7 +416,8 @@ class GraphModifier:
         open_edges = self.get_open_edges()
 
         self.stats_label.config(
-            text=f"Nodes: {num_nodes}\nEdges: {num_edges}\nOpen Edges: {len(open_edges)}"
+            text=f"Nodes: {num_nodes}\nEdges: {num_edges}\n"
+            f"Open Edges: {len(open_edges)}"
         )
 
     def get_open_edges(self):

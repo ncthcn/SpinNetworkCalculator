@@ -560,7 +560,8 @@ class GraphInspector:
             is_open = "Yes" if self.is_open_edge(n1, n2, key) else "No"
 
             self.hover_label.config(
-                text=f"Edge: {n1}--{n2}\nLabel: {label}\nDegrees: {deg1}, {deg2}\nOpen: {is_open}"
+                text=f"Edge: {n1}--{n2}\nLabel: {label}\n"
+                f"Degrees: {deg1}, {deg2}\nOpen: {is_open}"
             )
         else:
             self.hover_label.config(text="Hover over nodes/edges")

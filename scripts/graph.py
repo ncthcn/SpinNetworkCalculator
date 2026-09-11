@@ -314,7 +314,8 @@ class GraphEditor:
             "add_node": ("Add Node", "Click anywhere to add a node", "#27ae60"),
             "add_edge": (
                 "Add Edge",
-                "1. Click first node (it will turn blue)\n2. Click second node\n3. Enter spin value",
+                "1. Click first node (it will turn blue)\n2. Click second node\n"
+                "3. Enter spin value",
                 "#3498db",
             ),
             "move_node": (

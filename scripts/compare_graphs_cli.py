@@ -279,7 +279,8 @@ Examples:
             all_labels = [args.flagged_label] + list(args.other_labels)
             theta_val = compute_theta_product(all_labels)
             print(
-                f"  Theta({all_labels[0]}, {all_labels[1]}, {all_labels[2]}) = {theta_val}"
+                f"  Theta({all_labels[0]}, {all_labels[1]}, {all_labels[2]}) "
+                f"= {theta_val}"
             )
 
             delta_val = compute_delta_product([args.flagged_label])
@@ -288,7 +289,8 @@ Examples:
             print(f"  ⚠ Error computing coefficients: {e}")
     else:
         print(
-            "\n[STEP 4] No flagged edge data provided (use --flagged-edge, --flagged-label, etc.)"
+            "\n[STEP 4] No flagged edge data provided "
+            "(use --flagged-edge, --flagged-label, etc.)"
         )
 
     # Display results

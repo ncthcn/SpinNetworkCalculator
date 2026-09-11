@@ -18,8 +18,8 @@
 """
 Compute All Reconnection Probabilities
 
-Computes probabilities for ALL possible new edge values when reconnecting two open edges,
-and verifies that they sum to 1 (normalization test).
+Computes probabilities for ALL possible new edge values when reconnecting two
+open edges, and verifies that they sum to 1 (normalization test).
 
 This is useful for:
 1. Verifying physical consistency (probabilities must sum to 1)
@@ -380,7 +380,8 @@ This will:
 
     print(f"\nOriginal graph norm: ||G₁|| = {norm1}")
     print(
-        f"Edges reconnected: {args.edge1} (label={label1}) + {args.edge2} (label={label2})"
+        f"Edges reconnected: {args.edge1} (label={label1}) + "
+        f"{args.edge2} (label={label2})"
     )
     print("\nProbability distribution:")
     print("  " + "-" * 66)
@@ -446,7 +447,8 @@ This will:
             f"# Edges: {args.edge1} (label={label1}) + {args.edge2} (label={label2})\n"
         )
         f.write(
-            '# Evaluate each block with: python scripts/evaluate_formula.py "<formula>"\n\n'
+            "# Evaluate each block with: "
+            'python scripts/evaluate_formula.py "<formula>"\n\n'
         )
         f.write("\n\n".join(formula_entries) + "\n")
     print(f"✓ Formulas saved to: {formula_file}")

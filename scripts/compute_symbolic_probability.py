@@ -29,8 +29,10 @@ where ||G₁||, ||G₂|| are the full symbolic norm expressions after graph
 reduction (6j symbols, thetas, deltas, summation variables).
 
 Usage:
-    python scripts/compute_symbolic_probability.py original.graphml reconnected.graphml
-    python scripts/compute_symbolic_probability.py original.graphml reconnected.graphml \\
+    python scripts/compute_symbolic_probability.py \
+        original.graphml reconnected.graphml
+    python scripts/compute_symbolic_probability.py \
+        original.graphml reconnected.graphml \
         --reconnection-data reconnected_reconnections.json
 
 Output:
@@ -193,7 +195,8 @@ def build_probability_formula(canon_G1, canon_G2, delta_labels, theta_triplets):
     )
     theta_str = (
         " * ".join(
-            f"theta({_sanitize_py(str(a))}, {_sanitize_py(str(b))}, {_sanitize_py(str(c))})"
+            f"theta({_sanitize_py(str(a))}, {_sanitize_py(str(b))}, "
+            f"{_sanitize_py(str(c))})"
             for a, b, c in theta_triplets
         )
         or "1"

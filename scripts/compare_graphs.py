@@ -287,7 +287,8 @@ def main():
             # Compute theta
             theta_val = compute_theta_product(all_labels)
             print(
-                f"  Theta({all_labels[0]}, {all_labels[1]}, {all_labels[2]}) = {theta_val}"
+                f"  Theta({all_labels[0]}, {all_labels[1]}, {all_labels[2]}) "
+                f"= {theta_val}"
             )
 
             # Compute delta for flagged edge
@@ -309,9 +310,8 @@ def main():
     print(f"  Norm = {original_norm}")
     print(f"\nModified Graph: {args.output}")
     print(f"  Norm = {modified_norm}")
-    print(
-        f"\nNorm Ratio: {modified_norm / original_norm if original_norm != 0 else 'undefined'}"
-    )
+    ratio = modified_norm / original_norm if original_norm != 0 else "undefined"
+    print(f"\nNorm Ratio: {ratio}")
 
     if flagged_data:
         print("\nFlagged Edge:")

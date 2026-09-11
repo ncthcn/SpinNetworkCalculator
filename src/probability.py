@@ -58,9 +58,10 @@ Usage
     n1 = load_network("drawn_graph.graphml")
     n2 = n1.transition_to()
 
-    formula = calculate_probability(n1, n2)      # symbolic, like evaluate_symbolic()
-    p = formula.evaluate_numeric()               # numeric value (args if any are free)
-    probs = formula.evaluate_batch(args_list)     # scan many spin assignments efficiently
+    formula = calculate_probability(n1, n2)  # symbolic, like evaluate_symbolic()
+    p = formula.evaluate_numeric()  # numeric value (args if any are free)
+    # scan many spin assignments efficiently
+    probs = formula.evaluate_batch(args_list)
 """
 
 from __future__ import annotations

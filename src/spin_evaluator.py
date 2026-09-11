@@ -360,7 +360,8 @@ class SpinNetworkEvaluator:
 
     def theta_symbol_vectorized(self, j1_arr, j2_arr, j3_arr, power=1.0):
         """
-        Vectorized theta computation for arrays of j values using full factorial formula.
+        Vectorized theta computation for arrays of j values using full
+        factorial formula.
 
         Parameters:
         -----------
@@ -395,7 +396,8 @@ class SpinNetworkEvaluator:
 
             # Calculate factorial terms using log-gamma for numerical stability
             # log(n!) = log(Γ(n+1)) → n! = exp(log(Γ(n+1)))
-            # For large arrays, this is MUCH faster than computing factorials individually
+            # For large arrays, this is MUCH faster than computing
+            # factorials individually
             from scipy.special import gammaln
 
             # log(numerator) = log((j+k+l+1)!)
@@ -653,7 +655,8 @@ class SpinNetworkEvaluator:
             # Progress reporting for large sums
             if total_iters > 1000 and count % max(1, total_iters // 10) == 0:
                 print(
-                    f"    Progress: {count:,}/{total_iters:,} ({100*count/total_iters:.1f}%)"
+                    f"    Progress: {count:,}/{total_iters:,} "
+                    f"({100*count/total_iters:.1f}%)"
                 )
 
         return sum_result
@@ -1535,7 +1538,9 @@ def evaluate_spin_network(
                                       backend='multiprocessing', n_workers=8)
 
         # Force CPU parallelism (large summations only)
-        result = evaluate_spin_network(canon_terms, max_two_j=100, backend='multiprocessing')
+        result = evaluate_spin_network(
+            canon_terms, max_two_j=100, backend='multiprocessing'
+        )
     """
     evaluator = SpinNetworkEvaluator(max_two_j, backend=backend, n_workers=n_workers)
     try:
