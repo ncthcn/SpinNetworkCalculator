@@ -1,0 +1,7 @@
+[flake8]
+# max-line-length matches black's default (88), so the two tools agree.
+max-line-length = 88
+# E203/W503: flake8 checks that conflict with how black formats code.
+# Standard combo when using both tools together.
+extend-ignore = E203, W503
+exclude = myenv,build,dist,graph_snapshots,__pycache__,.git

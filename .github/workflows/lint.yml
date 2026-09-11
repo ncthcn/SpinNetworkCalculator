@@ -1,0 +1,34 @@
+# Style checks (formatting + common mistakes like unused imports).
+# continue-on-error: true means these steps REPORT problems in the Actions
+# log but never turn the check red or block a merge. The codebase has
+# ~420 pre-existing flake8 findings; this workflow surfaces them without
+# blocking work until they're cleaned up on purpose.
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install linters
+        run: pip install black flake8
+
+      - name: black --check (formatting; non-blocking)
+        continue-on-error: true
+        run: black --check --diff src/ scripts/ tests/
+
+      - name: flake8 (style/bugs; non-blocking, see .flake8 for rules)
+        continue-on-error: true
+        run: flake8 src/ scripts/ tests/
