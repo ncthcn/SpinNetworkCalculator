@@ -169,6 +169,7 @@ def calculate_probability(
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+
 def _label_literal(label) -> str:
     """
     Render an edge label (float, numeric string, or symbolic name/expression)

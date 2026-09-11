@@ -22,6 +22,7 @@ from api import UnitArg
 # Triangular conditions
 # -----------------------------------------------------------------------
 
+
 # Spin networks require that the three spin labels at every trivalent vertex
 # satisfy two conditions simultaneously:
 #   1. Triangle inequality: each label ≤ sum of the other two.
@@ -38,6 +39,7 @@ def vertex_satisfies_triangular_conditions(labels):
         and abs(b - c) <= a <= b + c
         and abs(c - a) <= b <= c + a
     )
+
 
 # Walk every trivalent vertex in the graph and raise ValueError if any vertex
 # violates the triangular conditions. Non-numeric labels (e.g. symbolic F_k)
@@ -56,9 +58,11 @@ def check_triangular_condition(graph):
             if len(labels) == 3 and not vertex_satisfies_triangular_conditions(labels):
                 raise ValueError(f"Triangular condition not satisfied at node {node}")
 
+
 # -----------------------------------------------------------------------
 # Allowed range for a labelled edge (triangle inequality at its vertices)
 # -----------------------------------------------------------------------
+
 
 # Given a graph and the label of one of its edges, find the tightest
 # [j_min, j_max] half-integer range that label may take without violating
@@ -98,6 +102,7 @@ def edge_triangle_range(nx_graph, label, args: Optional[List[UnitArg]] = None):
         return None
     return (j_min, j_max)
 
+
 # Expands a (j_min, j_max) range from edge_triangle_range() into the list of
 # individual half-integer spin values, stepping by 1 (the coupling step for
 # a fixed pair of other edges — j and j+1 both satisfy the same triangle).
@@ -113,6 +118,7 @@ def spin_values_in_range(j_min, j_max, step=1.0):
 # Spin network reduction works face by face. These helpers identify the faces
 # (cycles) of the planar graph so that F-moves and triangle reductions can
 # pick which face to attack next.
+
 
 # Returns a list of node-lists, each representing one cycle.
 # For planar graphs, uses the full planar embedding (enumerates all faces,
@@ -141,6 +147,7 @@ def list_face_cycles(G):
 
     return faces
 
+
 # Returns the second-largest face (skipping the outer/infinite face, which is
 # the largest). Used historically; pick_smallest_interior_face_gt3 is preferred.
 def pick_largest_interior_face(faces):
@@ -151,6 +158,7 @@ def pick_largest_interior_face(faces):
         return faces_sorted[1]
     return faces_sorted[0]
 
+
 # Returns the smallest interior face with more than 3 nodes.
 # Triangles are handled by apply_triangle_reduction; this finds the next
 # target for an F-move (which reduces a face's length by 1).
@@ -160,9 +168,11 @@ def pick_smallest_interior_face_gt3(cycles):
         return None
     return min(cycles_gt3, key=len)
 
+
 # -----------------------------------------------------------------------
 # Edge and neighbor helpers for trivalent graphs
 # -----------------------------------------------------------------------
+
 
 # In a trivalent (3-valent) graph every vertex has exactly 3 neighbours.
 # When a vertex sits on a cycle, two of those neighbours are cycle-neighbours
@@ -173,6 +183,7 @@ def external_neighbor_in_trivalent(G, v, cycle_nodes):
             return nbr
     return None
 
+
 # Returns the label on the first parallel edge found between u and v.
 # In a MultiGraph there may be several; we only want the representative label.
 def get_edge_label(G, u, v):
@@ -180,6 +191,7 @@ def get_edge_label(G, u, v):
         for k, data in G[u][v].items():
             return data.get("label", None)
     return None
+
 
 # Removes one edge instance between u and v (uses the first internal key).
 # Used during graph reductions where a single edge must be surgically deleted
@@ -189,9 +201,11 @@ def remove_one_cycle_edge(G, u, v):
         k = next(iter(G[u][v].keys()))
         G.remove_edge(u, v, key=k)
 
+
 # Adds a labeled edge between u and v. Thin wrapper kept for readability.
 def add_edge_with_label(G, u, v, label):
     G.add_edge(u, v, label=label)
+
 
 # In a 2-cycle (digon), vertex v has exactly 2 edges to 'other' and 1 external
 # edge. Returns (external_neighbour, label_of_external_edge).
@@ -202,6 +216,7 @@ def single_external_neighbor_and_label(G, v, other):
         lbl = get_edge_label(G, v, nbr)
         return nbr, lbl
     return None, None
+
 
 # Returns all (label, neighbour) pairs for edges incident to v that do NOT go
 # to 'other'. In a trivalent graph this gives the two non-pair edges, which
@@ -215,6 +230,7 @@ def incident_labels_excluding_pair(G, v, other):
         out.append((lbl, nbr))
     return out
 
+
 # Returns all labels on parallel edges between u and v.
 # A digon has 2, a theta-graph vertex pair has 3.
 def uv_parallel_labels(G, u, v):
@@ -224,9 +240,11 @@ def uv_parallel_labels(G, u, v):
             labels.append(data.get("label", None))
     return labels
 
+
 # -----------------------------------------------------------------------
 # Numeric check and spin conversion
 # -----------------------------------------------------------------------
+
 
 # Edge labels can be numeric (1, 0.5, 1.5 …), symbolic strings ("F_1"),
 # or sympy expressions (e.g. a + 2*b from parse_spin_label).
@@ -244,6 +262,7 @@ def is_numeric_label(x):
     # Sympy numeric constants (e.g. Integer(2), Rational(1,2))
     try:
         import sympy
+
         if isinstance(x, sympy.Basic) and x.is_number:
             return True
     except ImportError:
@@ -274,24 +293,28 @@ def parse_spin_label(text: str):
     # 2. Sympy with implicit multiplication ("2b" → 2*b)
     try:
         from sympy.parsing.sympy_parser import (
-            parse_expr, standard_transformations,
+            parse_expr,
+            standard_transformations,
             implicit_multiplication_application,
         )
+
         expr = parse_expr(
             text,
-            transformations=standard_transformations + (implicit_multiplication_application,),
+            transformations=standard_transformations
+            + (implicit_multiplication_application,),
             evaluate=True,
         )
-        if expr.is_number:          # e.g. "3/2" → 1.5
+        if expr.is_number:  # e.g. "3/2" → 1.5
             return float(expr)
-        if expr.is_Symbol:          # simple identifier → keep as string
+        if expr.is_Symbol:  # simple identifier → keep as string
             return str(expr)
-        return expr                 # compound expression → sympy Expr
+        return expr  # compound expression → sympy Expr
     except Exception:
         pass
 
     # 3. Fallback: return as string
     return text
+
 
 # Spins are stored as floats (0, 0.5, 1, 1.5 …). wigxjpf and many range
 # calculations work in doubled integers (0, 1, 2, 3 …) to avoid fractions.
@@ -299,9 +322,11 @@ def parse_spin_label(text: str):
 def to_doubled(x):
     return int(round(2 * x))
 
+
 # -----------------------------------------------------------------------
 # Summation range computation for F-moves
 # -----------------------------------------------------------------------
+
 
 # When an F-move introduces a new intermediate spin F, its allowed range is
 # fixed by the triangle inequality at the TWO VERTICES THE NEW F EDGE TOUCHES.
@@ -381,10 +406,16 @@ def f_range_with_symbolic(a, b, d, c, known_ranges=None):
 
     # The two conditions pair (b, c) and (a, d) -- the vertices the new F edge
     # touches.  See the comment on f_range_symbolic.
-    bc_diff_min = max(0, abs(b_min - c_max) if b_min >= c_max else 0,
-                         abs(b_max - c_min) if b_max <= c_min else 0)
-    ad_diff_min = max(0, abs(a_min - d_max) if a_min >= d_max else 0,
-                         abs(a_max - d_min) if a_max <= d_min else 0)
+    bc_diff_min = max(
+        0,
+        abs(b_min - c_max) if b_min >= c_max else 0,
+        abs(b_max - c_min) if b_max <= c_min else 0,
+    )
+    ad_diff_min = max(
+        0,
+        abs(a_min - d_max) if a_min >= d_max else 0,
+        abs(a_max - d_min) if a_max <= d_min else 0,
+    )
 
     bc_sum_max = b_max + c_max
     ad_sum_max = a_max + d_max
@@ -398,13 +429,13 @@ def f_range_with_symbolic(a, b, d, c, known_ranges=None):
     def build_expr(op, x, y):
         x_str = str(x)
         y_str = str(y)
-        if op == 'abs_diff':
+        if op == "abs_diff":
             return f"abs({x_str} - ({y_str}))"
-        elif op == 'sum':
+        elif op == "sum":
             return f"{x_str} + {y_str}"
-        elif op == 'max':
+        elif op == "max":
             return f"max({x_str}, {y_str})"
-        elif op == 'min':
+        elif op == "min":
             return f"min({x_str}, {y_str})"
         else:
             return f"{op}({x_str}, {y_str})"
@@ -421,21 +452,29 @@ def f_range_with_symbolic(a, b, d, c, known_ranges=None):
         v = float(x)
         return str(int(v)) if v == int(v) else str(v)
 
-    bc_diff = (build_expr('abs_diff', b, c)
-               if not is_numeric_label(b) or not is_numeric_label(c)
-               else num(abs(float(b) - float(c))))
-    ad_diff = (build_expr('abs_diff', a, d)
-               if not is_numeric_label(a) or not is_numeric_label(d)
-               else num(abs(float(a) - float(d))))
-    fmin_expr = build_expr('max', bc_diff, ad_diff)
+    bc_diff = (
+        build_expr("abs_diff", b, c)
+        if not is_numeric_label(b) or not is_numeric_label(c)
+        else num(abs(float(b) - float(c)))
+    )
+    ad_diff = (
+        build_expr("abs_diff", a, d)
+        if not is_numeric_label(a) or not is_numeric_label(d)
+        else num(abs(float(a) - float(d)))
+    )
+    fmin_expr = build_expr("max", bc_diff, ad_diff)
 
-    bc_sum = (build_expr('sum', b, c)
-              if not is_numeric_label(b) or not is_numeric_label(c)
-              else num(float(b) + float(c)))
-    ad_sum = (build_expr('sum', a, d)
-              if not is_numeric_label(a) or not is_numeric_label(d)
-              else num(float(a) + float(d)))
-    fmax_expr = build_expr('min', bc_sum, ad_sum)
+    bc_sum = (
+        build_expr("sum", b, c)
+        if not is_numeric_label(b) or not is_numeric_label(c)
+        else num(float(b) + float(c))
+    )
+    ad_sum = (
+        build_expr("sum", a, d)
+        if not is_numeric_label(a) or not is_numeric_label(d)
+        else num(float(a) + float(d))
+    )
+    fmax_expr = build_expr("min", bc_sum, ad_sum)
 
     return {
         "Fmin": fmin,
@@ -444,7 +483,7 @@ def f_range_with_symbolic(a, b, d, c, known_ranges=None):
         "symbolic": True,
         "symbolic_Fmin": fmin_expr,
         "symbolic_Fmax": fmax_expr,
-        "depends_on": symbolic_labels
+        "depends_on": symbolic_labels,
     }
 
 

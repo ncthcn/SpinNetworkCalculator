@@ -38,7 +38,6 @@ from typing import NamedTuple
 
 import networkx as nx
 
-
 # ---------------------------------------------------------------------------
 # Types
 # ---------------------------------------------------------------------------
@@ -50,6 +49,7 @@ EdgeRef = tuple[int, int, int]
 # ---------------------------------------------------------------------------
 # Edge helpers
 # ---------------------------------------------------------------------------
+
 
 def canonical_edge(u: int, v: int, key: int) -> EdgeRef:
     """Return an edge reference with the smaller node ID first.
@@ -118,6 +118,7 @@ def _edge_label(graph: nx.MultiGraph, edge: EdgeRef) -> float:
 # Reference orientation (stored as node attribute)
 # ---------------------------------------------------------------------------
 
+
 def set_reference_orientation(graph: nx.MultiGraph, vertex: int) -> None:
     """Capture the current incident-edge order as the reference orientation.
 
@@ -159,6 +160,7 @@ def get_reference_orientation(
 # ---------------------------------------------------------------------------
 # Transposition arithmetic
 # ---------------------------------------------------------------------------
+
 
 def _transposition_sequence(
     reference: list,
@@ -298,6 +300,7 @@ def vertex_phase(a: float, b: float, c: float) -> float:
 # Layout phase calculation
 # ---------------------------------------------------------------------------
 
+
 def calculate_layout_phase(
     graph: nx.MultiGraph,
     layout: dict[int, tuple[float, float]],
@@ -375,7 +378,7 @@ def calculate_layout_phase(
         # Re-apply swaps tracking which edges are in which position so we can
         # identify edge_a, edge_b, and the spectator edge_c correctly.
         current: list[EdgeRef] = list(ref_orient)
-        for (i, j) in swaps:
+        for i, j in swaps:
             edge_a = current[i]
             edge_b = current[j]  # j == i + 1 always
             edge_c = next(e for e in current if e != edge_a and e != edge_b)
@@ -388,6 +391,7 @@ def calculate_layout_phase(
 # ---------------------------------------------------------------------------
 # Planar flattening
 # ---------------------------------------------------------------------------
+
 
 def resolve_planar_flattening(
     graph: nx.MultiGraph,
@@ -416,6 +420,7 @@ def resolve_planar_flattening(
         - ``layout``: mapping from vertex ID to ``(x, y)`` float coordinates.
         - ``phase``: cumulative phase shift as a complex number.
     """
+
     def _circular_layout() -> dict:
         """Pure-Python circular fallback — no numpy required."""
         nodes = list(graph.nodes())

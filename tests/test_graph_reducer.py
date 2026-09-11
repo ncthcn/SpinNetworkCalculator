@@ -24,7 +24,7 @@ from src.graph_reducer import (
     find_triangle_candidate,
     apply_triangle_reduction,
     reduce_all_cycles,
-    reduce_all_triangles
+    reduce_all_triangles,
 )
 
 
@@ -94,5 +94,5 @@ class TestFullReduction(unittest.TestCase):
             self.assertIn("coeffs", term)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

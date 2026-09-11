@@ -20,8 +20,8 @@ import matplotlib.pyplot as plt
 from sympy import symbols, latex
 
 # Enable system LaTeX so that rendered PDFs use proper math fonts.
-mpl.rcParams['text.usetex'] = True
-mpl.rcParams['text.latex.preamble'] = r'\usepackage{amsmath}'
+mpl.rcParams["text.usetex"] = True
+mpl.rcParams["text.latex.preamble"] = r"\usepackage{amsmath}"
 
 
 def _sym_range_to_latex(expr: str) -> str:
@@ -34,12 +34,13 @@ def _sym_range_to_latex(expr: str) -> str:
         "abs(F_1 - 1.5)"               ->  r"|F_1 - 1.5|"
     """
     # abs(x) → |x|
-    s = re.sub(r'abs\(([^)]+)\)', r'|\1|', expr)
+    s = re.sub(r"abs\(([^)]+)\)", r"|\1|", expr)
     # max( → \max(,  min( → \min(
-    s = s.replace('max(', r'\max(').replace('min(', r'\min(')
+    s = s.replace("max(", r"\max(").replace("min(", r"\min(")
     # underscore in variable names (F_1 → F_{1})
-    s = re.sub(r'([A-Za-z])_(\d+)', r'\1_{\2}', s)
+    s = re.sub(r"([A-Za-z])_(\d+)", r"\1_{\2}", s)
     return s
+
 
 # -----------------------------------------------------------------------
 # LaTeX rendering of spin-network expressions
@@ -48,6 +49,7 @@ def _sym_range_to_latex(expr: str) -> str:
 # The evaluation pipeline produces a list of "term" dicts, each containing
 # a "coeffs" list. These two functions turn that structure into a LaTeX
 # string and save it as a PDF via matplotlib.
+
 
 # Given a coefficient dict (or tuple), extracts the argument tuple and power.
 # Both dict-style coefficients (from graph_reducer/norm_reducer) and legacy
@@ -58,7 +60,10 @@ def extract_args(c):
         typ = c.get("type")
         power = c.get("power", 1)
         fixed = c.get("fixed", {})
-        args = tuple(fixed.get(k.upper(), fixed.get(k)) for k in c.get("list_order", fixed.keys()))
+        args = tuple(
+            fixed.get(k.upper(), fixed.get(k))
+            for k in c.get("list_order", fixed.keys())
+        )
         return typ, args, power
     elif isinstance(c, tuple):
         if len(c) == 3:
@@ -75,7 +80,11 @@ def extract_args(c):
 #   { a  b  f }
 #   { c  d  e }
 def latex_6j(a, b, f, c, d, e):
-    return r"\{\begin{matrix} " + f"{a} & {b} & {f} \\\\ {c} & {d} & {e}" + r" \end{matrix}\}"
+    return (
+        r"\{\begin{matrix} "
+        + f"{a} & {b} & {f} \\\\ {c} & {d} & {e}"
+        + r" \end{matrix}\}"
+    )
 
 
 # Converts a list of terms into a nested list of LaTeX factor strings.
@@ -107,10 +116,14 @@ def latex_formatting(terms):
 
             if typ == "sum":
                 f = c.get("index", "f")
-                f_latex = re.sub(r'([A-Za-z])_(\d+)', r'\1_{\2}', f)
+                f_latex = re.sub(r"([A-Za-z])_(\d+)", r"\1_{\2}", f)
                 rng = c.get("range2")
                 if rng:
-                    if rng.get("symbolic") and "symbolic_Fmin" in rng and "symbolic_Fmax" in rng:
+                    if (
+                        rng.get("symbolic")
+                        and "symbolic_Fmin" in rng
+                        and "symbolic_Fmax" in rng
+                    ):
                         fmin_s = _sym_range_to_latex(rng["symbolic_Fmin"])
                         fmax_s = _sym_range_to_latex(rng["symbolic_Fmax"])
                     else:
@@ -169,7 +182,9 @@ def latex_formatting(terms):
                 a, b, e, cval, d, fval = args
                 power = c.get("power", 1)
                 if power != 1:
-                    factors.append(rf"{latex_6j(a,b,e,cval,d,fval)}^{{{power}}}_{{\mathrm{{W}}}}")
+                    factors.append(
+                        rf"{latex_6j(a,b,e,cval,d,fval)}^{{{power}}}_{{\mathrm{{W}}}}"
+                    )
                 else:
                     factors.append(rf"{latex_6j(a,b,e,cval,d,fval)}_{{\mathrm{{W}}}}")
 
@@ -179,7 +194,7 @@ def latex_formatting(terms):
                     args = (
                         fixed.get("a", fixed.get("A")),
                         fixed.get("b", fixed.get("B")),
-                        fixed.get("c", fixed.get("C"))
+                        fixed.get("c", fixed.get("C")),
                     )
                 a, b, cval = args
                 power = c.get("power", 1)
@@ -215,9 +230,9 @@ def save_latex_pdf(terms, filename="expression.pdf"):
     expr_str = r" \cdot ".join(flat_factors)
 
     fig, ax = plt.subplots(figsize=(8, 1))
-    ax.axis('off')
-    ax.text(0.5, 0.5, f"${expr_str}$", ha='center', va='center', fontsize=16)
-    fig.savefig(filename, bbox_inches='tight')
+    ax.axis("off")
+    ax.text(0.5, 0.5, f"${expr_str}$", ha="center", va="center", fontsize=16)
+    fig.savefig(filename, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved LaTeX expression to {filename}")
 
@@ -225,6 +240,7 @@ def save_latex_pdf(terms, filename="expression.pdf"):
 # -----------------------------------------------------------------------
 # Plain-text formula serialisation (evaluate_formula.py compatible)
 # -----------------------------------------------------------------------
+
 
 def _sanitize_py(s: str) -> str:
     """Replace prime characters in sympy symbol names to make valid Python identifiers.
@@ -261,9 +277,9 @@ def _sign_coeff_to_exponent_str(sign_args):
     """
     parts = []
     for coeff_str, val in sign_args:
-        if coeff_str == '-':
+        if coeff_str == "-":
             numeric_coeff = -1
-        elif coeff_str in ('+', None):
+        elif coeff_str in ("+", None):
             numeric_coeff = 1
         else:
             try:
@@ -383,14 +399,22 @@ def terms_to_formula_string(terms):
             if c.get("type") == "sum":
                 var = c.get("index")
                 rng = c.get("range2", {})
-                if rng.get("symbolic") and "symbolic_Fmin" in rng and "symbolic_Fmax" in rng:
+                if (
+                    rng.get("symbolic")
+                    and "symbolic_Fmin" in rng
+                    and "symbolic_Fmax" in rng
+                ):
                     fmin_expr = _sanitize_py(rng["symbolic_Fmin"])
                     fmax_expr = _sanitize_py(rng["symbolic_Fmax"])
                 else:
                     fmin_v = rng.get("Fmin", 0) / 2
                     fmax_v = rng.get("Fmax", 0) / 2
-                    fmin_expr = str(int(fmin_v)) if fmin_v == int(fmin_v) else str(fmin_v)
-                    fmax_expr = str(int(fmax_v)) if fmax_v == int(fmax_v) else str(fmax_v)
+                    fmin_expr = (
+                        str(int(fmin_v)) if fmin_v == int(fmin_v) else str(fmin_v)
+                    )
+                    fmax_expr = (
+                        str(int(fmax_v)) if fmax_v == int(fmax_v) else str(fmax_v)
+                    )
                 sum_vars[var] = (fmin_expr, fmax_expr)
 
         # Partition remaining coefficients: outer (constant) vs inner (sum-dependent)
@@ -441,7 +465,9 @@ def save_formula_txt(terms, filename):
     base = filename.replace("\\", "/").split("/")[-1]
     with open(filename, "w") as f:
         f.write(f"# Spin network expression — {base}\n")
-        f.write(f"# Evaluate with: python scripts/evaluate_formula.py \"$(grep -v '^#' {base})\"\n")
+        f.write(
+            f"# Evaluate with: python scripts/evaluate_formula.py \"$(grep -v '^#' {base})\"\n"
+        )
         f.write(formula + "\n")
     print(f"Saved formula to {filename}")
     return formula

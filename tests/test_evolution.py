@@ -43,10 +43,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from src.api import Graph, SpinNetwork
 from src.evolution import LineageError, Transition
 
-
 # ---------------------------------------------------------------------------
 # Helpers: build a genealogy without touching the GUI
 # ---------------------------------------------------------------------------
+
 
 def closed_theta(labels=(1.0, 1.0, 2.0)):
     """Two vertices joined by three parallel edges: the simplest closed net."""
@@ -105,6 +105,7 @@ def link(parent, child_graph, added=None, open_ends=(), triplets=(), old_labels=
 # LineageError
 # ===========================================================================
 
+
 class TestLineageError:
 
     def test_is_a_valueerror(self):
@@ -115,6 +116,7 @@ class TestLineageError:
 # ===========================================================================
 # Transition construction and immutability
 # ===========================================================================
+
 
 class TestTransitionConstruction:
 
@@ -145,8 +147,12 @@ class TestTransitionConstruction:
         assert isinstance(t.produced_open_ends, frozenset)
 
     def test_triplets_are_normalised_to_a_tuple(self):
-        t = Transition(SpinNetwork(closed_theta()), empty_graph(), frozenset(),
-                       theta_triplets=[("c", "s", "t")])
+        t = Transition(
+            SpinNetwork(closed_theta()),
+            empty_graph(),
+            frozenset(),
+            theta_triplets=[("c", "s", "t")],
+        )
         assert isinstance(t.theta_triplets, tuple)
 
     def test_defaults_are_empty(self):
@@ -178,6 +184,7 @@ class TestTransitionConstruction:
 # ===========================================================================
 # Transition.compose -- collapsing a multi-hop path
 # ===========================================================================
+
 
 class TestTransitionCompose:
 
@@ -214,7 +221,8 @@ class TestTransitionCompose:
         t2, n3 = link(n2, closed_theta(), triplets=(("c2", "s2", "t2"),))
 
         assert t1.compose(t2).theta_triplets == (
-            ("c1", "s1", "t1"), ("c2", "s2", "t2"),
+            ("c1", "s1", "t1"),
+            ("c2", "s2", "t2"),
         )
 
     def test_concatenates_consumed_open_end_labels(self):
@@ -229,14 +237,14 @@ class TestTransitionCompose:
         nodes directly rather than unioning the per-step sets -- so an open end
         created in step 1 and consumed in step 2 must not appear.
         """
-        n1 = SpinNetwork(closed_theta())              # no open ends
+        n1 = SpinNetwork(closed_theta())  # no open ends
         t1, n2 = link(n1, open_net(), open_ends={"s0", "s1"})
-        t2, n3 = link(n2, closed_theta(), open_ends=set())   # back to closed
+        t2, n3 = link(n2, closed_theta(), open_ends=set())  # back to closed
 
         composed = t1.compose(t2)
-        assert composed.produced_open_ends == frozenset(), (
-            "an open end created then consumed must not survive composition"
-        )
+        assert (
+            composed.produced_open_ends == frozenset()
+        ), "an open end created then consumed must not survive composition"
 
     def test_net_open_ends_reports_ends_present_in_the_final_state(self):
         n1 = SpinNetwork(closed_theta())
@@ -247,7 +255,7 @@ class TestTransitionCompose:
     def test_falls_back_to_the_union_when_the_child_is_unlinked(self):
         n1 = SpinNetwork(closed_theta())
         t1, n2 = link(n1, closed_theta(), open_ends={"a"})
-        t2 = Transition(n2, empty_graph(), frozenset({"b"}))   # never linked
+        t2 = Transition(n2, empty_graph(), frozenset({"b"}))  # never linked
         assert t1.compose(t2).produced_open_ends == frozenset({"a", "b"})
 
     def test_composing_three_hops_left_to_right_accumulates_everything(self):
@@ -275,6 +283,7 @@ class TestTransitionCompose:
 # ===========================================================================
 # SpinNetwork genealogy: lineage_to, children, depth
 # ===========================================================================
+
 
 class TestSpinNetworkLineage:
 
@@ -330,7 +339,7 @@ class TestSpinNetworkLineage:
         assert isinstance(n1.children, tuple)
         before = len(n1.children)
         with pytest.raises(AttributeError):
-            n1.children.append("nonsense")     # tuples have no append
+            n1.children.append("nonsense")  # tuples have no append
         assert len(n1.children) == before
 
     def test_genealogy_depth_counts_transitions_from_the_root(self):

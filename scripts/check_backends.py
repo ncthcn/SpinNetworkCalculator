@@ -54,13 +54,17 @@ def timed(evaluator, formula):
 
 def main():
     print(f"multiprocessing usable here: {_multiprocessing_is_usable()}")
-    print(f"start method __main__ file : {getattr(sys.modules['__main__'], '__file__', None)}")
+    print(
+        f"start method __main__ file : {getattr(sys.modules['__main__'], '__file__', None)}"
+    )
     print()
 
     serial = FormulaEvaluator(max_two_j=200, backend="serial", verbose=False)
     parallel = FormulaEvaluator(max_two_j=200, backend="multiprocessing", verbose=False)
     try:
-        print(f"linear-factor check : {parallel._outer_sum_is_a_linear_factor(BIG_SUM)}")
+        print(
+            f"linear-factor check : {parallel._outer_sum_is_a_linear_factor(BIG_SUM)}"
+        )
         print(f"probed outer bounds : {parallel._probe_outer_sum(BIG_SUM, None)}")
         print()
 
@@ -74,8 +78,10 @@ def main():
             print(f"speedup         : {t_serial / t_par:.2f}x")
         print()
 
-        print(f"non-linear formula chunkable? "
-              f"{parallel._outer_sum_is_a_linear_factor(NON_LINEAR)}  (must be False)")
+        print(
+            f"non-linear formula chunkable? "
+            f"{parallel._outer_sum_is_a_linear_factor(NON_LINEAR)}  (must be False)"
+        )
         nl_serial = serial.evaluate(NON_LINEAR)
         nl_par = parallel.evaluate(NON_LINEAR)
         print(f"non-linear agrees: {nl_serial == nl_par}  ({nl_serial!r})")

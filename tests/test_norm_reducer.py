@@ -84,6 +84,7 @@ def types_of(t):
 # apply_kroneckers -- union-find over spin equalities
 # ===========================================================================
 
+
 class TestApplyKroneckers:
 
     def test_numeric_contradiction_kills_the_term(self):
@@ -96,50 +97,58 @@ class TestApplyKroneckers:
 
     def test_kronecker_coefficients_are_consumed(self):
         """Once applied, the constraints themselves must not remain as factors."""
-        out = apply_kroneckers(term(
-            build_kronecker_coeff("a", "b"),
-            build_theta_coeff("a", "x", "y"),
-        ))
+        out = apply_kroneckers(
+            term(
+                build_kronecker_coeff("a", "b"),
+                build_theta_coeff("a", "x", "y"),
+            )
+        )
         assert "Kronecker" not in types_of(out)
 
     def test_equal_labels_are_substituted_to_one_representative(self):
         """Kronecker(a, b) must rewrite every 'a' or 'b' to a single name."""
-        out = apply_kroneckers(term(
-            build_kronecker_coeff("a", "b"),
-            build_theta_coeff("a", "x", "y"),
-            build_theta_coeff("b", "x", "y"),
-        ))
+        out = apply_kroneckers(
+            term(
+                build_kronecker_coeff("a", "b"),
+                build_theta_coeff("a", "x", "y"),
+                build_theta_coeff("b", "x", "y"),
+            )
+        )
         thetas = [c for c in out["coeffs"] if c["type"] == "theta"]
         assert len(thetas) == 2
         first = thetas[0]["fixed"]["a"]
         second = thetas[1]["fixed"]["a"]
-        assert first == second, (
-            f"'a' and 'b' were identified but map to {first!r} and {second!r}"
-        )
+        assert (
+            first == second
+        ), f"'a' and 'b' were identified but map to {first!r} and {second!r}"
         assert first in ("a", "b")
 
     def test_equality_is_transitive(self):
         """a=b and b=c must put a, b and c all in the same class."""
-        out = apply_kroneckers(term(
-            build_kronecker_coeff("a", "b"),
-            build_kronecker_coeff("b", "c"),
-            build_theta_coeff("a", "x", "y"),
-            build_theta_coeff("c", "x", "y"),
-        ))
-        thetas = [c for c in out["coeffs"] if c["type"] == "theta"]
-        assert thetas[0]["fixed"]["a"] == thetas[1]["fixed"]["a"], (
-            "a=b=c was not resolved to a single representative"
+        out = apply_kroneckers(
+            term(
+                build_kronecker_coeff("a", "b"),
+                build_kronecker_coeff("b", "c"),
+                build_theta_coeff("a", "x", "y"),
+                build_theta_coeff("c", "x", "y"),
+            )
         )
+        thetas = [c for c in out["coeffs"] if c["type"] == "theta"]
+        assert (
+            thetas[0]["fixed"]["a"] == thetas[1]["fixed"]["a"]
+        ), "a=b=c was not resolved to a single representative"
 
     def test_duplicate_sums_are_merged_with_intersected_ranges(self):
         """
         Two summations over the same index must collapse into one whose range
         is the intersection -- a spin must satisfy both constraints.
         """
-        out = apply_kroneckers(term(
-            build_sum_coeff("F_1", {"Fmin": 0, "Fmax": 10, "parity": 0}),
-            build_sum_coeff("F_1", {"Fmin": 4, "Fmax": 20, "parity": 0}),
-        ))
+        out = apply_kroneckers(
+            term(
+                build_sum_coeff("F_1", {"Fmin": 0, "Fmax": 10, "parity": 0}),
+                build_sum_coeff("F_1", {"Fmin": 4, "Fmax": 20, "parity": 0}),
+            )
+        )
         sums = [c for c in out["coeffs"] if c["type"] == "sum"]
         assert len(sums) == 1, f"expected the sums to merge, got {len(sums)}"
         assert sums[0]["range2"]["Fmin"] == 4
@@ -147,17 +156,21 @@ class TestApplyKroneckers:
 
     def test_disjoint_sum_ranges_kill_the_term(self):
         """An empty summation range means the term contributes nothing."""
-        out = apply_kroneckers(term(
-            build_sum_coeff("F_1", {"Fmin": 0, "Fmax": 3, "parity": 0}),
-            build_sum_coeff("F_1", {"Fmin": 8, "Fmax": 12, "parity": 0}),
-        ))
+        out = apply_kroneckers(
+            term(
+                build_sum_coeff("F_1", {"Fmin": 0, "Fmax": 3, "parity": 0}),
+                build_sum_coeff("F_1", {"Fmin": 8, "Fmax": 12, "parity": 0}),
+            )
+        )
         assert out is None
 
     def test_distinct_sum_indices_are_left_alone(self):
-        out = apply_kroneckers(term(
-            build_sum_coeff("F_1", {"Fmin": 0, "Fmax": 4, "parity": 0}),
-            build_sum_coeff("F_2", {"Fmin": 0, "Fmax": 6, "parity": 0}),
-        ))
+        out = apply_kroneckers(
+            term(
+                build_sum_coeff("F_1", {"Fmin": 0, "Fmax": 4, "parity": 0}),
+                build_sum_coeff("F_2", {"Fmin": 0, "Fmax": 6, "parity": 0}),
+            )
+        )
         sums = [c for c in out["coeffs"] if c["type"] == "sum"]
         assert len(sums) == 2
 
@@ -166,14 +179,17 @@ class TestApplyKroneckers:
         Re-applying the pass must not change anything: the representatives are
         already fixed points of the substitution.
         """
-        once = apply_kroneckers(term(
-            build_kronecker_coeff("a", "b"),
-            build_theta_coeff("a", "x", "y"),
-        ))
+        once = apply_kroneckers(
+            term(
+                build_kronecker_coeff("a", "b"),
+                build_theta_coeff("a", "x", "y"),
+            )
+        )
         twice = apply_kroneckers({"coeffs": [dict(c) for c in once["coeffs"]]})
         assert types_of(once) == types_of(twice)
-        assert [c.get("fixed") for c in once["coeffs"]] == \
-               [c.get("fixed") for c in twice["coeffs"]]
+        assert [c.get("fixed") for c in once["coeffs"]] == [
+            c.get("fixed") for c in twice["coeffs"]
+        ]
 
     def test_unconstrained_term_passes_through_unchanged(self):
         original = term(build_theta_coeff(1, 1, 2), build_delta_coeff(1))
@@ -184,6 +200,7 @@ class TestApplyKroneckers:
 # ===========================================================================
 # expand_6j_symbolic -- graph 6j -> theta/delta/W6j
 # ===========================================================================
+
 
 class TestExpand6jSymbolic:
     """
@@ -198,7 +215,13 @@ class TestExpand6jSymbolic:
     def test_produces_the_seven_documented_factors(self):
         out = expand_6j_symbolic(build_6j_coeff("a", "b", "f", "c", "d", "e"))
         assert [c["type"] for c in out] == [
-            "sign", "delta", "theta", "theta", "theta", "theta", "W6j"
+            "sign",
+            "delta",
+            "theta",
+            "theta",
+            "theta",
+            "theta",
+            "W6j",
         ]
 
     def test_theta_powers_are_two_halves_and_two_negative_halves(self):
@@ -222,7 +245,11 @@ class TestExpand6jSymbolic:
         out = expand_6j_symbolic(build_6j_coeff("a", "b", "f", "c", "d", "e"))
         sign = next(c for c in out if c["type"] == "sign")
         assert sign["fixed"]["args"] == [
-            ("-", "a"), ("-", "b"), ("-", "c"), ("-", "d"), ("2", "f")
+            ("-", "a"),
+            ("-", "b"),
+            ("-", "c"),
+            ("-", "d"),
+            ("2", "f"),
         ]
 
     def test_delta_is_on_the_summation_index_f(self):
@@ -239,19 +266,27 @@ class TestExpand6jSymbolic:
         """
         out = expand_6j_symbolic(build_6j_coeff("a", "b", "f", "c", "d", "e"))
         w6j = next(c for c in out if c["type"] == "W6j")["fixed"]
-        assert (w6j["a"], w6j["b"], w6j["e"], w6j["c"], w6j["d"], w6j["f"]) == \
-               ("a", "b", "e", "c", "d", "f")
+        assert (w6j["a"], w6j["b"], w6j["e"], w6j["c"], w6j["d"], w6j["f"]) == (
+            "a",
+            "b",
+            "e",
+            "c",
+            "d",
+            "f",
+        )
 
     def test_accepts_uppercase_doubled_keys_as_a_fallback(self):
         """
         Coefficient builders store both 'a' and the doubled 'A'. The expansion
         must fall back to the uppercase key when the lowercase one is absent.
         """
-        out = expand_6j_symbolic({
-            "type": "6j",
-            "fixed": {"A": 1, "B": 1, "F": 2, "C": 1, "D": 1, "E": 1},
-            "power": 1,
-        })
+        out = expand_6j_symbolic(
+            {
+                "type": "6j",
+                "fixed": {"A": 1, "B": 1, "F": 2, "C": 1, "D": 1, "E": 1},
+                "power": 1,
+            }
+        )
         w6j = next(c for c in out if c["type"] == "W6j")["fixed"]
         assert None not in w6j.values(), f"uppercase fallback failed: {w6j}"
 
@@ -273,7 +308,7 @@ class TestExpand6jSymbolic:
                 f = c["fixed"]
                 value *= ev.wigner_6j(f["a"], f["b"], f["e"], f["c"], f["d"], f["f"])
         result = ((-1.0) ** int(round(sign_exp))) * value
-        assert result == result, "expansion produced NaN"           # NaN != NaN
+        assert result == result, "expansion produced NaN"  # NaN != NaN
         assert abs(result) != float("inf")
         assert result != 0.0
 
@@ -281,6 +316,7 @@ class TestExpand6jSymbolic:
 # ===========================================================================
 # canonicalise_sign -- collapsing (-1)^(...) exponents
 # ===========================================================================
+
 
 class TestCanonicaliseSign:
 
@@ -315,8 +351,10 @@ class TestCanonicaliseSign:
     def test_variable_that_cancels_leaves_only_the_numeric_part(self):
         """(+a) + (-a) = 0, so only the numeric parity decides."""
         assert self.make([("+", "a"), ("-", "a"), ("+", 2)]) is None
-        assert self.make([("+", "a"), ("-", "a"), ("+", 1)]) == \
-               {"type": "sign_value", "value": -1}
+        assert self.make([("+", "a"), ("-", "a"), ("+", 1)]) == {
+            "type": "sign_value",
+            "value": -1,
+        }
 
     def test_symbolic_exponent_is_kept_symbolic(self):
         """With a surviving variable the sign cannot be resolved to +-1 yet."""
@@ -335,23 +373,25 @@ class TestCanonicaliseSign:
 # Canonical keys -- the over-merging hazard
 # ===========================================================================
 
+
 class TestThetaKey:
 
     def test_is_invariant_under_argument_permutation(self):
         """Theta is totally symmetric, so all 6 orderings share one key."""
         keys = {
-            theta_key(build_theta_coeff(*p))
-            for p in itertools.permutations([1, 2, 3])
+            theta_key(build_theta_coeff(*p)) for p in itertools.permutations([1, 2, 3])
         }
         assert len(keys) == 1
 
     def test_distinguishes_genuinely_different_arguments(self):
-        assert theta_key(build_theta_coeff(1, 2, 3)) != \
-               theta_key(build_theta_coeff(1, 2, 4))
+        assert theta_key(build_theta_coeff(1, 2, 3)) != theta_key(
+            build_theta_coeff(1, 2, 4)
+        )
 
     def test_distinguishes_different_powers(self):
-        assert theta_key(build_theta_coeff(1, 2, 3, power=1)) != \
-               theta_key(build_theta_coeff(1, 2, 3, power=2))
+        assert theta_key(build_theta_coeff(1, 2, 3, power=1)) != theta_key(
+            build_theta_coeff(1, 2, 3, power=2)
+        )
 
     def test_numbers_sort_before_symbols(self):
         _, args, _ = theta_key({"type": "theta", "args": ("z", 1, "a"), "power": 1})
@@ -406,8 +446,9 @@ class TestWignerSixjKey:
         assert wigner_sixj_key(self.w6j_coeff(canon)) == wigner_sixj_key(base)
 
     def test_distinguishes_different_powers(self):
-        assert wigner_sixj_key(self.w6j_coeff((1, 2, 3, 4, 5, 6), power=1)) != \
-               wigner_sixj_key(self.w6j_coeff((1, 2, 3, 4, 5, 6), power=2))
+        assert wigner_sixj_key(
+            self.w6j_coeff((1, 2, 3, 4, 5, 6), power=1)
+        ) != wigner_sixj_key(self.w6j_coeff((1, 2, 3, 4, 5, 6), power=2))
 
     def test_merged_symbols_always_have_equal_numerical_value(self, ev):
         """
@@ -447,8 +488,10 @@ class TestWignerSixjKey:
         the identity, nothing would ever merge and soundness would be trivial.
         """
         spins = [0.0, 0.5, 1.0, 1.5]
-        keys = {wigner_sixj_key(self.w6j_coeff(a))
-                for a in itertools.product(spins, repeat=6)}
+        keys = {
+            wigner_sixj_key(self.w6j_coeff(a))
+            for a in itertools.product(spins, repeat=6)
+        }
         total = len(spins) ** 6
         assert len(keys) < total, "canonicalisation merged nothing at all"
 
@@ -467,58 +510,85 @@ class TestSortMixedArgs:
 # canonicalise_terms -- power accumulation and ordering
 # ===========================================================================
 
+
 class TestCanonicaliseTerms:
 
     def test_identical_thetas_accumulate_their_powers(self):
-        out = canonicalise_terms([term(
-            build_theta_coeff(1, 2, 3, power=1),
-            build_theta_coeff(1, 2, 3, power=1),
-        )])
+        out = canonicalise_terms(
+            [
+                term(
+                    build_theta_coeff(1, 2, 3, power=1),
+                    build_theta_coeff(1, 2, 3, power=1),
+                )
+            ]
+        )
         thetas = [c for c in out[0]["coeffs"] if c["type"] == "theta"]
         assert len(thetas) == 1
         assert thetas[0]["power"] == 2
 
     def test_permuted_thetas_are_recognised_as_the_same_factor(self):
         """theta(1,2,3) and theta(3,1,2) are the same symbol."""
-        out = canonicalise_terms([term(
-            build_theta_coeff(1, 2, 3),
-            build_theta_coeff(3, 1, 2),
-        )])
+        out = canonicalise_terms(
+            [
+                term(
+                    build_theta_coeff(1, 2, 3),
+                    build_theta_coeff(3, 1, 2),
+                )
+            ]
+        )
         thetas = [c for c in out[0]["coeffs"] if c["type"] == "theta"]
         assert len(thetas) == 1 and thetas[0]["power"] == 2
 
     def test_factors_that_cancel_are_dropped(self):
         """theta^(+1) * theta^(-1) = 1 and must not appear at all."""
-        out = canonicalise_terms([term(
-            build_theta_coeff(1, 2, 3, power=1),
-            build_theta_coeff(1, 2, 3, power=-1),
-        )])
+        out = canonicalise_terms(
+            [
+                term(
+                    build_theta_coeff(1, 2, 3, power=1),
+                    build_theta_coeff(1, 2, 3, power=-1),
+                )
+            ]
+        )
         assert not [c for c in out[0]["coeffs"] if c["type"] == "theta"]
 
     def test_deltas_accumulate_by_spin(self):
-        out = canonicalise_terms([term(
-            build_delta_coeff(1.5, power=1),
-            build_delta_coeff(1.5, power=2),
-            build_delta_coeff(2.0, power=1),
-        )])
-        deltas = {c["fixed"]["j"]: c["power"]
-                  for c in out[0]["coeffs"] if c["type"] == "delta"}
+        out = canonicalise_terms(
+            [
+                term(
+                    build_delta_coeff(1.5, power=1),
+                    build_delta_coeff(1.5, power=2),
+                    build_delta_coeff(2.0, power=1),
+                )
+            ]
+        )
+        deltas = {
+            c["fixed"]["j"]: c["power"]
+            for c in out[0]["coeffs"]
+            if c["type"] == "delta"
+        }
         assert deltas == {1.5: 3, 2.0: 1}
 
     def test_signs_are_merged_into_a_single_factor(self):
-        out = canonicalise_terms([term(
-            {"type": "sign", "fixed": {"args": [("+", 1)]}},
-            {"type": "sign", "fixed": {"args": [("+", 1)]}},
-        )])
+        out = canonicalise_terms(
+            [
+                term(
+                    {"type": "sign", "fixed": {"args": [("+", 1)]}},
+                    {"type": "sign", "fixed": {"args": [("+", 1)]}},
+                )
+            ]
+        )
         # (-1)^1 * (-1)^1 = (-1)^2 = 1, so nothing should survive.
-        assert not [c for c in out[0]["coeffs"]
-                    if c["type"] in ("sign", "sign_value")]
+        assert not [c for c in out[0]["coeffs"] if c["type"] in ("sign", "sign_value")]
 
     def test_odd_merged_sign_becomes_an_explicit_minus_one(self):
-        out = canonicalise_terms([term(
-            {"type": "sign", "fixed": {"args": [("+", 1)]}},
-            {"type": "sign", "fixed": {"args": [("+", 2)]}},
-        )])
+        out = canonicalise_terms(
+            [
+                term(
+                    {"type": "sign", "fixed": {"args": [("+", 1)]}},
+                    {"type": "sign", "fixed": {"args": [("+", 2)]}},
+                )
+            ]
+        )
         signs = [c for c in out[0]["coeffs"] if c["type"] == "sign_value"]
         assert len(signs) == 1 and signs[0]["value"] == -1
 
@@ -527,11 +597,15 @@ class TestCanonicaliseTerms:
         Output shape must be  [constants] x Sum [F-dependent factors]  so the
         generated formula string nests correctly.
         """
-        out = canonicalise_terms([term(
-            build_sum_coeff("F_1", {"Fmin": 0, "Fmax": 4, "parity": 0}),
-            build_theta_coeff(1, 2, 3),            # constant
-            build_delta_coeff("F_1"),              # depends on the sum index
-        )])
+        out = canonicalise_terms(
+            [
+                term(
+                    build_sum_coeff("F_1", {"Fmin": 0, "Fmax": 4, "parity": 0}),
+                    build_theta_coeff(1, 2, 3),  # constant
+                    build_delta_coeff("F_1"),  # depends on the sum index
+                )
+            ]
+        )
         kinds = types_of(out[0])
         assert "sum" in kinds
         sum_at = kinds.index("sum")
@@ -541,10 +615,14 @@ class TestCanonicaliseTerms:
         assert delta_at > sum_at, "F-dependent delta must follow the summation"
 
     def test_factor_depending_on_the_sum_index_is_detected_through_args(self):
-        out = canonicalise_terms([term(
-            build_sum_coeff("F_1", {"Fmin": 0, "Fmax": 4, "parity": 0}),
-            build_theta_coeff("F_1", 1, 1),
-        )])
+        out = canonicalise_terms(
+            [
+                term(
+                    build_sum_coeff("F_1", {"Fmin": 0, "Fmax": 4, "parity": 0}),
+                    build_theta_coeff("F_1", 1, 1),
+                )
+            ]
+        )
         kinds = types_of(out[0])
         assert kinds.index("theta") > kinds.index("sum")
 

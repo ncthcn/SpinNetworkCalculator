@@ -16,12 +16,20 @@
 
 import networkx as nx
 from copy import deepcopy
-from .utils import (list_face_cycles, pick_smallest_interior_face_gt3,
-                    external_neighbor_in_trivalent, get_edge_label,
-                    add_edge_with_label, remove_one_cycle_edge,
-                    is_numeric_label, to_doubled, f_range_symbolic,
-                    uv_parallel_labels, incident_labels_excluding_pair,
-                    f_range_with_symbolic)
+from .utils import (
+    list_face_cycles,
+    pick_smallest_interior_face_gt3,
+    external_neighbor_in_trivalent,
+    get_edge_label,
+    add_edge_with_label,
+    remove_one_cycle_edge,
+    is_numeric_label,
+    to_doubled,
+    f_range_symbolic,
+    uv_parallel_labels,
+    incident_labels_excluding_pair,
+    f_range_with_symbolic,
+)
 import os
 
 os.makedirs("graph_snapshots", exist_ok=True)
@@ -60,6 +68,7 @@ class ReductionError(RuntimeError):
 # Numeric labels are stored both as-is and in "doubled" form (key.upper()),
 # because wigxjpf (the 6j backend) requires 2*j integers.
 
+
 # Records the constraint that spin label c must equal spin label d.
 # Arises when two edges that must carry the same spin are merged;
 # apply_kroneckers() later substitutes one for the other.
@@ -73,8 +82,9 @@ def build_kronecker_coeff(c, d, power=1):
         "type": "Kronecker",
         "list_order": ["c", "d"],
         "fixed": fixed,
-        "power": power
+        "power": power,
     }
+
 
 # Records a factor Δ_j = (-1)^(2j) (2j+1).
 # Appears when a self-loop of spin j is removed (loop reduction) or as a
@@ -83,12 +93,8 @@ def build_delta_coeff(j, power=1):
     fixed = {"j": j}
     if is_numeric_label(j):
         fixed["J"] = to_doubled(j)
-    return {
-        "type": "delta",
-        "list_order": ["j"],
-        "fixed": fixed,
-        "power": power
-    }
+    return {"type": "delta", "list_order": ["j"], "fixed": fixed, "power": power}
+
 
 # Records a factor Θ(a, b, c) = (a+b+c+1)! / [(a+b-c)!(a-b+c)!(-a+b+c)!].
 # Appears in 2-cycle reductions (one theta per digon) and triangle
@@ -103,8 +109,9 @@ def build_theta_coeff(a, b, c, power=1):
         "type": "theta",
         "list_order": ["a", "b", "c"],
         "fixed": fixed,
-        "power": power
+        "power": power,
     }
+
 
 # Records a standard (pre-expansion) 6j symbol {a b f; c d e}.
 # Created by both triangle reductions and F-moves. Later expanded by
@@ -119,18 +126,16 @@ def build_6j_coeff(a, b, f, c, d, e, power=1):
         "type": "6j",
         "list_order": ["a", "b", "f", "c", "d", "e"],
         "fixed": fixed,
-        "power": power
+        "power": power,
     }
+
 
 # Records a summation ∑_{f=Fmin/2}^{Fmax/2} over the intermediate spin f.
 # 'rng' is a dict with Fmin, Fmax in doubled units, and a parity flag.
 # Created by f_move_recouple_term; evaluated as a loop in spin_evaluator.py.
 def build_sum_coeff(f, rng):
-    return {
-        "type": "sum",
-        "index": f,
-        "range2": rng
-    }
+    return {"type": "sum", "index": f, "range2": rng}
+
 
 # -----------------------------------------------------------------------
 # Subnetwork finders
@@ -138,6 +143,7 @@ def build_sum_coeff(f, rng):
 #
 # Before applying a reduction, we scan the graph for a matchable substructure.
 # Each finder returns enough information for the corresponding reducer.
+
 
 # Looks for a 2-cycle (digon): two nodes u, v connected by exactly 2 parallel
 # edges, each with exactly one external neighbour.
@@ -162,6 +168,7 @@ def find_two_cycle_candidate(G):
         return (a_node, u, v, b_node, a_lbl, labels_uv[0], labels_uv[1], b_lbl)
     return None
 
+
 # Looks for a theta-graph: two nodes connected by exactly 3 parallel edges
 # (and no other neighbours). This is the fully-reduced theta topology.
 # Returns (u, v, lbl1, lbl2, lbl3), or None.
@@ -174,6 +181,7 @@ def find_theta_candidate(G):
         return (u, v, labels_uv[0], labels_uv[1], labels_uv[2])
     return None
 
+
 # Looks for a triangle: a 3-cycle face in the planar embedding.
 # Returns a list of 3 node ids, or None.
 def find_triangle_candidate(G):
@@ -183,6 +191,7 @@ def find_triangle_candidate(G):
             return cycle
     return None
 
+
 # -----------------------------------------------------------------------
 # Individual reducers
 # -----------------------------------------------------------------------
@@ -191,6 +200,7 @@ def find_triangle_candidate(G):
 # with the substructure removed and the corresponding coefficient appended,
 # or None if the reduction is not applicable.
 # We deepcopy the graph before modifying it so the original term is untouched.
+
 
 # Degree-2 reduction: if vertex v has exactly 2 incident edges labeled a and b,
 # then SU(2) recoupling forces a = b (Kronecker delta), so we remove v and
@@ -204,8 +214,8 @@ def apply_degree2_reduction(term):
         if len(inc) != 2:
             continue
 
-        (u1, w1, k1, d1) = inc[0]
-        (u2, w2, k2, d2) = inc[1]
+        u1, w1, k1, d1 = inc[0]
+        u2, w2, k2, d2 = inc[1]
 
         n1 = w1 if u1 == v else u1
         n2 = w2 if u2 == v else u2
@@ -223,6 +233,7 @@ def apply_degree2_reduction(term):
 
     return None
 
+
 # Loop reduction: a self-loop on node u with spin label c evaluates to Δ_c.
 # Remove the loop and record the delta factor.
 def apply_loop_reduction(term):
@@ -239,6 +250,7 @@ def apply_loop_reduction(term):
                 return {"graph": G, "coeffs": coeffs}
 
     return None
+
 
 # 2-cycle (digon) reduction: two nodes u, v with 2 parallel internal edges
 # and one external edge each. The recoupling identity gives:
@@ -270,6 +282,7 @@ def apply_two_cycle_reduction(term):
     add_edge_with_label(G, a_node, b_node, a_lbl)
     return {"graph": G, "coeffs": coeffs}
 
+
 # Theta reduction: two nodes u, v connected by exactly 3 parallel edges.
 # The theta evaluation identity gives: Θ(lbl1, lbl2, lbl3).
 # Remove both nodes (and all 3 edges between them).
@@ -291,6 +304,7 @@ def apply_theta_reduction(term):
     if G.has_edge(u, v):
         G.remove_edge(u, v)
     return {"graph": G, "coeffs": coeffs}
+
 
 # Triangle reduction: three nodes u, v, w forming a 3-cycle, each with one
 # external edge. The recoupling identity replaces this topology with a 6j
@@ -320,12 +334,12 @@ def apply_triangle_reduction(term):
         return None
 
     # Read all labels before any graph modification.
-    a = get_edge_label(G, u, au_node)   # external at u
-    b = get_edge_label(G, w, u)         # triangle edge w-u
-    c = get_edge_label(G, v, w)         # triangle edge v-w
-    d = get_edge_label(G, v, dv_node)   # external at v
-    e = get_edge_label(G, u, v)         # triangle edge u-v
-    f = get_edge_label(G, w, fw_node)   # external at w
+    a = get_edge_label(G, u, au_node)  # external at u
+    b = get_edge_label(G, w, u)  # triangle edge w-u
+    c = get_edge_label(G, v, w)  # triangle edge v-w
+    d = get_edge_label(G, v, dv_node)  # external at v
+    e = get_edge_label(G, u, v)  # triangle edge u-v
+    f = get_edge_label(G, w, fw_node)  # external at w
 
     # Same reasoning for the labels: spin 0 is a valid label, so only a
     # genuinely absent edge (None) may abort the reduction. This mirrors the
@@ -350,6 +364,7 @@ def apply_triangle_reduction(term):
 
     return {"graph": G, "coeffs": coeffs}
 
+
 # -----------------------------------------------------------------------
 # F-move (recoupling move)
 # -----------------------------------------------------------------------
@@ -365,6 +380,7 @@ def apply_triangle_reduction(term):
 #
 # The face length shrinks by 1 each time. Repeated F-moves reduce every face
 # to a triangle, after which triangle reductions take over.
+
 
 def f_move_recouple_term(term, cycle_nodes, i):
     G = deepcopy(term["graph"])
@@ -383,11 +399,11 @@ def f_move_recouple_term(term, cycle_nodes, i):
         return None
 
     # Read edge labels before modifying the graph.
-    a_label = get_edge_label(G, u_node, a_node)   # external edge at u
-    b_label = get_edge_label(G, u_node, b_node)   # cycle edge behind u
-    c_label = get_edge_label(G, v_node, c_node)   # cycle edge ahead of v
-    d_label = get_edge_label(G, v_node, d_node)   # external edge at v
-    e_label = get_edge_label(G, u_node, v_node)   # cycle edge between u and v
+    a_label = get_edge_label(G, u_node, a_node)  # external edge at u
+    b_label = get_edge_label(G, u_node, b_node)  # cycle edge behind u
+    c_label = get_edge_label(G, v_node, c_node)  # cycle edge ahead of v
+    d_label = get_edge_label(G, v_node, d_node)  # external edge at v
+    e_label = get_edge_label(G, u_node, v_node)  # cycle edge between u and v
 
     if any(x is None for x in [e_label, a_label, b_label, d_label, c_label]):
         return None
@@ -406,14 +422,15 @@ def f_move_recouple_term(term, cycle_nodes, i):
 
     # Compute the allowed range for F_k using both triangle inequalities.
     known_ranges = term.get("f_ranges", {})
-    rng = f_range_with_symbolic(a_label, b_label, d_label, c_label,
-                                known_ranges=known_ranges)
+    rng = f_range_with_symbolic(
+        a_label, b_label, d_label, c_label, known_ranges=known_ranges
+    )
 
     if rng is not None:
         coeffs.append(build_sum_coeff(f_symbol, rng))
         if "f_ranges" not in term:
             term["f_ranges"] = {}
-        term["f_ranges"][f_symbol] = (rng.get('Fmin'), rng.get('Fmax'))
+        term["f_ranges"][f_symbol] = (rng.get("Fmin"), rng.get("Fmax"))
     else:
         # Fall back to a conservative range when bounds cannot be computed.
         coeffs.append(build_sum_coeff(f_symbol, {"Fmin": 0, "Fmax": 40, "parity": 0}))
@@ -422,10 +439,14 @@ def f_move_recouple_term(term, cycle_nodes, i):
         term["f_ranges"][f_symbol] = (0, 40)
 
     # The F-move produces a 6j symbol with arguments [a, b, F, d, c, e].
-    coeffs.append(build_6j_coeff(a=a_label, b=b_label, f=f_symbol,
-                                 c=c_label, d=d_label, e=e_label))
+    coeffs.append(
+        build_6j_coeff(
+            a=a_label, b=b_label, f=f_symbol, c=c_label, d=d_label, e=e_label
+        )
+    )
 
     return {"graph": G, "coeffs": coeffs}
+
 
 # -----------------------------------------------------------------------
 # Bulk (fixpoint) reducers
@@ -433,6 +454,7 @@ def f_move_recouple_term(term, cycle_nodes, i):
 #
 # Each function below runs its single-step reducer in a loop until it
 # returns None (no more applicable substructures).
+
 
 # Repeatedly removes degree-2 vertices until none remain.
 def reduce_all_degree2(term):
@@ -443,6 +465,7 @@ def reduce_all_degree2(term):
             return cur
         cur = t2
 
+
 # Repeatedly removes self-loops until none remain.
 def reduce_all_loops(term):
     cur = term
@@ -451,6 +474,7 @@ def reduce_all_loops(term):
         if t2 is None:
             return cur
         cur = t2
+
 
 # Repeatedly collapses digons until none remain.
 def reduce_all_two_cycles(term):
@@ -462,6 +486,7 @@ def reduce_all_two_cycles(term):
         cur = t2
     return cur
 
+
 # Repeatedly evaluates theta subgraphs until none remain.
 def reduce_all_thetas(term):
     cur = term
@@ -471,6 +496,7 @@ def reduce_all_thetas(term):
             break
         cur = t2
     return cur
+
 
 # Repeatedly collapses triangles until none remain.
 def reduce_all_triangles(term):
@@ -482,9 +508,11 @@ def reduce_all_triangles(term):
         cur = t2
     return cur
 
+
 # -----------------------------------------------------------------------
 # Graph signature (for change detection)
 # -----------------------------------------------------------------------
+
 
 # A frozenset-based fingerprint of the multigraph used to detect whether any
 # reduction step actually changed the graph. If both the signature and the
@@ -498,9 +526,11 @@ def graph_signature(G):
         sig.add((endpoints, lbl, k))
     return frozenset(sig)
 
+
 # -----------------------------------------------------------------------
 # Global reduction loop
 # -----------------------------------------------------------------------
+
 
 # Main entry point for the reduction pipeline. Starting from the glued (closed)
 # graph, it alternates between:
@@ -536,8 +566,7 @@ def _assert_fully_reduced(term, why):
         return
 
     remaining = [
-        (str(u), str(v), data.get("label"))
-        for u, v, data in G.edges(data=True)
+        (str(u), str(v), data.get("label")) for u, v, data in G.edges(data=True)
     ]
     degrees = sorted({d for _, d in G.degree()})
     raise ReductionError(
@@ -565,7 +594,7 @@ def reduce_all_cycles(glued_graph):
         changed = False
         cleanup_count = 0
         while True:
-            prev_sig   = graph_signature(term["graph"])
+            prev_sig = graph_signature(term["graph"])
             prev_coeff = len(term["coeffs"])
 
             term = reduce_all_thetas(term)
@@ -574,7 +603,10 @@ def reduce_all_cycles(glued_graph):
             term = reduce_all_degree2(term)
             term = reduce_all_loops(term)
 
-            if graph_signature(term["graph"]) == prev_sig and len(term["coeffs"]) == prev_coeff:
+            if (
+                graph_signature(term["graph"]) == prev_sig
+                and len(term["coeffs"]) == prev_coeff
+            ):
                 break
             changed = True
             cleanup_count += 1
@@ -589,7 +621,7 @@ def reduce_all_cycles(glued_graph):
                     term,
                     "no face longer than 3 remains, but the local reductions "
                     "(theta / 2-cycle / triangle / degree-2 / loop) made no "
-                    "further progress"
+                    "further progress",
                 )
                 return [term]
             continue
@@ -598,9 +630,7 @@ def reduce_all_cycles(glued_graph):
 
         if new_term is None:
             # A face > 3 exists but no F-move can be applied: stuck.
-            _assert_fully_reduced(
-                term, f"no F-move is applicable to the face {C}"
-            )
+            _assert_fully_reduced(term, f"no F-move is applicable to the face {C}")
             return [term]
 
         term = new_term

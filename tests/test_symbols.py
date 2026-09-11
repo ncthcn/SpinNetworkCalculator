@@ -77,7 +77,7 @@ class TestThetaSymbol(unittest.TestCase):
         theta_1 = signed(self.evaluator.theta_symbol(1, 1, 1, power=1.0))
         theta_2 = signed(self.evaluator.theta_symbol(1, 1, 1, power=2.0))
         # theta^2 should equal (theta)^2
-        self.assertAlmostEqual(theta_2, theta_1 ** 2, places=10)
+        self.assertAlmostEqual(theta_2, theta_1**2, places=10)
 
     def test_theta_large_spins(self):
         """Test theta with large spins uses log-gamma"""
@@ -164,5 +164,5 @@ class TestWigner6j(unittest.TestCase):
         self.assertIsInstance(result, float)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

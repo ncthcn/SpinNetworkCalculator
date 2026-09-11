@@ -69,6 +69,7 @@ def best_of(fn, repeats=REPEATS):
 
 def measure_pool_startup(n_workers):
     """Cost of standing up a worker pool that has initialised wigxjpf."""
+
     def run():
         with Pool(
             processes=n_workers,
@@ -76,8 +77,8 @@ def measure_pool_startup(n_workers):
             initargs=(MAX_TWO_J,),
         ) as pool:
             # One trivial task per worker, so every worker really initialises.
-            pool.map(_parallel_worker_evaluate_variables,
-                     [("1.0", None)] * n_workers)
+            pool.map(_parallel_worker_evaluate_variables, [("1.0", None)] * n_workers)
+
     return best_of(run, repeats=3)
 
 
@@ -95,19 +96,25 @@ def main():
         print("--- serial cost per summation term ---")
         per_iteration = None
         for n in (200, 2_000, 20_000):
-            elapsed = best_of(lambda: serial.evaluate(formula(n)),
-                              repeats=3 if n >= 20_000 else REPEATS)
+            elapsed = best_of(
+                lambda: serial.evaluate(formula(n)),
+                repeats=3 if n >= 20_000 else REPEATS,
+            )
             per_iteration = elapsed / n
-            print(f"  {n:>7,} iterations : {elapsed * 1000:9.2f} ms "
-                  f"({per_iteration * 1e6:6.2f} us/iteration)")
+            print(
+                f"  {n:>7,} iterations : {elapsed * 1000:9.2f} ms "
+                f"({per_iteration * 1e6:6.2f} us/iteration)"
+            )
     finally:
         serial.cleanup()
 
     print()
     print("--- fixed cost of going parallel ---")
     startup = measure_pool_startup(n_workers)
-    print(f"  pool startup + wigxjpf init in {n_workers} workers: "
-          f"{startup * 1000:.1f} ms")
+    print(
+        f"  pool startup + wigxjpf init in {n_workers} workers: "
+        f"{startup * 1000:.1f} ms"
+    )
 
     print()
     print("--- break-even ---")
@@ -119,13 +126,17 @@ def main():
 
     break_even_seconds = startup * n_workers / (n_workers - 1)
     break_even_iterations = break_even_seconds / per_iteration
-    print(f"  parallel only wins above ~{break_even_seconds * 1000:.0f} ms "
-          f"of serial work")
+    print(
+        f"  parallel only wins above ~{break_even_seconds * 1000:.0f} ms "
+        f"of serial work"
+    )
     print(f"  which is ~{break_even_iterations:,.0f} summation terms")
     print()
-    print(f"  configured _PARALLEL_STARTUP_SECONDS = "
-          f"{FormulaEvaluator._PARALLEL_STARTUP_SECONDS} s "
-          f"(measured here: {startup:.2f} s)")
+    print(
+        f"  configured _PARALLEL_STARTUP_SECONDS = "
+        f"{FormulaEvaluator._PARALLEL_STARTUP_SECONDS} s "
+        f"(measured here: {startup:.2f} s)"
+    )
 
     print()
     print("--- end-to-end check at a size where parallelism should win ---")
@@ -133,8 +144,9 @@ def main():
     print(f"  using {big_n:,} summation terms")
 
     serial = FormulaEvaluator(max_two_j=MAX_TWO_J, backend="serial", verbose=False)
-    parallel = FormulaEvaluator(max_two_j=MAX_TWO_J, backend="multiprocessing",
-                                verbose=False)
+    parallel = FormulaEvaluator(
+        max_two_j=MAX_TWO_J, backend="multiprocessing", verbose=False
+    )
     try:
         expr = formula(big_n)
         t0 = time.perf_counter()

@@ -18,7 +18,7 @@
 SpinNetworkCalculator – Public Library API
 ==========================================
 This module is the main entry point for using SpinNetworkCalculator as a
-Python library (e.g. in a Jupyter Notebook).  It wraps the mathematical 
+Python library (e.g. in a Jupyter Notebook).  It wraps the mathematical
 pipeline in a clean in-memory API.
 
 Quick-start
@@ -74,10 +74,10 @@ for _p in (_SRC_DIR, _ROOT_DIR):
 
 from src.evolution import LineageError, Transition  # noqa: E402
 
-
 # ===========================================================================
 # UnitArg  –  one free spin variable
 # ===========================================================================
+
 
 @dataclass
 class UnitArg:
@@ -118,13 +118,14 @@ class UnitArg:
 # Internal helpers  –  GraphML I/O and formula-string parsing
 # ===========================================================================
 
+
 def _load_graphml(path: str) -> nx.MultiGraph:
     """
     Load a .graphml file and return a NetworkX MultiGraph.
 
     Edge labels are parsed from their stored string form to the correct
-    Python type (float, sympy.Symbol, or sympy expression).  Node 
-    positions stored as x/y attributes are converted to the 'pos' tuple 
+    Python type (float, sympy.Symbol, or sympy expression).  Node
+    positions stored as x/y attributes are converted to the 'pos' tuple
     attribute expected by the rest of the code.
 
     Parameters
@@ -273,12 +274,26 @@ def _extract_free_variables(formula_string: str) -> List[str]:
     # the Python-safe form (n_p_p) first, otherwise the identifier regex
     # below would wrongly extract "n''" as just "n".
     from src.spin_evaluator import _sanitize_primes
+
     formula_string = _sanitize_primes(formula_string)
 
     # These identifiers are internal function/keyword names, not unit variables
     BUILTINS = {
-        "theta", "delta", "deltatheta", "safe_div", "W6j", "Sum", "lambda",
-        "round", "abs", "max", "min", "int", "float", "str", "bool",
+        "theta",
+        "delta",
+        "deltatheta",
+        "safe_div",
+        "W6j",
+        "Sum",
+        "lambda",
+        "round",
+        "abs",
+        "max",
+        "min",
+        "int",
+        "float",
+        "str",
+        "bool",
     }
 
     # Lambda-bound variables are NOT free: "lambda F_1:" means F_1 is bound
@@ -297,6 +312,7 @@ def _extract_free_variables(formula_string: str) -> List[str]:
 # ===========================================================================
 # Formula  –  symbolic norm expression
 # ===========================================================================
+
 
 class Formula:
     """
@@ -352,6 +368,7 @@ class Formula:
         # and for saving to .txt).
         if terms is not None:
             from src.LaTeX_rendering import terms_to_formula_string
+
             self._formula_string: str = terms_to_formula_string(terms)
         else:
             self._formula_string = ""  # will be set by load()
@@ -494,8 +511,7 @@ class Formula:
 
         # Check that every free variable now has a numeric assignment
         unassigned = [
-            a.label for a in self._args
-            if _sanitize_primes(a.label) not in variables
+            a.label for a in self._args if _sanitize_primes(a.label) not in variables
         ]
         if unassigned:
             raise ValueError(
@@ -588,13 +604,12 @@ class Formula:
                         variables[_sanitize_primes(arg.label)] = float(arg.value)
 
             unassigned = [
-                a.label for a in self._args
+                a.label
+                for a in self._args
                 if _sanitize_primes(a.label) not in variables
             ]
             if unassigned:
-                raise ValueError(
-                    f"Unassigned variables in batch entry: {unassigned}"
-                )
+                raise ValueError(f"Unassigned variables in batch entry: {unassigned}")
 
             variable_sets.append(variables if variables else None)
 
@@ -636,9 +651,7 @@ class Formula:
             If an unrecognised format string is given.
         """
         if format not in ("txt", "pdf"):
-            raise ValueError(
-                f"Unknown format {format!r}. Use 'txt' or 'pdf'."
-            )
+            raise ValueError(f"Unknown format {format!r}. Use 'txt' or 'pdf'.")
         if format == "pdf" and self._terms is None:
             raise ValueError(
                 "Cannot save as PDF: this Formula was loaded from a .txt file "
@@ -648,9 +661,11 @@ class Formula:
 
         if format == "txt":
             from src.LaTeX_rendering import save_formula_txt
+
             save_formula_txt(self._terms, path)
         else:
             from src.LaTeX_rendering import save_latex_pdf
+
             save_latex_pdf(self._terms, path)
 
     @classmethod
@@ -717,14 +732,13 @@ class Formula:
         # This is a standard Python pattern when you need a factory method that
         # initialises the object differently from the normal constructor.
         formula = object.__new__(cls)
-        formula._terms = None               # no coefficient terms available
+        formula._terms = None  # no coefficient terms available
         formula._formula_string = formula_string
 
         # Detect free variables from the formula string
         free_var_names = _extract_free_variables(formula_string)
         formula._args = [
-            UnitArg(label=name, value=sympy.Symbol(name))
-            for name in free_var_names
+            UnitArg(label=name, value=sympy.Symbol(name)) for name in free_var_names
         ]
 
         return formula
@@ -735,14 +749,14 @@ class Formula:
         assigned = [a.label for a in self._args if a.is_numeric]
         n_terms = "?" if self._terms is None else len(self._terms)
         return (
-            f"Formula({source}, terms={n_terms}, "
-            f"free={free}, assigned={assigned})"
+            f"Formula({source}, terms={n_terms}, " f"free={free}, assigned={assigned})"
         )
 
 
 # ===========================================================================
 # Graph  –  trivalent spin network graph
 # ===========================================================================
+
 
 class Graph:
     """
@@ -831,7 +845,9 @@ class Graph:
 
             # Preserve the label as a sympy expression if it already is one;
             # otherwise create a new sympy.Symbol from its string name
-            sym_value = label if hasattr(label, "free_symbols") else sympy.Symbol(label_str)
+            sym_value = (
+                label if hasattr(label, "free_symbols") else sympy.Symbol(label_str)
+            )
             args.append(UnitArg(label=label_str, value=sym_value))
 
         self._args = args
@@ -953,7 +969,9 @@ class Graph:
         self._dirty = True
         self._formula = None  # invalidate the cached formula
 
-    def get_edge_range(self, label: str, args: Optional[List[UnitArg]] = None) -> Optional[Tuple[float, float]]:
+    def get_edge_range(
+        self, label: str, args: Optional[List[UnitArg]] = None
+    ) -> Optional[Tuple[float, float]]:
         """
         Return the (j_min, j_max) range a free edge label may take without
         violating the triangular inequality at the vertex/vertices its
@@ -987,7 +1005,9 @@ class Graph:
 
         return edge_triangle_range(self._nx_graph, label, args)
 
-    def args_list_from_args(self, args: List[UnitArg]) -> Tuple[str, Tuple[float, float], List[List[UnitArg]]]:
+    def args_list_from_args(
+        self, args: List[UnitArg]
+    ) -> Tuple[str, Tuple[float, float], List[List[UnitArg]]]:
         from src.utils import spin_values_in_range
 
         free_args = [arg for arg in args if not arg.is_numeric]
@@ -1006,16 +1026,25 @@ class Graph:
             print(f"Range: {rng}")
             if rng is not None:
                 spin_values = spin_values_in_range(*rng)
-                print(f"Triangle-allowed range: [{rng[0]}, {rng[1]}] with integer step 1")
+                print(
+                    f"Triangle-allowed range: [{rng[0]}, {rng[1]}] with integer step 1"
+                )
                 args_list = [
-                    [UnitArg(arg.label, v if arg.label == scanned_label else arg.value) for arg in args]
+                    [
+                        UnitArg(
+                            arg.label, v if arg.label == scanned_label else arg.value
+                        )
+                        for arg in args
+                    ]
                     for v in spin_values
                 ]
                 return scanned_label, rng, args_list
             else:
                 # No vertex touching this edge had both other edges numeric yet
                 # (e.g. every neighbour is also symbolic).
-                print("Couldn't derive a triangle-allowed range (neighbouring edges still symbolic)")
+                print(
+                    "Couldn't derive a triangle-allowed range (neighbouring edges still symbolic)"
+                )
 
     # ------------------------------------------------------------------
     # GUI methods
@@ -1249,7 +1278,8 @@ class Graph:
         n_edges = self._nx_graph.number_of_edges()
         n_free = len(self._args)
         cache_status = (
-            "formula cached" if (self._formula is not None and not self._dirty)
+            "formula cached"
+            if (self._formula is not None and not self._dirty)
             else "no cached formula"
         )
         return (
@@ -1261,6 +1291,7 @@ class Graph:
 # ===========================================================================
 # SpinNetwork  –  user-facing wrapper
 # ===========================================================================
+
 
 class SpinNetwork:
     """
@@ -1392,6 +1423,7 @@ class SpinNetwork:
         # Clean up temp directory
         try:
             import shutil
+
             shutil.rmtree(tmp_dir, ignore_errors=True)
         except Exception:
             pass
@@ -1607,11 +1639,15 @@ class SpinNetwork:
         """Assign numeric spin values.  See Graph.set_args()."""
         self._graph.set_args(args)
 
-    def get_edge_range(self, label: str, args: Optional[List[UnitArg]] = None) -> Optional[Tuple[float, float]]:
+    def get_edge_range(
+        self, label: str, args: Optional[List[UnitArg]] = None
+    ) -> Optional[Tuple[float, float]]:
         """Triangle-inequality range for a free label.  See Graph.get_edge_range()."""
         return self._graph.get_edge_range(label, args)
 
-    def args_list_from_args(self, args: List[UnitArg]) -> Tuple[str, Tuple[float, float], List[List[UnitArg]]]:
+    def args_list_from_args(
+        self, args: List[UnitArg]
+    ) -> Tuple[str, Tuple[float, float], List[List[UnitArg]]]:
         """List of all allowed args for a single symbolic label."""
         return self._graph.args_list_from_args(args)
 
@@ -1658,17 +1694,20 @@ class SpinNetwork:
 
         fig, ax = plt.subplots(figsize=(4, 3))
         nx.draw(
-            g, pos=pos, ax=ax,
+            g,
+            pos=pos,
+            ax=ax,
             with_labels=True,
             node_size=250,
             node_color="#aec6cf",
             font_size=7,
         )
         edge_labels = {
-            (u, v): str(d.get("label", ""))
-            for u, v, d in g.edges(data=True)
+            (u, v): str(d.get("label", "")) for u, v, d in g.edges(data=True)
         }
-        nx.draw_networkx_edge_labels(g, pos=pos, edge_labels=edge_labels, ax=ax, font_size=6)
+        nx.draw_networkx_edge_labels(
+            g, pos=pos, edge_labels=edge_labels, ax=ax, font_size=6
+        )
 
         buf = io.BytesIO()
         fig.savefig(buf, format="png", bbox_inches="tight", dpi=80)
@@ -1686,12 +1725,12 @@ class SpinNetwork:
         return (
             f'<div style="font-family:monospace;border:1px solid #ddd;'
             f'padding:6px;display:inline-block;margin:4px">'
-            f'<b>SpinNetwork</b> <code>{self._id}</code><br>'
-            f'Parent: <code>{parent_id}</code> | '
-            f'Depth: {depth} | '
-            f'Children: {len(self._children)}<br>'
+            f"<b>SpinNetwork</b> <code>{self._id}</code><br>"
+            f"Parent: <code>{parent_id}</code> | "
+            f"Depth: {depth} | "
+            f"Children: {len(self._children)}<br>"
             f'<img src="data:image/png;base64,{b64}"/>'
-            f'</div>'
+            f"</div>"
         )
 
     def __repr__(self) -> str:
@@ -1707,6 +1746,7 @@ class SpinNetwork:
 # ===========================================================================
 # Factory functions  –  create or load a SpinNetwork
 # ===========================================================================
+
 
 def new_network() -> SpinNetwork:
     """
@@ -1801,7 +1841,7 @@ def load_network(path: str) -> SpinNetwork:
 # ===========================================================================
 
 from src.probability import calculate_probability  # noqa: E402
-from src.visualizer import TreeVisualizer          # noqa: E402
+from src.visualizer import TreeVisualizer  # noqa: E402
 
 # LineageError and Transition are already imported at the top of this file
 # (from src.evolution) and are therefore part of the public API automatically.

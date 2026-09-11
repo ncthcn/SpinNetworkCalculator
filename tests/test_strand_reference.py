@@ -47,10 +47,10 @@ from math import factorial
 from src.api import Graph
 from tests.strand_reference import evaluate
 
-
 # ---------------------------------------------------------------------------
 # Small network builders
 # ---------------------------------------------------------------------------
+
 
 def _pos(g):
     for n in g.nodes:
@@ -100,6 +100,7 @@ def ring_with_legs(n, j=1.0):
 # 1. The oracle itself, checked against the closed-form theta net
 # ---------------------------------------------------------------------------
 
+
 class TestOracleIsItselfCorrect:
     """
     Before trusting the oracle, check it against the Kauffman-Lins closed form
@@ -113,16 +114,27 @@ class TestOracleIsItselfCorrect:
         p = int(round(c + a - b))
         return (
             factorial(int(round(a + b + c)) + 1)
-            * factorial(m) * factorial(n) * factorial(p)
-            / (factorial(int(round(2 * a)))
-               * factorial(int(round(2 * b)))
-               * factorial(int(round(2 * c))))
+            * factorial(m)
+            * factorial(n)
+            * factorial(p)
+            / (
+                factorial(int(round(2 * a)))
+                * factorial(int(round(2 * b)))
+                * factorial(int(round(2 * c)))
+            )
         )
 
-    @pytest.mark.parametrize("labels", [
-        (1.0, 1.0, 1.0), (1.0, 0.5, 0.5), (1.0, 1.0, 2.0),
-        (1.5, 1.5, 1.0), (2.0, 2.0, 2.0), (0.5, 1.0, 1.5),
-    ])
+    @pytest.mark.parametrize(
+        "labels",
+        [
+            (1.0, 1.0, 1.0),
+            (1.0, 0.5, 0.5),
+            (1.0, 1.0, 2.0),
+            (1.5, 1.5, 1.0),
+            (2.0, 2.0, 2.0),
+            (0.5, 1.0, 1.5),
+        ],
+    )
     def test_matches_kauffman_lins_theta(self, labels):
         got = evaluate(theta_net(labels), normalise=True)
         expected = self.kauffman_lins_theta(*labels)
@@ -140,27 +152,33 @@ class TestOracleIsItselfCorrect:
 # 2. src/ against the oracle
 # ---------------------------------------------------------------------------
 
+
 class TestPipelineAgainstOracle:
     """
     ||G|| for a CLOSED network G is the value of two disjoint copies of G,
     because gluing has no open ends to weld -- hence oracle(G)**2.
     """
 
-    @pytest.mark.parametrize("name,builder,expected_value", [
-        ("theta j=1",       lambda: theta_net((1.0, 1.0, 1.0)), -24.0),
-        ("tetrahedron j=1", lambda: tetrahedron(1.0),            96.0),
-        ("cube j=1",        lambda: cube(1.0),                 6144.0),
-    ])
-    def test_closed_network_norm_is_the_oracle_squared(self, name, builder, expected_value):
+    @pytest.mark.parametrize(
+        "name,builder,expected_value",
+        [
+            ("theta j=1", lambda: theta_net((1.0, 1.0, 1.0)), -24.0),
+            ("tetrahedron j=1", lambda: tetrahedron(1.0), 96.0),
+            ("cube j=1", lambda: cube(1.0), 6144.0),
+        ],
+    )
+    def test_closed_network_norm_is_the_oracle_squared(
+        self, name, builder, expected_value
+    ):
         reference = evaluate(builder())
         if expected_value is not None:
-            assert reference == pytest.approx(expected_value), (
-                f"{name}: oracle drifted from its documented value"
-            )
+            assert reference == pytest.approx(
+                expected_value
+            ), f"{name}: oracle drifted from its documented value"
         got = Graph(builder()).evaluate_symbolic().evaluate_numeric()
-        assert got == pytest.approx(abs(reference ** 2), rel=1e-9), (
-            f"{name}: pipeline gives {got!r}, oracle squared is {reference ** 2!r}"
-        )
+        assert got == pytest.approx(
+            abs(reference**2), rel=1e-9
+        ), f"{name}: pipeline gives {got!r}, oracle squared is {reference ** 2!r}"
 
     def test_open_network_norm_equals_its_glued_value(self):
         """
@@ -168,6 +186,7 @@ class TestPipelineAgainstOracle:
         the norm must equal that network's value.
         """
         from src.gluer import glue_open_edges
+
         g = ring_with_legs(3)
         glued = glue_open_edges(g)
         reference = evaluate(glued)
@@ -178,6 +197,7 @@ class TestPipelineAgainstOracle:
 # ---------------------------------------------------------------------------
 # 3. The defect this file was written to expose
 # ---------------------------------------------------------------------------
+
 
 class TestThetaNormalisationDiscrepancy:
     """
@@ -198,14 +218,18 @@ class TestThetaNormalisationDiscrepancy:
     rather than asserting a winner.
     """
 
-    @pytest.mark.parametrize("labels,factor", [
-        ((1.0, 1.0, 1.0), 1),
-        ((1.0, 1.0, 2.0), 16),
-        ((1.5, 1.5, 1.0), 4),
-        ((2.0, 2.0, 2.0), (2 * 2 * 2) ** 2),
-    ])
+    @pytest.mark.parametrize(
+        "labels,factor",
+        [
+            ((1.0, 1.0, 1.0), 1),
+            ((1.0, 1.0, 2.0), 16),
+            ((1.5, 1.5, 1.0), 4),
+            ((2.0, 2.0, 2.0), (2 * 2 * 2) ** 2),
+        ],
+    )
     def test_relationship_between_the_two_conventions(self, labels, factor):
         from src.spin_evaluator import SpinNetworkEvaluator
+
         ev = SpinNetworkEvaluator(max_two_j=40, backend="serial", verbose=False)
         try:
             sign_exp, mag = ev.theta_symbol(*labels)
@@ -237,11 +261,12 @@ class TestKnownDefect:
 
     @pytest.mark.xfail(
         reason="reduction is path-dependent: the 4-ring gives 4608 on the "
-               "default face choice and 6144 on another; 6144 is correct",
+        "default face choice and 6144 on another; 6144 is correct",
         strict=True,
     )
     def test_four_ring_matches_the_oracle(self):
         from src.gluer import glue_open_edges
+
         g = ring_with_legs(4)
         reference = abs(evaluate(glue_open_edges(g)))
         assert reference == pytest.approx(6144.0)
@@ -250,7 +275,7 @@ class TestKnownDefect:
 
     @pytest.mark.xfail(
         reason="same path-dependence, seen directly: forcing the F-move onto "
-               "different faces of one fixed graph changes the norm",
+        "different faces of one fixed graph changes the norm",
         strict=True,
     )
     def test_norm_is_independent_of_which_face_the_f_move_uses(self):
@@ -260,16 +285,21 @@ class TestKnownDefect:
         values = set()
         try:
             for k in range(4):
+
                 def pick(cycles, k=k):
                     big = [c for c in cycles if len(c) > 3]
                     return big[k % len(big)] if big else None
+
                 graph_reducer.pick_smallest_interior_face_gt3 = pick
-                values.add(round(
-                    Graph(ring_with_legs(4)).evaluate_symbolic().evaluate_numeric(), 6
-                ))
+                values.add(
+                    round(
+                        Graph(ring_with_legs(4)).evaluate_symbolic().evaluate_numeric(),
+                        6,
+                    )
+                )
         finally:
             graph_reducer.pick_smallest_interior_face_gt3 = original
 
-        assert len(values) == 1, (
-            f"the norm depends on which face the F-move is applied to: {sorted(values)}"
-        )
+        assert (
+            len(values) == 1
+        ), f"the norm depends on which face the F-move is applied to: {sorted(values)}"

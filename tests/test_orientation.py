@@ -21,6 +21,7 @@ import pytest
 import networkx as nx
 
 import sys, os
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.orientation import (
@@ -35,10 +36,10 @@ from src.orientation import (
     resolve_planar_flattening,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_theta_graph() -> nx.MultiGraph:
     """Two nodes connected by three parallel edges, each labelled 1."""
@@ -55,8 +56,9 @@ def _make_triangle() -> nx.MultiGraph:
     """Simple triangle (K3) with labels 1 on every edge."""
     G = nx.MultiGraph()
     for i in (1, 2, 3):
-        G.add_node(i, pos=(math.cos(2 * math.pi * i / 3),
-                           math.sin(2 * math.pi * i / 3)))
+        G.add_node(
+            i, pos=(math.cos(2 * math.pi * i / 3), math.sin(2 * math.pi * i / 3))
+        )
     G.add_edge(1, 2, label=1)
     G.add_edge(2, 3, label=1)
     G.add_edge(1, 3, label=1)
@@ -78,6 +80,7 @@ def _make_k4() -> nx.MultiGraph:
 # canonical_edge
 # ---------------------------------------------------------------------------
 
+
 class TestCanonicalEdge:
     def test_order_preserved_when_u_lt_v(self):
         assert canonical_edge(1, 3, 0) == (1, 3, 0)
@@ -92,6 +95,7 @@ class TestCanonicalEdge:
 # ---------------------------------------------------------------------------
 # _transposition_sequence
 # ---------------------------------------------------------------------------
+
 
 class TestTranspositionSequence:
     def test_identity_gives_no_swaps(self):
@@ -119,9 +123,9 @@ class TestTranspositionSequence:
         with pytest.raises(ValueError):
             _transposition_sequence([0, 1], [1, 2])
 
-    @pytest.mark.parametrize("perm", [
-        [0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]
-    ])
+    @pytest.mark.parametrize(
+        "perm", [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]]
+    )
     def test_all_permutations_of_three(self, perm):
         ref = [0, 1, 2]
         swaps = _transposition_sequence(ref, perm)
@@ -134,6 +138,7 @@ class TestTranspositionSequence:
 # ---------------------------------------------------------------------------
 # _cyclic_align
 # ---------------------------------------------------------------------------
+
 
 class TestCyclicAlign:
     def test_already_aligned(self):
@@ -159,14 +164,17 @@ class TestCyclicAlign:
 # phase_factor_for_transposition
 # ---------------------------------------------------------------------------
 
+
 class TestPhaseFactorForTransposition:
     def _graph_with_edges(self, la, lb, lc):
         """Triangle with specific labels on the three edges."""
         G = nx.MultiGraph()
-        G.add_node(1); G.add_node(2); G.add_node(3)
-        G.add_edge(1, 2, label=la)   # edge_a = (1,2,0)
-        G.add_edge(1, 3, label=lb)   # edge_b = (1,3,0)
-        G.add_edge(2, 3, label=lc)   # edge_c (spectator) = (2,3,0)
+        G.add_node(1)
+        G.add_node(2)
+        G.add_node(3)
+        G.add_edge(1, 2, label=la)  # edge_a = (1,2,0)
+        G.add_edge(1, 3, label=lb)  # edge_b = (1,3,0)
+        G.add_edge(2, 3, label=lc)  # edge_c (spectator) = (2,3,0)
         return G
 
     # phase = (-1) ** (a + b + c + 4*(a*b + b*c + a*c))
@@ -174,19 +182,19 @@ class TestPhaseFactorForTransposition:
     def test_integer_labels_spin_1(self):
         # (1,1,1): 3 + 4*(1+1+1) = 15, odd -> -1
         G = self._graph_with_edges(1, 1, 1)
-        result = phase_factor_for_transposition(G, (1,2,0), (1,3,0), (2,3,0))
+        result = phase_factor_for_transposition(G, (1, 2, 0), (1, 3, 0), (2, 3, 0))
         assert result == complex(-1)
 
     def test_half_integer_labels(self):
         # (1/2,1/2,0): 1 + 4*(1/4+0+0) = 2, even -> +1
         G = self._graph_with_edges(0.5, 0.5, 0)
-        result = phase_factor_for_transposition(G, (1,2,0), (1,3,0), (2,3,0))
+        result = phase_factor_for_transposition(G, (1, 2, 0), (1, 3, 0), (2, 3, 0))
         assert result == complex(1)
 
     def test_known_minus_one(self):
         # (1/2,1/2,1): 2 + 4*(1/4 + 1/2 + 1/2) = 2 + 5 = 7, odd -> -1
         G = self._graph_with_edges(0.5, 0.5, 1)
-        result = phase_factor_for_transposition(G, (1,2,0), (1,3,0), (2,3,0))
+        result = phase_factor_for_transposition(G, (1, 2, 0), (1, 3, 0), (2, 3, 0))
         assert result == complex(-1)
 
     def test_phase_is_symmetric_in_all_three_labels(self):
@@ -195,30 +203,43 @@ class TestPhaseFactorForTransposition:
         transposition must carry the same factor -- the exponent is symmetric.
         """
         import itertools
-        for labels in [(1, 1, 1), (0.5, 0.5, 1), (1, 1, 2), (1.5, 1.5, 1), (0.5, 1, 1.5)]:
+
+        for labels in [
+            (1, 1, 1),
+            (0.5, 0.5, 1),
+            (1, 1, 2),
+            (1.5, 1.5, 1),
+            (0.5, 1, 1.5),
+        ]:
             phases = set()
             for perm in itertools.permutations(labels):
                 G = self._graph_with_edges(*perm)
-                phases.add(phase_factor_for_transposition(G, (1,2,0), (1,3,0), (2,3,0)))
+                phases.add(
+                    phase_factor_for_transposition(G, (1, 2, 0), (1, 3, 0), (2, 3, 0))
+                )
             assert len(phases) == 1, f"phase not symmetric for {labels}: {phases}"
 
     def test_applying_the_swap_twice_is_the_identity(self):
         """Two transpositions return the original cyclic order, so phase^2 = 1."""
         for labels in [(1, 1, 1), (0.5, 0.5, 1), (1.5, 1.5, 1), (2, 2, 2)]:
             G = self._graph_with_edges(*labels)
-            p = phase_factor_for_transposition(G, (1,2,0), (1,3,0), (2,3,0))
+            p = phase_factor_for_transposition(G, (1, 2, 0), (1, 3, 0), (2, 3, 0))
             assert p * p == complex(1)
 
     def test_result_is_plus_or_minus_one(self):
         for a, b, c in [(1, 1, 1), (0.5, 0.5, 0), (0.5, 1, 0.5), (1, 1.5, 0.5)]:
             G = self._graph_with_edges(a, b, c)
-            result = phase_factor_for_transposition(G, (1,2,0), (1,3,0), (2,3,0))
-            assert result in (complex(1), complex(-1)), f"Unexpected phase {result} for a={a},b={b},c={c}"
+            result = phase_factor_for_transposition(G, (1, 2, 0), (1, 3, 0), (2, 3, 0))
+            assert result in (
+                complex(1),
+                complex(-1),
+            ), f"Unexpected phase {result} for a={a},b={b},c={c}"
 
 
 # ---------------------------------------------------------------------------
 # calculate_layout_phase  — reference layout should give phase = 1
 # ---------------------------------------------------------------------------
+
 
 class TestCalculateLayoutPhase:
     def test_reference_layout_gives_phase_one_triangle(self):
@@ -228,7 +249,7 @@ class TestCalculateLayoutPhase:
             set_reference_orientation(G, v)
 
         # Use the positions stored in node attributes as the layout.
-        layout = {v: G.nodes[v]['pos'] for v in G.nodes()}
+        layout = {v: G.nodes[v]["pos"] for v in G.nodes()}
         phase = calculate_layout_phase(G, layout)
         assert abs(phase - 1.0) < 1e-10
 
@@ -257,7 +278,7 @@ class TestCalculateLayoutPhase:
         for v in G.nodes():
             set_reference_orientation(G, v)
 
-        layout = {v: G.nodes[v]['pos'] for v in G.nodes()}
+        layout = {v: G.nodes[v]["pos"] for v in G.nodes()}
 
         # Rotate all points by 45 degrees
         angle = math.pi / 4
@@ -276,6 +297,7 @@ class TestCalculateLayoutPhase:
 # ---------------------------------------------------------------------------
 # resolve_planar_flattening — K4 is planar, result must be consistent
 # ---------------------------------------------------------------------------
+
 
 class TestResolvePlanarFlattening:
     """Tests for resolve_planar_flattening.
@@ -325,6 +347,6 @@ class TestResolvePlanarFlattening:
         for v in G.nodes():
             set_reference_orientation(G, v)
         # Use node positions stored at construction as the layout.
-        layout = {v: G.nodes[v]['pos'] for v in G.nodes()}
+        layout = {v: G.nodes[v]["pos"] for v in G.nodes()}
         phase = calculate_layout_phase(G, layout)
         assert abs(abs(phase) - 1.0) < 1e-10

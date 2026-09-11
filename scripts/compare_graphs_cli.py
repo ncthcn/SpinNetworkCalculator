@@ -32,7 +32,8 @@ Usage:
 
 import os
 import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import argparse
 import json
@@ -60,7 +61,10 @@ def load_graph_from_file(file_path):
     pos = nx.kamada_kawai_layout(graph)
     for node in graph.nodes:
         if "x" in graph.nodes[node] and "y" in graph.nodes[node]:
-            graph.nodes[node]["pos"] = (float(graph.nodes[node]["x"]), float(graph.nodes[node]["y"]))
+            graph.nodes[node]["pos"] = (
+                float(graph.nodes[node]["x"]),
+                float(graph.nodes[node]["y"]),
+            )
         else:
             graph.nodes[node]["pos"] = pos[node]
 
@@ -178,7 +182,7 @@ Examples:
   python compare_graphs_cli.py original.graphml modified.graphml \\
       --flagged-edge 2 5 --flagged-label 1.0 --flagged-vertex 5 \\
       --other-labels 1.0 1.0
-"""
+""",
     )
     parser.add_argument("original_file", help="Original .graphml file")
     parser.add_argument("modified_file", help="Modified .graphml file")
@@ -187,36 +191,33 @@ Examples:
         nargs=2,
         type=int,
         metavar=("NODE1", "NODE2"),
-        help="Flagged edge nodes (e.g., --flagged-edge 2 5)"
+        help="Flagged edge nodes (e.g., --flagged-edge 2 5)",
     )
     parser.add_argument(
         "--flagged-label",
         type=float,
-        help="Label of the flagged edge (e.g., --flagged-label 1.0)"
+        help="Label of the flagged edge (e.g., --flagged-label 1.0)",
     )
     parser.add_argument(
         "--flagged-vertex",
         type=int,
-        help="Vertex ID where the flagged edge connects (e.g., --flagged-vertex 5)"
+        help="Vertex ID where the flagged edge connects (e.g., --flagged-vertex 5)",
     )
     parser.add_argument(
         "--other-labels",
         nargs=2,
         type=float,
         metavar=("LABEL1", "LABEL2"),
-        help="Labels of the other two edges at the flagged vertex"
+        help="Labels of the other two edges at the flagged vertex",
     )
     parser.add_argument(
         "--output",
         "-o",
         default="comparison_results.json",
-        help="Output JSON file (default: comparison_results.json)"
+        help="Output JSON file (default: comparison_results.json)",
     )
     parser.add_argument(
-        "--quiet",
-        "-q",
-        action="store_true",
-        help="Suppress intermediate output"
+        "--quiet", "-q", action="store_true", help="Suppress intermediate output"
     )
 
     args = parser.parse_args()
@@ -229,9 +230,9 @@ Examples:
         print(f"Error: Modified file '{args.modified_file}' not found.")
         sys.exit(1)
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("SPIN NETWORK GRAPH COMPARISON (CLI)")
-    print("="*70)
+    print("=" * 70)
 
     # Compute original norm
     print("\n[STEP 1] Computing original graph norm...")
@@ -252,15 +253,20 @@ Examples:
     theta_val = None
     delta_val = None
 
-    if args.flagged_edge and args.flagged_label and args.flagged_vertex and args.other_labels:
+    if (
+        args.flagged_edge
+        and args.flagged_label
+        and args.flagged_vertex
+        and args.other_labels
+    ):
         print("\n[STEP 4] Processing flagged edge data...")
 
         n1, n2 = args.flagged_edge
         flagged_data = {
-            'edge_nodes': (n1, n2),
-            'edge_label': args.flagged_label,
-            'vertex_id': args.flagged_vertex,
-            'other_edge_labels': list(args.other_labels)
+            "edge_nodes": (n1, n2),
+            "edge_label": args.flagged_label,
+            "vertex_id": args.flagged_vertex,
+            "other_edge_labels": list(args.other_labels),
         }
 
         print(f"  Flagged edge: {n1} -- [{args.flagged_label}] -- {n2}")
@@ -272,19 +278,23 @@ Examples:
         try:
             all_labels = [args.flagged_label] + list(args.other_labels)
             theta_val = compute_theta_product(all_labels)
-            print(f"  Theta({all_labels[0]}, {all_labels[1]}, {all_labels[2]}) = {theta_val}")
+            print(
+                f"  Theta({all_labels[0]}, {all_labels[1]}, {all_labels[2]}) = {theta_val}"
+            )
 
             delta_val = compute_delta_product([args.flagged_label])
             print(f"  Delta({args.flagged_label}) = {delta_val}")
         except Exception as e:
             print(f"  ⚠ Error computing coefficients: {e}")
     else:
-        print("\n[STEP 4] No flagged edge data provided (use --flagged-edge, --flagged-label, etc.)")
+        print(
+            "\n[STEP 4] No flagged edge data provided (use --flagged-edge, --flagged-label, etc.)"
+        )
 
     # Display results
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("COMPARISON RESULTS")
-    print("="*70)
+    print("=" * 70)
     print(f"\nOriginal Graph: {args.original_file}")
     print(f"  Norm = {original_norm}")
     print(f"\nModified Graph: {args.modified_file}")
@@ -305,21 +315,21 @@ Examples:
 
     # Save results
     results = {
-        'original_file': args.original_file,
-        'modified_file': args.modified_file,
-        'original_norm': float(original_norm),
-        'modified_norm': float(modified_norm),
-        'norm_ratio': float(norm_ratio) if norm_ratio is not None else None,
-        'flagged_edge': flagged_data,
-        'theta': float(theta_val) if theta_val is not None else None,
-        'delta': float(delta_val) if delta_val is not None else None
+        "original_file": args.original_file,
+        "modified_file": args.modified_file,
+        "original_norm": float(original_norm),
+        "modified_norm": float(modified_norm),
+        "norm_ratio": float(norm_ratio) if norm_ratio is not None else None,
+        "flagged_edge": flagged_data,
+        "theta": float(theta_val) if theta_val is not None else None,
+        "delta": float(delta_val) if delta_val is not None else None,
     }
 
-    with open(args.output, 'w') as f:
+    with open(args.output, "w") as f:
         json.dump(results, f, indent=2)
 
     print(f"\n✓ Results saved to: {args.output}")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     return results
 
@@ -333,5 +343,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n\n✗ Error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

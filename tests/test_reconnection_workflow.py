@@ -25,7 +25,8 @@ on whatever graph the user last drew in the editor.
 
 import os
 import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import json
 import networkx as nx
@@ -46,16 +47,17 @@ def make_fixture_graph_file():
                5      6             (open, open)
     """
     G = nx.MultiGraph()
-    G.add_edge('1', '3', label=1.0)   # open edge at leaf 1
-    G.add_edge('2', '4', label=1.0)   # open edge at leaf 2
-    G.add_edge('3', '4', label=1.0)   # internal edge
-    G.add_edge('3', '5', label=1.0)   # open edge at leaf 5
-    G.add_edge('4', '6', label=1.0)   # open edge at leaf 6
+    G.add_edge("1", "3", label=1.0)  # open edge at leaf 1
+    G.add_edge("2", "4", label=1.0)  # open edge at leaf 2
+    G.add_edge("3", "4", label=1.0)  # internal edge
+    G.add_edge("3", "5", label=1.0)  # open edge at leaf 5
+    G.add_edge("4", "6", label=1.0)  # open edge at leaf 6
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.graphml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".graphml", delete=False) as f:
         path = f.name
     nx.write_graphml(G, path)
     return path
+
 
 def load_graph(file_path):
     """Load graph from GraphML."""
@@ -98,8 +100,8 @@ def reconnect_edges(graph, edge1, edge2):
     graph.add_node(str(new_node_id))
 
     # Remove old edges
-    label1 = data1.get('label', 1.0)
-    label2 = data2.get('label', 1.0)
+    label1 = data1.get("label", 1.0)
+    label2 = data2.get("label", 1.0)
 
     graph.remove_edge(u1, v1, key1)
     graph.remove_edge(u2, v2, key2)
@@ -118,15 +120,12 @@ def reconnect_edges(graph, edge1, edge2):
 
     # Record reconnection data
     reconnection = {
-        'old_edges': [
-            {'nodes': (u1, v1), 'label': label1},
-            {'nodes': (u2, v2), 'label': label2}
+        "old_edges": [
+            {"nodes": (u1, v1), "label": label1},
+            {"nodes": (u2, v2), "label": label2},
         ],
-        'new_edge': {
-            'nodes': (other1, other2),
-            'label': new_label
-        },
-        'reconnection_node': str(new_node_id)
+        "new_edge": {"nodes": (other1, other2), "label": new_label},
+        "reconnection_node": str(new_node_id),
     }
 
     return graph, reconnection
@@ -134,9 +133,9 @@ def reconnect_edges(graph, edge1, edge2):
 
 def test_workflow():
     """Test the complete reconnection and probability workflow."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("TESTING RECONNECTION & PROBABILITY WORKFLOW")
-    print("="*70)
+    print("=" * 70)
 
     # Build the self-contained fixture graph (see make_fixture_graph_file)
     original_file = make_fixture_graph_file()
@@ -151,7 +150,7 @@ def test_workflow():
     open_edges = find_open_edges(graph)
     print(f"  Found {len(open_edges)} open edges:")
     for i, (u, v, key, data) in enumerate(open_edges[:5], 1):
-        label = data.get('label', '?')
+        label = data.get("label", "?")
         print(f"    {i}. ({u}, {v}) with label={label}")
 
     assert len(open_edges) >= 2, "Fixture must have at least 2 open edges"
@@ -168,42 +167,53 @@ def test_workflow():
     print("\n[3] Reconnecting two open edges at different nodes...")
     edge1 = open_edges[0]
     edge2 = next(
-        e for e in open_edges[1:]
+        e
+        for e in open_edges[1:]
         if internal_endpoint(graph, e) != internal_endpoint(graph, edge1)
     )
 
-    reconnected_graph, reconnection_data = reconnect_edges(
-        graph.copy(), edge1, edge2
-    )
+    reconnected_graph, reconnection_data = reconnect_edges(graph.copy(), edge1, edge2)
 
     print(f"  Created reconnection node: {reconnection_data['reconnection_node']}")
-    print(f"  Old edge 1: {reconnection_data['old_edges'][0]['nodes']} "
-          f"(label={reconnection_data['old_edges'][0]['label']})")
-    print(f"  Old edge 2: {reconnection_data['old_edges'][1]['nodes']} "
-          f"(label={reconnection_data['old_edges'][1]['label']})")
-    print(f"  New edge: {reconnection_data['new_edge']['nodes']} "
-          f"(label={reconnection_data['new_edge']['label']})")
+    print(
+        f"  Old edge 1: {reconnection_data['old_edges'][0]['nodes']} "
+        f"(label={reconnection_data['old_edges'][0]['label']})"
+    )
+    print(
+        f"  Old edge 2: {reconnection_data['old_edges'][1]['nodes']} "
+        f"(label={reconnection_data['old_edges'][1]['label']})"
+    )
+    print(
+        f"  New edge: {reconnection_data['new_edge']['nodes']} "
+        f"(label={reconnection_data['new_edge']['label']})"
+    )
 
     # Save reconnected graph
     print("\n[4] Saving reconnected graph...")
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.graphml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".graphml", delete=False) as f:
         reconnected_file = f.name
 
     nx.write_graphml(reconnected_graph, reconnected_file)
     print(f"  Saved to: {reconnected_file}")
 
     # Save reconnection data
-    with tempfile.NamedTemporaryFile(mode='w', suffix='_reconnections.json', delete=False) as f:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix="_reconnections.json", delete=False
+    ) as f:
         recon_data_file = f.name
 
-    with open(recon_data_file, 'w') as f:
+    with open(recon_data_file, "w") as f:
         json.dump([reconnection_data], f, indent=2)
     print(f"  Reconnection data: {recon_data_file}")
 
     # Compute probability
     print("\n[5] Computing probability...")
     try:
-        from scripts.compute_probability import compute_norm, compute_delta_product, compute_theta_product
+        from scripts.compute_probability import (
+            compute_norm,
+            compute_delta_product,
+            compute_theta_product,
+        )
 
         # Compute norms
         print("  Computing original norm...")
@@ -221,12 +231,12 @@ def test_workflow():
         print(f"    ||G₂||/||G₁|| = {norm_ratio}")
 
         # Extract labels
-        new_labels = [reconnection_data['new_edge']['label']]
+        new_labels = [reconnection_data["new_edge"]["label"]]
         theta_triplets = [
             (
-                reconnection_data['old_edges'][0]['label'],
-                reconnection_data['old_edges'][1]['label'],
-                reconnection_data['new_edge']['label']
+                reconnection_data["old_edges"][0]["label"],
+                reconnection_data["old_edges"][1]["label"],
+                reconnection_data["new_edge"]["label"],
             )
         ]
 
@@ -253,6 +263,7 @@ def test_workflow():
 
         # A physical probability must be finite and non-negative
         import math
+
         assert probability >= 0
         assert not math.isnan(probability)
         assert not math.isinf(probability)
@@ -268,9 +279,9 @@ def test_workflow():
         except OSError:
             pass
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("TEST COMPLETE: Workflow successful!")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
 
 if __name__ == "__main__":
@@ -283,5 +294,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n\n✗ Test failed: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

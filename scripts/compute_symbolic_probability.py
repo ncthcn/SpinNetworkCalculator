@@ -40,7 +40,8 @@ Output:
 
 import os
 import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import argparse
 import json
@@ -50,18 +51,23 @@ import networkx as nx
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-mpl.rcParams['text.usetex'] = True
-mpl.rcParams['text.latex.preamble'] = r'\usepackage{amsmath}'
+mpl.rcParams["text.usetex"] = True
+mpl.rcParams["text.latex.preamble"] = r"\usepackage{amsmath}"
 
 from src.gluer import glue_open_edges
 from src.graph_reducer import reduce_all_cycles
 from src.norm_reducer import canonicalise_terms, apply_kroneckers, expand_6j_symbolic
-from src.LaTeX_rendering import terms_to_formula_string, save_formula_txt, latex_formatting, _sanitize_py
-
+from src.LaTeX_rendering import (
+    terms_to_formula_string,
+    save_formula_txt,
+    latex_formatting,
+    _sanitize_py,
+)
 
 # -----------------------------------------------------------------------
 # Graph loading (shared pattern with compute_norm.py)
 # -----------------------------------------------------------------------
+
 
 def load_graph_from_file(file_path):
     graph = nx.read_graphml(file_path, force_multigraph=True)
@@ -85,6 +91,7 @@ def load_graph_from_file(file_path):
 # -----------------------------------------------------------------------
 # Symbolic reduction pipeline (returns canonical terms, no numerical eval)
 # -----------------------------------------------------------------------
+
 
 def symbolic_reduction(graph):
     """Run the full symbolic pipeline and return canonical terms."""
@@ -113,6 +120,7 @@ def symbolic_reduction(graph):
 # PDF rendering for symbolic probability
 # -----------------------------------------------------------------------
 
+
 def _latex_norm(terms):
     """Render canonical terms as a flat LaTeX string (cdot-joined)."""
     all_factors = latex_formatting(terms)
@@ -121,8 +129,12 @@ def _latex_norm(terms):
 
 
 def save_symbolic_probability_pdf(
-    canon_G1, canon_G2, delta_parts, theta_parts,
-    reconnections, filename="symbolic_probability.pdf"
+    canon_G1,
+    canon_G2,
+    delta_parts,
+    theta_parts,
+    reconnections,
+    filename="symbolic_probability.pdf",
 ):
     """
     Render a two-panel PDF:
@@ -132,12 +144,11 @@ def save_symbolic_probability_pdf(
     norm1_latex = _latex_norm(canon_G1)
     norm2_latex = _latex_norm(canon_G2)
 
-    delta_latex = r" \cdot ".join(
-        rf"\Delta_{{{c}}}" for c in delta_parts
-    ) or "1"
-    theta_latex = r" \cdot ".join(
-        rf"\Theta\left({a},{b},{c}\right)" for a, b, c in theta_parts
-    ) or "1"
+    delta_latex = r" \cdot ".join(rf"\Delta_{{{c}}}" for c in delta_parts) or "1"
+    theta_latex = (
+        r" \cdot ".join(rf"\Theta\left({a},{b},{c}\right)" for a, b, c in theta_parts)
+        or "1"
+    )
 
     struct_expr = (
         rf"p = \left| \frac{{{delta_latex}}}{{{theta_latex}}}"
@@ -148,16 +159,19 @@ def save_symbolic_probability_pdf(
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 5))
     for ax in axes:
-        ax.axis('off')
+        ax.axis("off")
 
-    axes[0].text(0.5, 0.5, f"${struct_expr}$",
-                 ha='center', va='center', fontsize=14, wrap=True)
-    axes[1].text(0.05, 0.5, f"${norm1_expr}$",
-                 ha='left', va='center', fontsize=10, wrap=True)
-    axes[2].text(0.05, 0.5, f"${norm2_expr}$",
-                 ha='left', va='center', fontsize=10, wrap=True)
+    axes[0].text(
+        0.5, 0.5, f"${struct_expr}$", ha="center", va="center", fontsize=14, wrap=True
+    )
+    axes[1].text(
+        0.05, 0.5, f"${norm1_expr}$", ha="left", va="center", fontsize=10, wrap=True
+    )
+    axes[2].text(
+        0.05, 0.5, f"${norm2_expr}$", ha="left", va="center", fontsize=10, wrap=True
+    )
 
-    fig.savefig(filename, bbox_inches='tight')
+    fig.savefig(filename, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved symbolic probability PDF to {filename}")
 
@@ -165,6 +179,7 @@ def save_symbolic_probability_pdf(
 # -----------------------------------------------------------------------
 # Build the probability formula string for evaluate_formula.py
 # -----------------------------------------------------------------------
+
 
 def build_probability_formula(canon_G1, canon_G2, delta_labels, theta_triplets):
     """
@@ -174,11 +189,16 @@ def build_probability_formula(canon_G1, canon_G2, delta_labels, theta_triplets):
     norm_G1 = terms_to_formula_string(canon_G1)
     norm_G2 = terms_to_formula_string(canon_G2)
 
-    delta_str = " * ".join(f"delta({_sanitize_py(str(c))})" for c in delta_labels) or "1"
-    theta_str = " * ".join(
-        f"theta({_sanitize_py(str(a))}, {_sanitize_py(str(b))}, {_sanitize_py(str(c))})"
-        for a, b, c in theta_triplets
-    ) or "1"
+    delta_str = (
+        " * ".join(f"delta({_sanitize_py(str(c))})" for c in delta_labels) or "1"
+    )
+    theta_str = (
+        " * ".join(
+            f"theta({_sanitize_py(str(a))}, {_sanitize_py(str(b))}, {_sanitize_py(str(c))})"
+            for a, b, c in theta_triplets
+        )
+        or "1"
+    )
 
     return (
         f"abs(\n"
@@ -206,6 +226,7 @@ def save_probability_formula_txt(formula, filename):
 # Main
 # -----------------------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Compute symbolic reconnection probability expression",
@@ -219,11 +240,13 @@ def main():
         help="Reconnection JSON (auto-detected if omitted)",
     )
     parser.add_argument(
-        "--out-pdf", default="symbolic_probability.pdf",
+        "--out-pdf",
+        default="symbolic_probability.pdf",
         help="Output PDF filename (default: symbolic_probability.pdf)",
     )
     parser.add_argument(
-        "--out-txt", default="symbolic_probability.txt",
+        "--out-txt",
+        default="symbolic_probability.txt",
         help="Output text formula filename (default: symbolic_probability.txt)",
     )
 
@@ -285,22 +308,28 @@ def main():
     )
     save_probability_formula_txt(prob_formula, args.out_txt)
     save_symbolic_probability_pdf(
-        canon_G1, canon_G2, delta_labels, theta_triplets,
-        reconnections, filename=args.out_pdf,
+        canon_G1,
+        canon_G2,
+        delta_labels,
+        theta_triplets,
+        reconnections,
+        filename=args.out_pdf,
     )
 
     print("\n" + "=" * 70)
     print("OUTPUTS")
     print("=" * 70)
     print(f"  {args.out_pdf}            — structural LaTeX PDF")
-    print(f"  {args.out_txt}            — full Python formula (evaluate_formula.py input)")
+    print(
+        f"  {args.out_txt}            — full Python formula (evaluate_formula.py input)"
+    )
     print(f"  {base_orig}_norm.txt      — norm formula for G₁")
     print(f"  {base_recon}_norm.txt     — norm formula for G₂")
     print()
     print("Evaluate numerically:")
     print(
-        f'  python scripts/evaluate_formula.py '
-        f'"$(grep -v \'^#\' {args.out_txt} | tr -d \'\\n\')"'
+        f"  python scripts/evaluate_formula.py "
+        f"\"$(grep -v '^#' {args.out_txt} | tr -d '\\n')\""
     )
     print("=" * 70)
 
@@ -313,6 +342,7 @@ if __name__ == "__main__":
         sys.exit(1)
     except Exception as e:
         import traceback
+
         print(f"\nError: {e}")
         traceback.print_exc()
         sys.exit(1)

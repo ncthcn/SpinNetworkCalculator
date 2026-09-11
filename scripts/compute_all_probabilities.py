@@ -34,7 +34,8 @@ Where edge1 and edge2 are specified as "node1-node2" (e.g., "1-2")
 
 import os
 import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import argparse
 import json
@@ -64,7 +65,10 @@ def load_graph_from_file(file_path):
     pos = nx.kamada_kawai_layout(graph)
     for node in graph.nodes:
         if "x" in graph.nodes[node] and "y" in graph.nodes[node]:
-            graph.nodes[node]["pos"] = (float(graph.nodes[node]["x"]), float(graph.nodes[node]["y"]))
+            graph.nodes[node]["pos"] = (
+                float(graph.nodes[node]["x"]),
+                float(graph.nodes[node]["y"]),
+            )
         else:
             graph.nodes[node]["pos"] = pos[node]
 
@@ -158,8 +162,8 @@ def reconnect_edges_with_label(graph, edge1_spec, edge2_spec, new_label):
     graph = graph.copy()
 
     # Parse edge specifications
-    n1_1, n1_2 = edge1_spec.split('-')
-    n2_1, n2_2 = edge2_spec.split('-')
+    n1_1, n1_2 = edge1_spec.split("-")
+    n2_1, n2_2 = edge2_spec.split("-")
 
     # Find the edges in the graph
     edge1_data = None
@@ -177,8 +181,8 @@ def reconnect_edges_with_label(graph, edge1_spec, edge2_spec, new_label):
     u1, v1, k1, data1 = edge1_data
     u2, v2, k2, data2 = edge2_data
 
-    label1 = data1.get('label', 1.0)
-    label2 = data2.get('label', 1.0)
+    label1 = data1.get("label", 1.0)
+    label2 = data2.get("label", 1.0)
 
     # Determine which endpoints are open (degree < 3)
     open1 = u1 if graph.degree(u1) < 3 else v1
@@ -258,15 +262,13 @@ This will:
    - Compute reconnected norm ||G₂||
    - Compute probability p(c)
 3. Verify that sum of all probabilities = 1
-"""
+""",
     )
     parser.add_argument("original_file", help="Original graph file (.graphml)")
     parser.add_argument("edge1", help="First edge to reconnect (format: node1-node2)")
     parser.add_argument("edge2", help="Second edge to reconnect (format: node1-node2)")
     parser.add_argument(
-        "--quiet", "-q",
-        action="store_true",
-        help="Suppress intermediate output"
+        "--quiet", "-q", action="store_true", help="Suppress intermediate output"
     )
 
     args = parser.parse_args()
@@ -275,9 +277,9 @@ This will:
         print(f"Error: Original file '{args.original_file}' not found.")
         sys.exit(1)
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("COMPUTE ALL RECONNECTION PROBABILITIES")
-    print("="*70)
+    print("=" * 70)
 
     # Load original graph
     print(f"\n[STEP 1] Loading original graph: {args.original_file}")
@@ -302,7 +304,9 @@ This will:
     possible_values = calculate_possible_values(label1, label2)
     print(f"\n[STEP 3] Possible new edge values: {possible_values}")
     print(f"  Number of possibilities: {len(possible_values)}")
-    print(f"  (Based on triangle inequality: |{label1}-{label2}| ≤ c ≤ {label1}+{label2})")
+    print(
+        f"  (Based on triangle inequality: |{label1}-{label2}| ≤ c ≤ {label1}+{label2})"
+    )
 
     # Compute original norm
     print(f"\n[STEP 4] Computing original graph norm...")
@@ -311,7 +315,7 @@ This will:
 
     # Compute probability for each possible value
     print(f"\n[STEP 5] Computing probabilities for each possible value...")
-    print("  " + "-"*66)
+    print("  " + "-" * 66)
 
     results = []
     formula_entries = []
@@ -348,13 +352,15 @@ This will:
 
         print(f"    ✓ p({new_label}) = {probability:.15e}")
 
-        results.append({
-            'new_label': float(new_label),
-            'norm': float(norm2),
-            'delta': float(delta),
-            'theta': float(theta),
-            'probability': float(probability)
-        })
+        results.append(
+            {
+                "new_label": float(new_label),
+                "norm": float(norm2),
+                "delta": float(delta),
+                "theta": float(theta),
+                "probability": float(probability),
+            }
+        )
 
         norm_G2_formula = terms_to_formula_string(canon_G2)
         formula_entries.append(
@@ -368,24 +374,28 @@ This will:
         )
 
     # Verify normalization
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("RESULTS SUMMARY")
-    print("="*70)
+    print("=" * 70)
 
     print(f"\nOriginal graph norm: ||G₁|| = {norm1}")
-    print(f"Edges reconnected: {args.edge1} (label={label1}) + {args.edge2} (label={label2})")
+    print(
+        f"Edges reconnected: {args.edge1} (label={label1}) + {args.edge2} (label={label2})"
+    )
     print(f"\nProbability distribution:")
-    print("  " + "-"*66)
+    print("  " + "-" * 66)
     print(f"  {'New Edge':<12} {'||G₂||':<15} {'Δ':<10} {'Θ':<10} {'Probability':<15}")
-    print("  " + "-"*66)
+    print("  " + "-" * 66)
 
     total_probability = 0.0
     for r in results:
-        print(f"  {r['new_label']:<12.1f} {r['norm']:<15.6e} {r['delta']:<10.3f} "
-              f"{r['theta']:<10.3f} {r['probability']:<15.6e}")
-        total_probability += r['probability']
+        print(
+            f"  {r['new_label']:<12.1f} {r['norm']:<15.6e} {r['delta']:<10.3f} "
+            f"{r['theta']:<10.3f} {r['probability']:<15.6e}"
+        )
+        total_probability += r["probability"]
 
-    print("  " + "-"*66)
+    print("  " + "-" * 66)
     print(f"  {'TOTAL':<12} {'':<15} {'':<10} {'':<10} {total_probability:<15.6e}")
 
     # Normalization test
@@ -407,34 +417,40 @@ This will:
         print(f"    - Incorrect formula implementation")
 
     # Save results
-    results_file = args.original_file.replace('.graphml', '_all_probabilities.json')
+    results_file = args.original_file.replace(".graphml", "_all_probabilities.json")
     full_results = {
-        'original_file': args.original_file,
-        'original_norm': float(norm1),
-        'edge1': args.edge1,
-        'edge2': args.edge2,
-        'edge1_label': float(label1),
-        'edge2_label': float(label2),
-        'possible_values': [float(v) for v in possible_values],
-        'probabilities': results,
-        'total_probability': float(total_probability),
-        'normalization_test': abs(total_probability - 1.0) < epsilon
+        "original_file": args.original_file,
+        "original_norm": float(norm1),
+        "edge1": args.edge1,
+        "edge2": args.edge2,
+        "edge1_label": float(label1),
+        "edge2_label": float(label2),
+        "possible_values": [float(v) for v in possible_values],
+        "probabilities": results,
+        "total_probability": float(total_probability),
+        "normalization_test": abs(total_probability - 1.0) < epsilon,
     }
 
-    with open(results_file, 'w') as f:
+    with open(results_file, "w") as f:
         json.dump(full_results, f, indent=2)
 
     print(f"\n✓ Results saved to: {results_file}")
 
     # Save symbolic formula .txt with one entry per possible c value
-    formula_file = args.original_file.replace('.graphml', '_all_probability_formulas.txt')
-    with open(formula_file, 'w') as f:
+    formula_file = args.original_file.replace(
+        ".graphml", "_all_probability_formulas.txt"
+    )
+    with open(formula_file, "w") as f:
         f.write(f"# All reconnection probability formulas\n")
-        f.write(f"# Edges: {args.edge1} (label={label1}) + {args.edge2} (label={label2})\n")
-        f.write(f"# Evaluate each block with: python scripts/evaluate_formula.py \"<formula>\"\n\n")
+        f.write(
+            f"# Edges: {args.edge1} (label={label1}) + {args.edge2} (label={label2})\n"
+        )
+        f.write(
+            f'# Evaluate each block with: python scripts/evaluate_formula.py "<formula>"\n\n'
+        )
         f.write("\n\n".join(formula_entries) + "\n")
     print(f"✓ Formulas saved to: {formula_file}")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     return full_results
 
@@ -449,5 +465,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n\n✗ Error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

@@ -56,10 +56,10 @@ from src.evolution import LineageError, Transition
 from src.probability import _delta_theta_factor_string, _label_literal
 from src.spin_evaluator import FormulaEvaluator
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def closed_theta(labels=(1.0, 1.0, 2.0)):
     """Two vertices joined by three parallel edges. Norm = Theta(labels)^2."""
@@ -98,6 +98,7 @@ def fev():
 # _label_literal -- embedding an edge label into a formula string
 # ===========================================================================
 
+
 class TestLabelLiteral:
 
     def test_float_becomes_a_float_literal(self):
@@ -122,7 +123,7 @@ class TestLabelLiteral:
         """Gluing creates primed node names; formula strings must stay valid Python."""
         out = _label_literal("n''")
         assert "'" not in out
-        compile(out, "<test>", "eval")   # raises if not a valid expression
+        compile(out, "<test>", "eval")  # raises if not a valid expression
 
     def test_output_is_always_valid_python(self):
         for label in (1.5, 2, 0, "1.5", "j_1", "n'", "n''"):
@@ -132,6 +133,7 @@ class TestLabelLiteral:
 # ===========================================================================
 # _delta_theta_factor_string -- the reconnection factor
 # ===========================================================================
+
 
 class TestDeltaThetaFactorString:
 
@@ -185,6 +187,7 @@ class TestDeltaThetaFactorString:
 # calculate_probability -- assembly
 # ===========================================================================
 
+
 class TestCalculateProbability:
 
     def test_requires_an_ancestor_descendant_pair(self):
@@ -223,8 +226,8 @@ class TestCalculateProbability:
         norm(out)/norm(in) -- so swapping the arguments must give the
         reciprocal, not the same number.
         """
-        g_in = closed_theta((1.0, 1.0, 2.0))     # norm = Theta(1,1,2)^2 = 900
-        g_out = closed_theta((1.0, 1.0, 1.0))    # norm = Theta(1,1,1)^2 = 576
+        g_in = closed_theta((1.0, 1.0, 2.0))  # norm = Theta(1,1,2)^2 = 900
+        g_out = closed_theta((1.0, 1.0, 1.0))  # norm = Theta(1,1,1)^2 = 576
 
         n1 = SpinNetwork(g_in)
         _, n2 = link(n1, g_out)
@@ -302,12 +305,13 @@ class TestCalculateProbability:
 
     def test_multi_hop_uses_the_endpoints_not_the_intermediate_state(self, fev):
         """P(n1 -> n3) must divide by norm(n1), not norm(n2)."""
-        n1 = SpinNetwork(closed_theta((1.0, 1.0, 2.0)))      # norm 900
-        _, n2 = link(n1, closed_theta((1.0, 1.0, 1.0)))      # norm 576
-        _, n3 = link(n2, closed_theta((1.0, 1.0, 2.0)))      # norm 900
+        n1 = SpinNetwork(closed_theta((1.0, 1.0, 2.0)))  # norm 900
+        _, n2 = link(n1, closed_theta((1.0, 1.0, 1.0)))  # norm 576
+        _, n3 = link(n2, closed_theta((1.0, 1.0, 2.0)))  # norm 900
 
-        assert calculate_probability(n1, n3).evaluate_numeric() == \
-               pytest.approx(900.0 / 900.0, rel=1e-9)
+        assert calculate_probability(n1, n3).evaluate_numeric() == pytest.approx(
+            900.0 / 900.0, rel=1e-9
+        )
 
     def test_symbolic_labels_are_exposed_as_free_arguments(self):
         n1 = SpinNetwork(closed_theta(("a", "a", "b")))
@@ -353,6 +357,7 @@ class TestCalculateProbability:
 # The GUI path: metadata JSON -> Transition -> probability
 # ===========================================================================
 
+
 class TestGuiProducedTransition:
     """
     scripts/transition_to.py writes a JSON file with exactly two keys,
@@ -377,8 +382,7 @@ class TestGuiProducedTransition:
                         {"nodes": [1, 2], "label": s},
                         {"nodes": [3, 4], "label": t},
                     ],
-                    "new_edge": {"nodes": [5, 6], "label": c,
-                                 "reconnection_node": 5},
+                    "new_edge": {"nodes": [5, 6], "label": c, "reconnection_node": 5},
                     "compute_all": False,
                 }
                 for (c, s, t) in reconnections
@@ -428,16 +432,19 @@ class TestGuiProducedTransition:
         n1 = SpinNetwork(closed_theta())
         n2 = n1.transition_from_metadata(
             closed_theta()._nx_graph,
-            self.gui_payload(added_edges=[
-                {"nodes": ("p", "q"), "label": 1.0},
-                {"nodes": ("p", "q"), "label": 1.0},
-                {"nodes": ("p", "q"), "label": 1.0},
-            ]),
+            self.gui_payload(
+                added_edges=[
+                    {"nodes": ("p", "q"), "label": 1.0},
+                    {"nodes": ("p", "q"), "label": 1.0},
+                    {"nodes": ("p", "q"), "label": 1.0},
+                ]
+            ),
         )
         assert n2.parent_transition.added_graph._nx_graph.number_of_edges() == 3
         # norm(G_delta) = Theta(1,1,1)^2 = 576 divides the result
-        assert calculate_probability(n1, n2).evaluate_numeric() == \
-               pytest.approx(1.0 / 576.0, rel=1e-9)
+        assert calculate_probability(n1, n2).evaluate_numeric() == pytest.approx(
+            1.0 / 576.0, rel=1e-9
+        )
 
     def test_a_malformed_reconnection_is_refused_not_silently_dropped(self):
         """
@@ -448,8 +455,9 @@ class TestGuiProducedTransition:
         n1 = SpinNetwork(closed_theta())
         broken = {
             "added_edges": [],
-            "reconnections": [{"old_edges": [{"label": 1.0}, {"label": 1.0}],
-                               "new_edge": {}}],
+            "reconnections": [
+                {"old_edges": [{"label": 1.0}, {"label": 1.0}], "new_edge": {}}
+            ],
         }
         with pytest.raises(ValueError, match="Malformed reconnection"):
             n1.transition_from_metadata(closed_theta()._nx_graph, broken)
@@ -469,7 +477,7 @@ class TestGuiProducedTransition:
         assert n2.parent_transition.old_open_end_labels == ()
 
     def test_produced_open_ends_are_derived_from_the_two_graphs(self):
-        parent = closed_theta()                      # closed: no open ends
+        parent = closed_theta()  # closed: no open ends
         child_nx = nx.MultiGraph()
         child_nx.add_edge(0, 1, label=1.0)
         child_nx.add_edge(0, 1, label=1.0)
@@ -485,6 +493,7 @@ class TestGuiProducedTransition:
 # ===========================================================================
 # Delta(j): parent open ends consumed outside reconnections
 # ===========================================================================
+
 
 class TestConsumedOpenEnds:
     """
@@ -523,9 +532,9 @@ class TestConsumedOpenEnds:
 
         child = nx.MultiGraph()
         child.add_edge("u", "v", label=1.0)
-        child.add_edge("v", "T", label=1.0)      # still open
-        child.add_edge("u", "S", label=1.0)      # S now has more edges...
-        child.add_edge("S", "A", label=1.0)      # ... so it is degree 3
+        child.add_edge("v", "T", label=1.0)  # still open
+        child.add_edge("u", "S", label=1.0)  # S now has more edges...
+        child.add_edge("S", "A", label=1.0)  # ... so it is degree 3
         child.add_edge("S", "B", label=1.0)
         for n in child.nodes:
             child.nodes[n]["pos"] = (0.0, 0.0)
@@ -566,8 +575,10 @@ class TestConsumedOpenEnds:
         # G_Delta is a Y with three open ends, so gluing it to its mirror
         # forms a theta net: ||G_Delta|| = |Theta(1,1,1)| = 24.  (Compare the
         # recorded example, where ||G_Delta|| = |Theta(0.5, 0.5, 1.0)| = 6.)
-        assert n2.parent_transition.added_graph.evaluate_symbolic() \
-                 .evaluate_numeric() == pytest.approx(24.0, rel=1e-9)
+        assert (
+            n2.parent_transition.added_graph.evaluate_symbolic().evaluate_numeric()
+            == pytest.approx(24.0, rel=1e-9)
+        )
 
     def test_reconnected_open_ends_are_not_counted_twice(self):
         """
@@ -580,26 +591,30 @@ class TestConsumedOpenEnds:
         child.add_edge("u", "v", label=1.0)
         child.add_edge("u", "w", label=1.0)
         child.add_edge("v", "w", label=1.0)
-        child.add_edge("w", "C", label=2.0)      # the new channel
+        child.add_edge("w", "C", label=2.0)  # the new channel
         for n in child.nodes:
             child.nodes[n]["pos"] = (0.0, 0.0)
 
         meta = {
             "added_edges": [],
-            "reconnections": [{
-                "old_edges": [{"nodes": ["S", "u"], "label": 1.0},
-                              {"nodes": ["T", "v"], "label": 1.0}],
-                "new_edge": {"nodes": ["w", "C"], "label": 2.0},
-                "compute_all": False,
-            }],
+            "reconnections": [
+                {
+                    "old_edges": [
+                        {"nodes": ["S", "u"], "label": 1.0},
+                        {"nodes": ["T", "v"], "label": 1.0},
+                    ],
+                    "new_edge": {"nodes": ["w", "C"], "label": 2.0},
+                    "compute_all": False,
+                }
+            ],
         }
         n1 = SpinNetwork(parent)
         n2 = n1.transition_from_metadata(child, meta)
 
         assert n2.parent_transition.theta_triplets == ((2.0, 1.0, 1.0),)
-        assert n2.parent_transition.old_open_end_labels == (), (
-            "a reconnected open end was double-counted as a Delta(j) factor"
-        )
+        assert (
+            n2.parent_transition.old_open_end_labels == ()
+        ), "a reconnected open end was double-counted as a Delta(j) factor"
 
     def test_integer_node_names_from_the_gui_match_string_names_from_graphml(self):
         """
@@ -608,7 +623,7 @@ class TestConsumedOpenEnds:
         """
         g = nx.MultiGraph()
         g.add_edge("0", "1", label=1.0)
-        g.add_edge("0", "2", label=1.0)          # node "2" is the open end
+        g.add_edge("0", "2", label=1.0)  # node "2" is the open end
         g.add_edge("1", "3", label=1.0)
         for n in g.nodes:
             g.nodes[n]["pos"] = (0.0, 0.0)
@@ -624,13 +639,17 @@ class TestConsumedOpenEnds:
 
         meta = {
             "added_edges": [],
-            "reconnections": [{
-                # int node names, as the GUI writes them
-                "old_edges": [{"nodes": [2, 0], "label": 1.0},
-                              {"nodes": [3, 1], "label": 1.0}],
-                "new_edge": {"nodes": [4, 5], "label": 1.0},
-                "compute_all": False,
-            }],
+            "reconnections": [
+                {
+                    # int node names, as the GUI writes them
+                    "old_edges": [
+                        {"nodes": [2, 0], "label": 1.0},
+                        {"nodes": [3, 1], "label": 1.0},
+                    ],
+                    "new_edge": {"nodes": [4, 5], "label": 1.0},
+                    "compute_all": False,
+                }
+            ],
         }
         n1 = SpinNetwork(Graph(g))
         n2 = n1.transition_from_metadata(child, meta)
@@ -660,7 +679,7 @@ class TestConsumedOpenEnds:
         child.add_edge("u", "P", label=1.0)
         child.add_edge("v", "T", label=1.0)
         child.add_edge("v", "Q", label=1.0)
-        child.add_edge("S", "A", label=1.0)     # S is now a (2, 1, 1) vertex
+        child.add_edge("S", "A", label=1.0)  # S is now a (2, 1, 1) vertex
         child.add_edge("S", "B", label=1.0)
         for n in child.nodes:
             child.nodes[n]["pos"] = (0.0, 0.0)
@@ -690,6 +709,7 @@ class TestConsumedOpenEnds:
 # ===========================================================================
 # Normalisation: the physical validation of the whole construction
 # ===========================================================================
+
 
 class TestNormalisation:
     """
@@ -754,17 +774,19 @@ class TestNormalisation:
         for c in self.channels(s, t):
             meta = {
                 "added_edges": [],
-                "reconnections": [{
-                    "old_edges": [{"nodes": ["S", "u"], "label": s},
-                                  {"nodes": ["T", "v"], "label": t}],
-                    "new_edge": {"nodes": ["w", "C"], "label": c},
-                    "compute_all": False,
-                }],
+                "reconnections": [
+                    {
+                        "old_edges": [
+                            {"nodes": ["S", "u"], "label": s},
+                            {"nodes": ["T", "v"], "label": t},
+                        ],
+                        "new_edge": {"nodes": ["w", "C"], "label": c},
+                        "compute_all": False,
+                    }
+                ],
             }
             parent = SpinNetwork(Graph(self.g_in(m, s, t, p, q)))
-            child = parent.transition_from_metadata(
-                self.g_out(m, s, t, p, q, c), meta
-            )
+            child = parent.transition_from_metadata(self.g_out(m, s, t, p, q, c), meta)
             result[c] = calculate_probability(parent, child).evaluate_numeric()
         return result
 
@@ -780,8 +802,9 @@ class TestNormalisation:
 
     @pytest.mark.parametrize("m,s,t,p,q", CASES)
     def test_probabilities_sum_to_one(self, m, s, t, p, q):
-        assert self.vertex_ok(m, s, p) and self.vertex_ok(m, t, q), \
-            "test case has an inadmissible parent vertex"
+        assert self.vertex_ok(m, s, p) and self.vertex_ok(
+            m, t, q
+        ), "test case has an inadmissible parent vertex"
         probs = self.probabilities(m, s, t, p, q)
         total = sum(probs.values())
         assert total == pytest.approx(1.0, abs=1e-9), (
@@ -806,6 +829,7 @@ class TestNormalisation:
 # ===========================================================================
 # Added-edge transitions: the path the sum-rule test does NOT cover
 # ===========================================================================
+
 
 class TestAddedEdgeTransition:
     """
@@ -859,11 +883,15 @@ class TestAddedEdgeTransition:
         g_delta = n2.parent_transition.added_graph._nx_graph
         # MultiGraph edge endpoints come back in insertion order, so
         # normalise each pair before comparing.
-        edges = sorted(tuple(sorted((str(u), str(v)))) + (d["label"],)
-                       for u, v, d in g_delta.edges(data=True))
-        assert edges == [("A", "S", 1.0), ("B", "S", 1.0), ("S", "u", 1.0)], (
-            f"G_Delta should be the Y  A--S--B plus S--u, got {edges}"
+        edges = sorted(
+            tuple(sorted((str(u), str(v)))) + (d["label"],)
+            for u, v, d in g_delta.edges(data=True)
         )
+        assert edges == [
+            ("A", "S", 1.0),
+            ("B", "S", 1.0),
+            ("S", "u", 1.0),
+        ], f"G_Delta should be the Y  A--S--B plus S--u, got {edges}"
         assert g_delta.degree("S") == 3
 
     def test_probability_matches_independently_computed_pieces(self, fev):
@@ -879,13 +907,14 @@ class TestAddedEdgeTransition:
         norm_delta = t.added_graph.evaluate_symbolic().evaluate_numeric()
         delta_j = abs(fev.evaluate("delta(1.0)"))
 
-        assert norm_delta == pytest.approx(24.0)   # |Theta(1,1,1)|
+        assert norm_delta == pytest.approx(24.0)  # |Theta(1,1,1)|
         assert delta_j == pytest.approx(3.0)
         assert t.old_open_end_labels == (1.0,)
 
         hand = norm_out * delta_j / (norm_in * norm_delta)
-        assert calculate_probability(n1, n2).evaluate_numeric() == \
-               pytest.approx(hand, rel=1e-12)
+        assert calculate_probability(n1, n2).evaluate_numeric() == pytest.approx(
+            hand, rel=1e-12
+        )
 
     def test_probability_is_one_for_this_transition(self):
         """
@@ -894,8 +923,9 @@ class TestAddedEdgeTransition:
         whose middle node has degree 2) instead of 24.
         """
         n1, n2 = self.build()
-        assert calculate_probability(n1, n2).evaluate_numeric() == \
-               pytest.approx(1.0, rel=1e-9)
+        assert calculate_probability(n1, n2).evaluate_numeric() == pytest.approx(
+            1.0, rel=1e-9
+        )
 
     def test_delta_j_and_g_delta_are_built_from_the_same_edges(self):
         """
@@ -909,8 +939,8 @@ class TestAddedEdgeTransition:
 
         drawn = {("S", "A"), ("S", "B")}
         parent_side = [
-            d["label"] for u, v, d in g_delta.edges(data=True)
-            if tuple(sorted((str(u), str(v)))) not in
-               {tuple(sorted(e)) for e in drawn}
+            d["label"]
+            for u, v, d in g_delta.edges(data=True)
+            if tuple(sorted((str(u), str(v)))) not in {tuple(sorted(e)) for e in drawn}
         ]
         assert sorted(parent_side) == sorted(t.old_open_end_labels)

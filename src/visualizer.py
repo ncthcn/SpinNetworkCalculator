@@ -85,7 +85,7 @@ class TreeVisualizer:
         queue: deque["SpinNetwork"] = deque([root])
         visited: set = set()
 
-        node_labels: Dict[int, str] = {}   # id(sn) → display label
+        node_labels: Dict[int, str] = {}  # id(sn) → display label
         edge_labels: Dict[tuple, str] = {}  # (id_parent, id_child) → P=…
 
         while queue:
@@ -106,7 +106,9 @@ class TreeVisualizer:
                     continue
                 child_key = id(child)
                 tree_graph.add_edge(sn_key, child_key)
-                edge_labels[(sn_key, child_key)] = f"+{len(t.produced_open_ends)} open ends"
+                edge_labels[(sn_key, child_key)] = (
+                    f"+{len(t.produced_open_ends)} open ends"
+                )
                 queue.append(child)
 
         if tree_graph.number_of_nodes() == 0:
@@ -186,7 +188,9 @@ class TreeVisualizer:
             f"[id={root._id}, depth={root._genealogy_depth()}]"
         ]
         for t in root.children:
-            lines.append(f"{prefix}    └── Transition (+{len(t.produced_open_ends)} open ends)")
+            lines.append(
+                f"{prefix}    └── Transition (+{len(t.produced_open_ends)} open ends)"
+            )
             if t.child is not None:
                 lines.append(cls.ascii_tree(t.child, indent + 2))
         return "\n".join(lines)

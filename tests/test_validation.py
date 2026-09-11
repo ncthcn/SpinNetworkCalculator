@@ -69,7 +69,6 @@ from src.spin_evaluator import (
 # sympy ships an independent, exact (rational/sqrt) 6j implementation.
 from sympy.physics.wigner import wigner_6j as sympy_6j
 
-
 # --------------------------------------------------------------------------
 # Fixtures
 # --------------------------------------------------------------------------
@@ -80,6 +79,7 @@ from sympy.physics.wigner import wigner_6j as sympy_6j
 # backend='serial' is forced explicitly: we are validating the mathematics
 # here, not the dispatch.
 # Backend equivalence is tested separately in TestBackendAgreement.
+
 
 @pytest.fixture(scope="module")
 def ev():
@@ -100,6 +100,7 @@ def formula_ev():
 # --------------------------------------------------------------------------
 # Helpers: closed forms re-derived independently of src/
 # --------------------------------------------------------------------------
+
 
 def reference_theta(j, k, l):
     """
@@ -167,6 +168,7 @@ def half_integer_spins(max_two_j):
 # 1. Wigner 6j against sympy  -- the single strongest independent check
 # --------------------------------------------------------------------------
 
+
 class TestWigner6jAgainstSympy:
     """
     wigxjpf (C, ours) vs sympy (pure Python, independent) over an exhaustive
@@ -210,12 +212,10 @@ class TestWigner6jAgainstSympy:
                                 ours = ev.wigner_6j(a, b, c, d, e, f)
                                 theirs = sympy_6j_safe(a, b, c, d, e, f)
                                 if ours != pytest.approx(theirs, abs=1e-12):
-                                    mismatches.append(
-                                        (a, b, c, d, e, f, ours, theirs)
-                                    )
-        assert not mismatches, (
-            f"{len(mismatches)} mismatches vs sympy, first 5: {mismatches[:5]}"
-        )
+                                    mismatches.append((a, b, c, d, e, f, ours, theirs))
+        assert (
+            not mismatches
+        ), f"{len(mismatches)} mismatches vs sympy, first 5: {mismatches[:5]}"
 
     def test_inadmissible_returns_exactly_zero(self, ev):
         """A violated triangle must give 0.0, not a small number or a NaN."""
@@ -229,6 +229,7 @@ class TestWigner6jAgainstSympy:
 # 2. Theta and Delta against re-derived closed forms
 # --------------------------------------------------------------------------
 
+
 class TestThetaDeltaClosedForm:
 
     def test_theta_matches_reference_integer(self, ev):
@@ -237,9 +238,9 @@ class TestThetaDeltaClosedForm:
                 for c in [0.0, 1.0, 2.0, 3.0]:
                     ours = combine(ev.theta_symbol(a, b, c))
                     ref = reference_theta(a, b, c)
-                    assert ours == pytest.approx(ref, rel=1e-12, abs=1e-12), (
-                        f"theta({a},{b},{c}): ours={ours} ref={ref}"
-                    )
+                    assert ours == pytest.approx(
+                        ref, rel=1e-12, abs=1e-12
+                    ), f"theta({a},{b},{c}): ours={ours} ref={ref}"
 
     def test_theta_matches_reference_half_integer(self, ev):
         """
@@ -264,14 +265,14 @@ class TestThetaDeltaClosedForm:
     def test_theta_symmetric_under_argument_permutation(self, ev):
         """theta is totally symmetric in its three arguments."""
         import itertools
+
         for a, b, c in [(1, 2, 3), (0.5, 0.5, 1), (2, 2, 2), (1.5, 2.5, 2)]:
             values = {
-                combine(ev.theta_symbol(*p))
-                for p in itertools.permutations([a, b, c])
+                combine(ev.theta_symbol(*p)) for p in itertools.permutations([a, b, c])
             }
-            assert len(values) == 1 or max(values) - min(values) < 1e-9, (
-                f"theta not symmetric for ({a},{b},{c}): {values}"
-            )
+            assert (
+                len(values) == 1 or max(values) - min(values) < 1e-9
+            ), f"theta not symmetric for ({a},{b},{c}): {values}"
 
     def test_delta_matches_reference(self, ev):
         for j in half_integer_spins(20):
@@ -296,6 +297,7 @@ class TestThetaDeltaClosedForm:
 # --------------------------------------------------------------------------
 # 3. Algebraic identities, evaluated THROUGH the Sum() machinery
 # --------------------------------------------------------------------------
+
 
 class TestIdentitiesThroughFormulaEvaluator:
     """
@@ -326,9 +328,9 @@ class TestIdentitiesThroughFormulaEvaluator:
             expected = (1.0 / (2 * f + 1)) if f == fp else 0.0
             # Signed comparison: FormulaEvaluator preserves sign (abs() is
             # applied only at the norm boundary in src/api.py).
-            assert got == pytest.approx(expected, abs=1e-10), (
-                f"orthogonality f={f} f'={fp}: got {got}, expected {expected}"
-            )
+            assert got == pytest.approx(
+                expected, abs=1e-10
+            ), f"orthogonality f={f} f'={fp}: got {got}, expected {expected}"
 
     def test_6j_orthogonality_half_integer(self, formula_ev):
         """
@@ -371,6 +373,7 @@ class TestIdentitiesThroughFormulaEvaluator:
 # 4. Known-value spot checks from the literature
 # --------------------------------------------------------------------------
 
+
 class TestKnownValues:
     """
     Hand-checkable values. {1 1 1; 1 1 1} = 1/6 is the standard textbook
@@ -402,14 +405,15 @@ class TestKnownValues:
         for j in [0.5, 1.0, 1.5, 2.0, 3.0]:
             th = combine(ev.theta_symbol(j, j, 0))
             dl = combine(ev.delta_symbol(j))
-            assert th == pytest.approx(dl, rel=1e-12), (
-                f"theta({j},{j},0)={th} should equal Delta_{j}={dl}"
-            )
+            assert th == pytest.approx(
+                dl, rel=1e-12
+            ), f"theta({j},{j},0)={th} should equal Delta_{j}={dl}"
 
 
 # --------------------------------------------------------------------------
 # 4b. End-to-end pipeline: graph in, number out
 # --------------------------------------------------------------------------
+
 
 def _closed_theta_graph(labels=(1.0, 1.0, 2.0)):
     """Two vertices joined by three parallel edges. The simplest closed net."""
@@ -495,7 +499,7 @@ class TestPipelineEndToEnd:
         """
         g = nx.MultiGraph()
         for n in (1, 2, 3, 4):
-            g.add_edge(0, n, label=1.0)      # 4-valent centre
+            g.add_edge(0, n, label=1.0)  # 4-valent centre
         for n in (1, 2, 3, 4):
             g.add_edge(n, f"s{n}", label=1.0)  # open ends
 
@@ -512,15 +516,16 @@ class TestPipelineEndToEnd:
             ("tetrahedron", _tetrahedron({0: 0, 1: 1, 2: 2, 3: 3})),
         ]:
             term = reduce_all_cycles(glue_open_edges(graph))[0]
-            assert term["graph"].number_of_edges() == 0, (
-                f"{name}: {term['graph'].number_of_edges()} edges left over"
-            )
+            assert (
+                term["graph"].number_of_edges() == 0
+            ), f"{name}: {term['graph'].number_of_edges()} edges left over"
             assert len(term["coeffs"]) > 0
 
 
 # --------------------------------------------------------------------------
 # 5. Characterisation of the abs() wrapper
 # --------------------------------------------------------------------------
+
 
 class TestSignConvention:
     """
@@ -577,6 +582,7 @@ class TestSignConvention:
 # --------------------------------------------------------------------------
 # 6. Backend dispatch
 # --------------------------------------------------------------------------
+
 
 class TestBackendDispatch:
     """
@@ -672,9 +678,10 @@ class TestBackendDispatch:
         assert check("1.0 / Sum('F', 0.0, 9.0, lambda F: delta(F))") is False
         # Two independent top-level sums: which one runs first is not something
         # we want to depend on, so refuse.
-        assert check(
-            "Sum('A', 0.0, 9.0, lambda A: A) * Sum('B', 0.0, 9.0, lambda B: B)"
-        ) is False
+        assert (
+            check("Sum('A', 0.0, 9.0, lambda A: A) * Sum('B', 0.0, 9.0, lambda B: B)")
+            is False
+        )
         # No sum at all.
         assert check("theta(1,1,2)") is False
 
@@ -715,6 +722,7 @@ class TestBackendDispatch:
         assert _multiprocessing_is_usable() in (True, False)  # never raises
 
         import multiprocessing as mp
+
         if mp.get_start_method() == "fork":
             assert _multiprocessing_is_usable() is True
         else:
@@ -726,6 +734,7 @@ class TestBackendDispatch:
 # --------------------------------------------------------------------------
 # 7. F-move summation ranges
 # --------------------------------------------------------------------------
+
 
 class TestFMoveSummationRange:
     """
@@ -769,7 +778,7 @@ class TestFMoveSummationRange:
 
     def test_symbolic_bounds_use_the_same_pairing(self):
         """The symbolic branch must pair the same way as the numeric one."""
-        rng = f_range_with_symbolic("A", 1.0, 2.0, 3.0)   # a symbolic, b,d,c numeric
+        rng = f_range_with_symbolic("A", 1.0, 2.0, 3.0)  # a symbolic, b,d,c numeric
         assert rng["symbolic"] is True
         # b=1.0 with c=3.0, and a='A' with d=2.0
         assert "abs(1.0 - (3.0))" in rng["symbolic_Fmin"] or "2" in rng["symbolic_Fmin"]
@@ -781,14 +790,14 @@ class TestFMoveSummationRange:
         numeric pair must be emitted as its spin value.  b=2.0 with c=0.5 must
         give 1.5, not to_doubled -> 3.
         """
-        rng = f_range_with_symbolic("A", 2.0, 1.0, 0.5)   # b=2.0, c=0.5 numeric
+        rng = f_range_with_symbolic("A", 2.0, 1.0, 0.5)  # b=2.0, c=0.5 numeric
         assert "1.5" in rng["symbolic_Fmin"], (
             f"expected the spin-unit bound 1.5 in {rng['symbolic_Fmin']!r}; "
             "a doubled value here would be twice the symbolic side"
         )
-        assert "2.5" in rng["symbolic_Fmax"], (
-            f"expected the spin-unit sum 2.5 in {rng['symbolic_Fmax']!r}"
-        )
+        assert (
+            "2.5" in rng["symbolic_Fmax"]
+        ), f"expected the spin-unit sum 2.5 in {rng['symbolic_Fmax']!r}"
 
 
 class TestSummationRangeCompleteness:
@@ -805,8 +814,7 @@ class TestSummationRangeCompleteness:
     This is the test that would have caught the pairing bug on any graph.
     """
 
-    SPINS = dict(a=1.0, b=2.0, c=1.0, d=2.0, e=1.0,
-                 f=2.0, g=1.0, h=2.0, i=1.0, j=1.0)
+    SPINS = dict(a=1.0, b=2.0, c=1.0, d=2.0, e=1.0, f=2.0, g=1.0, h=2.0, i=1.0, j=1.0)
 
     def pentagon(self):
         """Five trivalent nodes in a ring, each with one open leg."""
@@ -835,11 +843,15 @@ class TestSummationRangeCompleteness:
     def norm_with_range(self, builder, wide):
         """Evaluate the norm, optionally forcing a deliberately wide F range."""
         import src.graph_reducer as graph_reducer
+
         original = graph_reducer.f_range_with_symbolic
         if wide:
             graph_reducer.f_range_with_symbolic = (
-                lambda a, b, d, c, known_ranges=None:
-                {"Fmin": 0, "Fmax": 40, "parity": 0}
+                lambda a, b, d, c, known_ranges=None: {
+                    "Fmin": 0,
+                    "Fmax": 40,
+                    "parity": 0,
+                }
             )
         try:
             return Graph(builder()).evaluate_symbolic().evaluate_numeric()

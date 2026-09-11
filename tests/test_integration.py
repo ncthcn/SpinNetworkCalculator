@@ -116,6 +116,7 @@ class TestLargeSpins(unittest.TestCase):
         result = ((-1.0) ** int(round(sign_exp))) * magnitude
 
         import math
+
         self.assertIsInstance(result, float)
         self.assertFalse(math.isinf(result))
         self.assertFalse(math.isnan(result))
@@ -127,6 +128,7 @@ class TestLargeSpins(unittest.TestCase):
         result = ((-1.0) ** int(round(sign_exp))) * magnitude
 
         import math
+
         self.assertIsInstance(result, float)
         # Δ_100 = (-1)^200 × 201 = +201
         self.assertGreater(result, 0)
@@ -134,5 +136,5 @@ class TestLargeSpins(unittest.TestCase):
         self.assertFalse(math.isinf(result))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

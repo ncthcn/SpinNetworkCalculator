@@ -34,9 +34,14 @@ import networkx as nx
 import math
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from src.utils import vertex_satisfies_triangular_conditions, parse_spin_label, is_numeric_label
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from src.utils import (
+    vertex_satisfies_triangular_conditions,
+    parse_spin_label,
+    is_numeric_label,
+)
 
 
 # -----------------------------------------------------------------------
@@ -66,8 +71,14 @@ class TransitionTool:
         self.create_toolbar(main_frame)
 
         # Create canvas
-        self.canvas = tk.Canvas(main_frame, width=900, height=650, bg="#f5f5f5",
-                                highlightthickness=1, highlightbackground="#cccccc")
+        self.canvas = tk.Canvas(
+            main_frame,
+            width=900,
+            height=650,
+            bg="#f5f5f5",
+            highlightthickness=1,
+            highlightbackground="#cccccc",
+        )
         self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # Create info panel
@@ -124,41 +135,88 @@ class TransitionTool:
         toolbar = tk.Frame(parent, bg="#2c3e50", pady=8, padx=10)
         toolbar.pack(side=tk.TOP, fill=tk.X)
 
-        title = tk.Label(toolbar, text="Transition Tool", font=("Arial", 16, "bold"),
-                        bg="#2c3e50", fg="white")
+        title = tk.Label(
+            toolbar,
+            text="Transition Tool",
+            font=("Arial", 16, "bold"),
+            bg="#2c3e50",
+            fg="white",
+        )
         title.pack(side=tk.LEFT, padx=10)
 
         util_frame = tk.Frame(toolbar, bg="#2c3e50")
         util_frame.pack(side=tk.RIGHT, padx=10)
 
-        load_btn = tk.Button(util_frame, text="Load Graph", width=12, height=1,
-                            command=self.load_graph_dialog, fg="black",
-                            font=("Arial", 10, "bold"), cursor="hand2")
+        load_btn = tk.Button(
+            util_frame,
+            text="Load Graph",
+            width=12,
+            height=1,
+            command=self.load_graph_dialog,
+            fg="black",
+            font=("Arial", 10, "bold"),
+            cursor="hand2",
+        )
         load_btn.grid(row=0, column=0, padx=3)
 
-        add_node_btn = tk.Button(util_frame, text="Add Node (N)", width=12, height=1,
-                                command=lambda: self.set_mode("add_node"), fg="black",
-                                font=("Arial", 10, "bold"), cursor="hand2")
+        add_node_btn = tk.Button(
+            util_frame,
+            text="Add Node (N)",
+            width=12,
+            height=1,
+            command=lambda: self.set_mode("add_node"),
+            fg="black",
+            font=("Arial", 10, "bold"),
+            cursor="hand2",
+        )
         add_node_btn.grid(row=0, column=1, padx=3)
 
-        add_edge_btn = tk.Button(util_frame, text="Add Edge (E)", width=12, height=1,
-                                command=lambda: self.set_mode("add_edge"), fg="black",
-                                font=("Arial", 10, "bold"), cursor="hand2")
+        add_edge_btn = tk.Button(
+            util_frame,
+            text="Add Edge (E)",
+            width=12,
+            height=1,
+            command=lambda: self.set_mode("add_edge"),
+            fg="black",
+            font=("Arial", 10, "bold"),
+            cursor="hand2",
+        )
         add_edge_btn.grid(row=0, column=2, padx=3)
 
-        connect_btn = tk.Button(util_frame, text="Reconnect (C)", width=12, height=1,
-                               command=self.connect_selected_nodes, fg="black",
-                               font=("Arial", 10, "bold"), cursor="hand2")
+        connect_btn = tk.Button(
+            util_frame,
+            text="Reconnect (C)",
+            width=12,
+            height=1,
+            command=self.connect_selected_nodes,
+            fg="black",
+            font=("Arial", 10, "bold"),
+            cursor="hand2",
+        )
         connect_btn.grid(row=0, column=3, padx=3)
 
-        undo_btn = tk.Button(util_frame, text="Undo (Z)", width=10, height=1,
-                           command=self.undo, fg="black",
-                           font=("Arial", 10, "bold"), cursor="hand2")
+        undo_btn = tk.Button(
+            util_frame,
+            text="Undo (Z)",
+            width=10,
+            height=1,
+            command=self.undo,
+            fg="black",
+            font=("Arial", 10, "bold"),
+            cursor="hand2",
+        )
         undo_btn.grid(row=0, column=4, padx=3)
 
-        save_btn = tk.Button(util_frame, text="Save (S)", width=12, height=1,
-                           command=self.save_and_exit, fg="black",
-                           font=("Arial", 10, "bold"), cursor="hand2")
+        save_btn = tk.Button(
+            util_frame,
+            text="Save (S)",
+            width=12,
+            height=1,
+            command=self.save_and_exit,
+            fg="black",
+            font=("Arial", 10, "bold"),
+            cursor="hand2",
+        )
         save_btn.grid(row=0, column=5, padx=3)
 
     def create_info_panel(self, parent):
@@ -167,46 +225,119 @@ class TransitionTool:
         info_frame.pack(side=tk.RIGHT, fill=tk.Y)
         info_frame.pack_propagate(False)
 
-        tk.Label(info_frame, text="Current Mode", font=("Arial", 12, "bold"),
-                bg="white", fg="#2c3e50").pack(pady=(10, 5))
+        tk.Label(
+            info_frame,
+            text="Current Mode",
+            font=("Arial", 12, "bold"),
+            bg="white",
+            fg="#2c3e50",
+        ).pack(pady=(10, 5))
 
-        self.mode_label = tk.Label(info_frame, text="Select", font=("Arial", 14),
-                                   bg="#ecf0f1", fg="#2c3e50", relief=tk.RAISED, bd=2,
-                                   width=25, height=2)
+        self.mode_label = tk.Label(
+            info_frame,
+            text="Select",
+            font=("Arial", 14),
+            bg="#ecf0f1",
+            fg="#2c3e50",
+            relief=tk.RAISED,
+            bd=2,
+            width=25,
+            height=2,
+        )
         self.mode_label.pack(padx=10, pady=5)
 
-        tk.Label(info_frame, text="Instructions", font=("Arial", 12, "bold"),
-                bg="white", fg="#2c3e50").pack(pady=(10, 5))
+        tk.Label(
+            info_frame,
+            text="Instructions",
+            font=("Arial", 12, "bold"),
+            bg="white",
+            fg="#2c3e50",
+        ).pack(pady=(10, 5))
 
-        self.instructions = tk.Text(info_frame, height=8, width=32, wrap=tk.WORD,
-                                   bg="#ecf0f1", fg="#2c3e50", font=("Arial", 9),
-                                   relief=tk.FLAT, padx=10, pady=10, state=tk.DISABLED)
+        self.instructions = tk.Text(
+            info_frame,
+            height=8,
+            width=32,
+            wrap=tk.WORD,
+            bg="#ecf0f1",
+            fg="#2c3e50",
+            font=("Arial", 9),
+            relief=tk.FLAT,
+            padx=10,
+            pady=10,
+            state=tk.DISABLED,
+        )
         self.instructions.pack(padx=10, pady=5)
 
-        tk.Label(info_frame, text="Graph Statistics", font=("Arial", 12, "bold"),
-                bg="white", fg="#2c3e50").pack(pady=(10, 5))
+        tk.Label(
+            info_frame,
+            text="Graph Statistics",
+            font=("Arial", 12, "bold"),
+            bg="white",
+            fg="#2c3e50",
+        ).pack(pady=(10, 5))
 
-        self.stats_label = tk.Label(info_frame, text="", font=("Arial", 10),
-                                   bg="#ecf0f1", fg="#2c3e50", relief=tk.RAISED,
-                                   bd=1, width=32, height=5, justify=tk.LEFT, padx=10)
+        self.stats_label = tk.Label(
+            info_frame,
+            text="",
+            font=("Arial", 10),
+            bg="#ecf0f1",
+            fg="#2c3e50",
+            relief=tk.RAISED,
+            bd=1,
+            width=32,
+            height=5,
+            justify=tk.LEFT,
+            padx=10,
+        )
         self.stats_label.pack(padx=10, pady=5)
 
-        tk.Label(info_frame, text="Added Edges (Green)", font=("Arial", 12, "bold"),
-                bg="white", fg="#2c3e50").pack(pady=(10, 5))
+        tk.Label(
+            info_frame,
+            text="Added Edges (Green)",
+            font=("Arial", 12, "bold"),
+            bg="white",
+            fg="#2c3e50",
+        ).pack(pady=(10, 5))
 
-        self.added_label = tk.Label(info_frame, text="None",
-                                    font=("Arial", 9), bg="#d4edda", fg="#155724",
-                                    relief=tk.RAISED, bd=1, width=32, height=4,
-                                    justify=tk.LEFT, padx=5, anchor="nw")
+        self.added_label = tk.Label(
+            info_frame,
+            text="None",
+            font=("Arial", 9),
+            bg="#d4edda",
+            fg="#155724",
+            relief=tk.RAISED,
+            bd=1,
+            width=32,
+            height=4,
+            justify=tk.LEFT,
+            padx=5,
+            anchor="nw",
+        )
         self.added_label.pack(padx=10, pady=5)
 
-        tk.Label(info_frame, text="Reconnections", font=("Arial", 12, "bold"),
-                bg="white", fg="#2c3e50").pack(pady=(10, 5))
+        tk.Label(
+            info_frame,
+            text="Reconnections",
+            font=("Arial", 12, "bold"),
+            bg="white",
+            fg="#2c3e50",
+        ).pack(pady=(10, 5))
 
-        self.reconnect_label = tk.Label(info_frame, text="None",
-                                        font=("Arial", 9), bg="#d1ecf1", fg="#0c5460",
-                                        relief=tk.RAISED, bd=1, width=32, height=4,
-                                        justify=tk.LEFT, padx=5, anchor="nw")
+        self.reconnect_label = tk.Label(
+            info_frame,
+            text="None",
+            font=("Arial", 9),
+            bg="#d1ecf1",
+            fg="#0c5460",
+            relief=tk.RAISED,
+            bd=1,
+            width=32,
+            height=4,
+            justify=tk.LEFT,
+            padx=5,
+            anchor="nw",
+        )
         self.reconnect_label.pack(padx=10, pady=5)
 
     def set_mode(self, mode):
@@ -221,7 +352,7 @@ class TransitionTool:
         filename = tk.filedialog.askopenfilename(
             title="Select GraphML file",
             filetypes=[("GraphML files", "*.graphml"), ("All files", "*.*")],
-            initialdir=os.getcwd()
+            initialdir=os.getcwd(),
         )
         if filename:
             self.load_graph(filename)
@@ -245,9 +376,9 @@ class TransitionTool:
             for node in loaded_graph.nodes():
                 node_id = int(node) if node.isdigit() else node
 
-                if 'x' in loaded_graph.nodes[node] and 'y' in loaded_graph.nodes[node]:
-                    x = float(loaded_graph.nodes[node]['x'])
-                    y = float(loaded_graph.nodes[node]['y'])
+                if "x" in loaded_graph.nodes[node] and "y" in loaded_graph.nodes[node]:
+                    x = float(loaded_graph.nodes[node]["x"])
+                    y = float(loaded_graph.nodes[node]["y"])
                 else:
                     pos = nx.spring_layout(loaded_graph, seed=42)
                     x, y = pos[node]
@@ -262,8 +393,10 @@ class TransitionTool:
                 u_id = int(u) if (isinstance(u, str) and u.isdigit()) else u
                 v_id = int(v) if (isinstance(v, str) and v.isdigit()) else v
 
-                raw_label = data.get('label', '?')
-                label = parse_spin_label(str(raw_label)) if raw_label != '?' else raw_label
+                raw_label = data.get("label", "?")
+                label = (
+                    parse_spin_label(str(raw_label)) if raw_label != "?" else raw_label
+                )
 
                 self.graph.add_edge(u_id, v_id, label=label, key=key, added=False)
 
@@ -275,7 +408,9 @@ class TransitionTool:
             self.redraw_all()
 
             print(f"✓ Loaded graph from {filepath}")
-            print(f"  Nodes: {len(self.graph.nodes())}, Edges: {len(self.graph.edges())}")
+            print(
+                f"  Nodes: {len(self.graph.nodes())}, Edges: {len(self.graph.edges())}"
+            )
 
         except Exception as e:
             tk.messagebox.showerror("Load Error", f"Failed to load graph:\n{e}")
@@ -289,7 +424,7 @@ class TransitionTool:
         open_edges = []
         for n1, n2, key, data in self.graph.edges(keys=True, data=True):
             if self.graph.degree(n1) < 3 or self.graph.degree(n2) < 3:
-                label = data.get('label', '?')
+                label = data.get("label", "?")
                 open_edges.append((n1, n2, key, label))
         return open_edges
 
@@ -304,7 +439,7 @@ class TransitionTool:
     def is_added_edge(self, n1, n2, key):
         """Check if edge was added (flagged)."""
         try:
-            return self.graph.edges[n1, n2, key].get('added', False)
+            return self.graph.edges[n1, n2, key].get("added", False)
         except KeyError:
             return False
 
@@ -337,7 +472,9 @@ class TransitionTool:
                     self.selected_nodes.append(clicked_node)
                 elif len(self.selected_nodes) == 1:
                     if clicked_node != self.selected_nodes[0]:
-                        self.add_edge_between_nodes(self.selected_nodes[0], clicked_node)
+                        self.add_edge_between_nodes(
+                            self.selected_nodes[0], clicked_node
+                        )
                     self.selected_nodes = []
                 self.update_display()
                 self.redraw_all()
@@ -361,11 +498,15 @@ class TransitionTool:
         """Add a new edge between two existing nodes."""
         # Check degree constraints
         if self.graph.degree(node1) >= 3:
-            tk.messagebox.showwarning("Invalid Edge", f"Node {node1} already has 3 edges!")
+            tk.messagebox.showwarning(
+                "Invalid Edge", f"Node {node1} already has 3 edges!"
+            )
             return
 
         if self.graph.degree(node2) >= 3:
-            tk.messagebox.showwarning("Invalid Edge", f"Node {node2} already has 3 edges!")
+            tk.messagebox.showwarning(
+                "Invalid Edge", f"Node {node2} already has 3 edges!"
+            )
             return
 
         # Get edge label
@@ -384,18 +525,14 @@ class TransitionTool:
             if not self.check_conditions(node1) or not self.check_conditions(node2):
                 tk.messagebox.showerror(
                     "Triangular Condition Violated",
-                    f"Edge with label {label} violates triangular inequality!\n" +
-                    f"For edges j₁, j₂, j₃ at a node: |j₁-j₂| ≤ j₃ ≤ j₁+j₂"
+                    f"Edge with label {label} violates triangular inequality!\n"
+                    + f"For edges j₁, j₂, j₃ at a node: |j₁-j₂| ≤ j₃ ≤ j₁+j₂",
                 )
                 self.undo()
                 return
 
         # Record as added edge
-        self.added_edges.append({
-            'nodes': (node1, node2),
-            'label': label,
-            'key': key
-        })
+        self.added_edges.append({"nodes": (node1, node2), "label": label, "key": key})
 
         print(f"✓ Added edge: {node1} --[{label}]-- {node2} (flagged)")
 
@@ -407,7 +544,7 @@ class TransitionTool:
             "  • Numeric:     1,  1/2,  1.5\n"
             "  • Symbol:      F_1,  a\n"
             "  • Expression:  a+2b,  (a+b)/2",
-            parent=self.master
+            parent=self.master,
         )
 
         if raw is None:
@@ -417,7 +554,9 @@ class TransitionTool:
 
         if isinstance(label, (int, float)):
             if label * 2 != int(label * 2):
-                tk.messagebox.showwarning("Invalid Label", "Numeric spin must be integer or half-integer!")
+                tk.messagebox.showwarning(
+                    "Invalid Label", "Numeric spin must be integer or half-integer!"
+                )
                 return None
 
         return label
@@ -447,9 +586,9 @@ class TransitionTool:
         if len(self.selected_nodes) != 2:
             tk.messagebox.showwarning(
                 "Selection Error",
-                "Please select exactly 2 open nodes to reconnect.\n" +
-                f"Currently selected: {len(self.selected_nodes)}\n\n" +
-                "Use Select mode and click on orange (open) nodes."
+                "Please select exactly 2 open nodes to reconnect.\n"
+                + f"Currently selected: {len(self.selected_nodes)}\n\n"
+                + "Use Select mode and click on orange (open) nodes.",
             )
             return
 
@@ -467,30 +606,32 @@ class TransitionTool:
         edge2 = edges2[0]
 
         # Extract labels
-        label1 = edge1[3].get('label', 1.0)
-        label2 = edge2[3].get('label', 1.0)
+        label1 = edge1[3].get("label", 1.0)
+        label2 = edge2[3].get("label", 1.0)
 
         # Find the "other" nodes (non-open endpoints)
         other_node1 = edge1[1] if edge1[0] == open_node1 else edge1[0]
         other_node2 = edge2[1] if edge2[0] == open_node2 else edge2[0]
 
         # Calculate admissible c values (only meaningful for numeric labels)
-        labels_are_symbolic = not (isinstance(label1, (int, float)) and
-                                   isinstance(label2, (int, float)))
+        labels_are_symbolic = not (
+            isinstance(label1, (int, float)) and isinstance(label2, (int, float))
+        )
         possible_values = (
             self.calculate_possible_values(label1, label2)
-            if not labels_are_symbolic else []
+            if not labels_are_symbolic
+            else []
         )
 
         prompt_suffix = (
             "Enter label for new open edge (numeric or symbolic):"
-            if labels_are_symbolic else
-            f"Admissible values: {possible_values}\nEnter label for new open edge:"
+            if labels_are_symbolic
+            else f"Admissible values: {possible_values}\nEnter label for new open edge:"
         )
         new_label = tk.simpledialog.askstring(
             "New Edge Label",
             f"Reconnecting edges with labels {label1} and {label2}.\n\n{prompt_suffix}",
-            parent=self.master
+            parent=self.master,
         )
 
         if new_label is None:
@@ -502,20 +643,31 @@ class TransitionTool:
             pass
 
         # Validate numeric labels against triangle inequality
-        if (not labels_are_symbolic and
-                isinstance(new_label, (int, float)) and
-                new_label not in possible_values):
+        if (
+            not labels_are_symbolic
+            and isinstance(new_label, (int, float))
+            and new_label not in possible_values
+        ):
             tk.messagebox.showerror(
                 "Invalid Label",
                 f"Label {new_label} is not admissible.\n"
                 f"Valid values: {possible_values}\n\n"
-                f"j₁+j₂+j₃ must be integer."
+                f"j₁+j₂+j₃ must be integer.",
             )
             return
 
         self.save_state("Reconnection")
-        self.perform_reconnection(open_node1, open_node2, other_node1, other_node2,
-                                  edge1, edge2, label1, label2, new_label)
+        self.perform_reconnection(
+            open_node1,
+            open_node2,
+            other_node1,
+            other_node2,
+            edge1,
+            edge2,
+            label1,
+            label2,
+            new_label,
+        )
 
         self.update_display()
         self.redraw_all()
@@ -523,8 +675,18 @@ class TransitionTool:
     # Physically rewires the graph: removes both open edges and their stub nodes,
     # creates a new trivalent reconnection node connected to other_node1/2 with
     # label1/2, and adds a new open edge with new_label.
-    def perform_reconnection(self, open_node1, open_node2, other_node1, other_node2,
-                            edge1, edge2, label1, label2, new_label):
+    def perform_reconnection(
+        self,
+        open_node1,
+        open_node2,
+        other_node1,
+        other_node2,
+        edge1,
+        edge2,
+        label1,
+        label2,
+        new_label,
+    ):
         """Perform the actual reconnection operation."""
         # Position for new reconnection node
         x1, y1 = self.nodes[open_node1]
@@ -561,16 +723,16 @@ class TransitionTool:
 
         # Record reconnection
         reconnection = {
-            'old_edges': [
-                {'nodes': (open_node1, other_node1), 'label': label1},
-                {'nodes': (open_node2, other_node2), 'label': label2}
+            "old_edges": [
+                {"nodes": (open_node1, other_node1), "label": label1},
+                {"nodes": (open_node2, other_node2), "label": label2},
             ],
-            'new_edge': {
-                'nodes': (new_node, external_node),
-                'label': new_label,
-                'reconnection_node': new_node
+            "new_edge": {
+                "nodes": (new_node, external_node),
+                "label": new_label,
+                "reconnection_node": new_node,
             },
-            'compute_all': False
+            "compute_all": False,
         }
         self.reconnections.append(reconnection)
         self.selected_nodes = []
@@ -596,7 +758,7 @@ class TransitionTool:
         wx, wy = self.screen_to_world(x, y)
         threshold = 15 / self.zoom_level
         for node, (nx, ny) in self.nodes.items():
-            dist = math.sqrt((wx - nx)**2 + (wy - ny)**2)
+            dist = math.sqrt((wx - nx) ** 2 + (wy - ny) ** 2)
             if dist < threshold:
                 return node
         return None
@@ -621,12 +783,12 @@ class TransitionTool:
         dx = x2 - x1
         dy = y2 - y1
         if dx == 0 and dy == 0:
-            return math.sqrt((px - x1)**2 + (py - y1)**2)
+            return math.sqrt((px - x1) ** 2 + (py - y1) ** 2)
 
         t = max(0, min(1, ((px - x1) * dx + (py - y1) * dy) / (dx**2 + dy**2)))
         proj_x = x1 + t * dx
         proj_y = y1 + t * dy
-        return math.sqrt((px - proj_x)**2 + (py - proj_y)**2)
+        return math.sqrt((px - proj_x) ** 2 + (py - proj_y) ** 2)
 
     def on_canvas_hover(self, event):
         """Handle mouse hover."""
@@ -642,11 +804,11 @@ class TransitionTool:
     def save_state(self, action):
         """Save current state for undo."""
         state = {
-            'graph': self.graph.copy(),
-            'nodes': self.nodes.copy(),
-            'added_edges': self.added_edges.copy(),
-            'reconnections': self.reconnections.copy(),
-            'action': action
+            "graph": self.graph.copy(),
+            "nodes": self.nodes.copy(),
+            "added_edges": self.added_edges.copy(),
+            "reconnections": self.reconnections.copy(),
+            "action": action,
         }
         self.history.append(state)
         if len(self.history) > 50:
@@ -659,10 +821,10 @@ class TransitionTool:
             return
 
         state = self.history.pop()
-        self.graph = state['graph']
-        self.nodes = state['nodes']
-        self.added_edges = state['added_edges']
-        self.reconnections = state['reconnections']
+        self.graph = state["graph"]
+        self.nodes = state["nodes"]
+        self.added_edges = state["added_edges"]
+        self.reconnections = state["reconnections"]
         self.selected_nodes = []
         self.update_display()
         self.redraw_all()
@@ -685,9 +847,9 @@ class TransitionTool:
     def on_mouse_wheel(self, event):
         """Handle mouse wheel for zooming."""
         mx, my = event.x, event.y
-        if event.num == 4 or (hasattr(event, 'delta') and event.delta > 0):
+        if event.num == 4 or (hasattr(event, "delta") and event.delta > 0):
             factor = 1.1
-        elif event.num == 5 or (hasattr(event, 'delta') and event.delta < 0):
+        elif event.num == 5 or (hasattr(event, "delta") and event.delta < 0):
             factor = 0.9
         else:
             return
@@ -733,22 +895,22 @@ class TransitionTool:
     def on_key_press(self, event):
         """Handle keyboard shortcuts."""
         # Check keysym for special keys like Escape
-        if event.keysym == 'Escape':
+        if event.keysym == "Escape":
             self.set_mode("select")
             return
 
-        key = event.char.lower() if event.char else ''
-        if key == 'n':
+        key = event.char.lower() if event.char else ""
+        if key == "n":
             self.set_mode("add_node")
-        elif key == 'e':
+        elif key == "e":
             self.set_mode("add_edge")
-        elif key == 'c':
+        elif key == "c":
             self.connect_selected_nodes()
-        elif key == 'z':
+        elif key == "z":
             self.undo()
-        elif key == 's':
+        elif key == "s":
             self.save_and_exit()
-        elif key == 'r':
+        elif key == "r":
             self.reset_view()
 
     def update_display(self):
@@ -766,24 +928,30 @@ class TransitionTool:
         self.instructions.config(state=tk.NORMAL)
         self.instructions.delete(1.0, tk.END)
         if self.mode == "select":
-            instr = ("Click orange (open) nodes to select\n"
-                    "Select 2 nodes then press C to reconnect\n\n"
-                    "Shortcuts: N=Add node, E=Add edge\n"
-                    "C=Reconnect, Z=Undo, S=Compute\n"
-                    "R=Reset view\n\n"
-                    "Zoom: Mouse wheel\n"
-                    "Pan: Shift+drag or middle-click")
+            instr = (
+                "Click orange (open) nodes to select\n"
+                "Select 2 nodes then press C to reconnect\n\n"
+                "Shortcuts: N=Add node, E=Add edge\n"
+                "C=Reconnect, Z=Undo, S=Compute\n"
+                "R=Reset view\n\n"
+                "Zoom: Mouse wheel\n"
+                "Pan: Shift+drag or middle-click"
+            )
         elif self.mode == "add_node":
-            instr = ("Click on empty space to add a node\n"
-                    "New nodes can be connected with edges\n\n"
-                    "Shortcuts: Esc=Select mode, R=Reset view\n\n"
-                    "Zoom: Mouse wheel\n"
-                    "Pan: Shift+drag or middle-click")
+            instr = (
+                "Click on empty space to add a node\n"
+                "New nodes can be connected with edges\n\n"
+                "Shortcuts: Esc=Select mode, R=Reset view\n\n"
+                "Zoom: Mouse wheel\n"
+                "Pan: Shift+drag or middle-click"
+            )
         elif self.mode == "add_edge":
-            instr = ("Click two nodes to add edge between them\n"
-                    "Added edges shown in GREEN\n"
-                    "Open edges auto-detected (orange)\n\n"
-                    "Shortcuts: Esc=Select mode, R=Reset view")
+            instr = (
+                "Click two nodes to add edge between them\n"
+                "Added edges shown in GREEN\n"
+                "Open edges auto-detected (orange)\n\n"
+                "Shortcuts: Esc=Select mode, R=Reset view"
+            )
         else:
             instr = ""
         self.instructions.insert(1.0, instr)
@@ -792,11 +960,11 @@ class TransitionTool:
         # Stats
         open_nodes = self.get_open_nodes()
         stats_text = (
-            f"Nodes: {len(self.graph.nodes())}\n" +
-            f"Edges: {len(self.graph.edges())}\n" +
-            f"Open Nodes: {len(open_nodes)}\n" +
-            f"Added Edges: {len(self.added_edges)}\n" +
-            f"Reconnections: {len(self.reconnections)}"
+            f"Nodes: {len(self.graph.nodes())}\n"
+            + f"Edges: {len(self.graph.edges())}\n"
+            + f"Open Nodes: {len(open_nodes)}\n"
+            + f"Added Edges: {len(self.added_edges)}\n"
+            + f"Reconnections: {len(self.reconnections)}"
         )
         self.stats_label.config(text=stats_text)
 
@@ -806,8 +974,8 @@ class TransitionTool:
         else:
             added_text = ""
             for e in self.added_edges[:5]:
-                n1, n2 = e['nodes']
-                label = e['label']
+                n1, n2 = e["nodes"]
+                label = e["label"]
                 added_text += f"{n1}--[{label}]--{n2}\n"
             if len(self.added_edges) > 5:
                 added_text += f"... and {len(self.added_edges)-5} more"
@@ -819,13 +987,13 @@ class TransitionTool:
         else:
             recon_text = ""
             for r in self.reconnections:
-                old1 = r['old_edges'][0]
-                old2 = r['old_edges'][1]
-                if r.get('compute_all', False):
+                old1 = r["old_edges"][0]
+                old2 = r["old_edges"][1]
+                if r.get("compute_all", False):
                     recon_text += f"{old1['label']}+{old2['label']} → ALL\n"
                 else:
-                    new = r.get('new_edge', {})
-                    new_label = new.get('label', '?')
+                    new = r.get("new_edge", {})
+                    new_label = new.get("label", "?")
                     recon_text += f"{old1['label']}+{old2['label']} → {new_label}\n"
             self.reconnect_label.config(text=recon_text)
 
@@ -844,9 +1012,9 @@ class TransitionTool:
             for n1, n2, key in self.graph.edges(keys=True):
                 if n1 in self.nodes and n2 in self.nodes:
                     edge_data = self.graph.edges[n1, n2, key]
-                    label = edge_data.get('label', '?')
+                    label = edge_data.get("label", "?")
 
-                    is_hover = (self.hover_edge == (n1, n2, key))
+                    is_hover = self.hover_edge == (n1, n2, key)
                     is_open = self.is_open_edge(n1, n2, key)
                     is_added = self.is_added_edge(n1, n2, key)
 
@@ -860,15 +1028,18 @@ class TransitionTool:
                 wx, wy = self.nodes[node_id]
                 is_open = self.is_open_node(node_id)
                 is_selected = node_id in self.selected_nodes
-                is_hover = (node_id == self.hover_node)
+                is_hover = node_id == self.hover_node
                 self.draw_node(node_id, wx, wy, is_open, is_selected, is_hover)
 
         # Display zoom level
         zoom_text = f"Zoom: {self.zoom_level:.1f}x (R to reset)"
-        self.canvas.create_text(10, 10, anchor="nw", text=zoom_text,
-                               font=("Arial", 9), fill="#666666")
+        self.canvas.create_text(
+            10, 10, anchor="nw", text=zoom_text, font=("Arial", 9), fill="#666666"
+        )
 
-    def draw_node(self, node_id, wx, wy, is_open=False, is_selected=False, is_hover=False):
+    def draw_node(
+        self, node_id, wx, wy, is_open=False, is_selected=False, is_hover=False
+    ):
         """Draw a node (wx, wy are world coordinates)."""
         # Transform to screen coordinates
         sx, sy = self.world_to_screen(wx, wy)
@@ -891,11 +1062,23 @@ class TransitionTool:
             outline = "#34495e"
             width = 2
 
-        self.canvas.create_oval(sx-radius, sy-radius, sx+radius, sy+radius,
-                               fill=fill, outline=outline, width=width)
+        self.canvas.create_oval(
+            sx - radius,
+            sy - radius,
+            sx + radius,
+            sy + radius,
+            fill=fill,
+            outline=outline,
+            width=width,
+        )
         font_size = max(7, int(9 * self.zoom_level))
-        self.canvas.create_text(sx, sy, text=str(node_id), font=("Arial", font_size, "bold"),
-                               fill="white" if (is_selected or is_open or is_hover) else "#2c3e50")
+        self.canvas.create_text(
+            sx,
+            sy,
+            text=str(node_id),
+            font=("Arial", font_size, "bold"),
+            fill="white" if (is_selected or is_open or is_hover) else "#2c3e50",
+        )
 
     def draw_edge(self, node1, node2, key, label, is_hover, is_open, is_added):
         """Draw an edge (uses world coordinates internally)."""
@@ -926,12 +1109,25 @@ class TransitionTool:
         # Label
         lx, ly = (sx1 + sx2) / 2, (sy1 + sy2) / 2
         font_size = max(7, int(10 * self.zoom_level))
-        bbox = self.canvas.bbox(self.canvas.create_text(lx, ly, text=str(label), font=("Arial", font_size, "bold")))
+        bbox = self.canvas.bbox(
+            self.canvas.create_text(
+                lx, ly, text=str(label), font=("Arial", font_size, "bold")
+            )
+        )
         if bbox:
             bg_color = "#d4edda" if is_added else "#f5f5f5"
-            self.canvas.create_rectangle(bbox[0]-2, bbox[1]-2, bbox[2]+2, bbox[3]+2, fill=bg_color, outline="")
+            self.canvas.create_rectangle(
+                bbox[0] - 2,
+                bbox[1] - 2,
+                bbox[2] + 2,
+                bbox[3] + 2,
+                fill=bg_color,
+                outline="",
+            )
         text_color = "#155724" if is_added else "#c0392b"
-        self.canvas.create_text(lx, ly, text=str(label), font=("Arial", font_size, "bold"), fill=text_color)
+        self.canvas.create_text(
+            lx, ly, text=str(label), font=("Arial", font_size, "bold"), fill=text_color
+        )
 
     def save_and_exit(self):
         """Save the modified graph and structural metadata, then close.
@@ -948,7 +1144,7 @@ class TransitionTool:
             tk.messagebox.showwarning(
                 "Nothing to Save",
                 "No modifications were made.\n\n"
-                "Add edges (E) or perform reconnections (C) first."
+                "Add edges (E) or perform reconnections (C) first.",
             )
             return
 
@@ -960,7 +1156,7 @@ class TransitionTool:
                 title="Save Transition Graph",
                 defaultextension=".graphml",
                 filetypes=[("GraphML files", "*.graphml"), ("All files", "*.*")],
-                initialfile="transition_to_graph.graphml"
+                initialfile="transition_to_graph.graphml",
             )
             if not filename:
                 return
@@ -974,7 +1170,7 @@ class TransitionTool:
                     graph_copy.nodes[node][key] = str(value)
         for u, v, key, attrs in graph_copy.edges(keys=True, data=True):
             for k, value in list(attrs.items()):
-                if isinstance(value, tuple) or hasattr(value, 'free_symbols'):
+                if isinstance(value, tuple) or hasattr(value, "free_symbols"):
                     graph_copy.edges[u, v, key][k] = str(value)
 
         nx.write_graphml(graph_copy, filename)
@@ -986,31 +1182,35 @@ class TransitionTool:
             return list(obj) if isinstance(obj, tuple) else obj
 
         metadata = {
-            'original_file': self.input_file,
-            'new_file': filename,
-            'added_edges': [
-                {k: _serialize(v) for k, v in e.items()}
-                for e in self.added_edges
+            "original_file": self.input_file,
+            "new_file": filename,
+            "added_edges": [
+                {k: _serialize(v) for k, v in e.items()} for e in self.added_edges
             ],
-            'reconnections': [
-                {k: _serialize(v) if not isinstance(v, dict) else
-                    {kk: _serialize(vv) for kk, vv in v.items()}
-                 for k, v in r.items()}
+            "reconnections": [
+                {
+                    k: (
+                        _serialize(v)
+                        if not isinstance(v, dict)
+                        else {kk: _serialize(vv) for kk, vv in v.items()}
+                    )
+                    for k, v in r.items()
+                }
                 for r in self.reconnections
             ],
         }
 
-        json_path = filename.replace('.graphml', '_transition.json')
-        with open(json_path, 'w') as fh:
+        json_path = filename.replace(".graphml", "_transition.json")
+        with open(json_path, "w") as fh:
             json.dump(metadata, fh, indent=2, default=str)
 
         print(f"✓ Saved modified graph to {filename}")
         self.master.destroy()
 
 
-
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="Spin network transition tool")
     parser.add_argument("input_file", nargs="?", help="Input .graphml file")
     args = parser.parse_args()

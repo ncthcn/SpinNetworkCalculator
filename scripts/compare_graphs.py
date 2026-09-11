@@ -30,7 +30,8 @@ This is used to compute transition probabilities between spin network states.
 
 import os
 import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import argparse
 import json
@@ -60,7 +61,10 @@ def load_graph_from_file(file_path):
     pos = nx.kamada_kawai_layout(graph)
     for node in graph.nodes:
         if "x" in graph.nodes[node] and "y" in graph.nodes[node]:
-            graph.nodes[node]["pos"] = (float(graph.nodes[node]["x"]), float(graph.nodes[node]["y"]))
+            graph.nodes[node]["pos"] = (
+                float(graph.nodes[node]["x"]),
+                float(graph.nodes[node]["y"]),
+            )
         else:
             graph.nodes[node]["pos"] = pos[node]
 
@@ -137,7 +141,7 @@ def extract_flagged_info(flagged_file):
         return None
 
     data = {}
-    with open(flagged_file, 'r') as f:
+    with open(flagged_file, "r") as f:
         lines = f.readlines()
 
     for line in lines:
@@ -145,18 +149,18 @@ def extract_flagged_info(flagged_file):
         if line.startswith("Edge nodes:"):
             # Parse tuple string
             nodes_str = line.split(":", 1)[1].strip()
-            data['edge_nodes'] = eval(nodes_str)
+            data["edge_nodes"] = eval(nodes_str)
         elif line.startswith("Edge label:"):
             label_str = line.split(":", 1)[1].strip()
             try:
-                data['edge_label'] = float(label_str)
+                data["edge_label"] = float(label_str)
             except:
-                data['edge_label'] = label_str
+                data["edge_label"] = label_str
         elif line.startswith("Vertex ID:"):
-            data['vertex_id'] = int(line.split(":", 1)[1].strip())
+            data["vertex_id"] = int(line.split(":", 1)[1].strip())
         elif line.startswith("Other edge labels:"):
             labels_str = line.split(":", 1)[1].strip()
-            data['other_edge_labels'] = eval(labels_str)
+            data["other_edge_labels"] = eval(labels_str)
 
     return data
 
@@ -202,28 +206,20 @@ def compute_delta_product(labels):
 def main():
     parser = argparse.ArgumentParser(
         description="Compare two spin network graphs and compute transition data",
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument(
-        "input_file",
-        help="Input .graphml file (original graph)"
-    )
+    parser.add_argument("input_file", help="Input .graphml file (original graph)")
     parser.add_argument(
         "--output",
         "-o",
         default="modified_graph.graphml",
-        help="Output filename for modified graph (default: modified_graph.graphml)"
+        help="Output filename for modified graph (default: modified_graph.graphml)",
     )
     parser.add_argument(
-        "--quiet",
-        "-q",
-        action="store_true",
-        help="Suppress intermediate output"
+        "--quiet", "-q", action="store_true", help="Suppress intermediate output"
     )
     parser.add_argument(
-        "--skip-gui",
-        action="store_true",
-        help="Skip GUI (use existing modified graph)"
+        "--skip-gui", action="store_true", help="Skip GUI (use existing modified graph)"
     )
 
     args = parser.parse_args()
@@ -232,9 +228,9 @@ def main():
         print(f"Error: Input file '{args.input_file}' not found.")
         sys.exit(1)
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("SPIN NETWORK GRAPH COMPARISON WORKFLOW")
-    print("="*70)
+    print("=" * 70)
 
     # Step 1: Compute original norm
     print("\n[STEP 1] Computing original graph norm...")
@@ -264,7 +260,7 @@ def main():
 
     # Step 4: Extract flagged edge data
     print("\n[STEP 4] Extracting flagged edge information...")
-    flagged_file = args.output.replace('.graphml', '_flagged.txt')
+    flagged_file = args.output.replace(".graphml", "_flagged.txt")
     flagged_data = extract_flagged_info(flagged_file)
 
     if flagged_data is None:
@@ -278,17 +274,24 @@ def main():
     theta_ratio = None
     delta_ratio = None
 
-    if 'other_edge_labels' in flagged_data and len(flagged_data['other_edge_labels']) >= 2:
+    if (
+        "other_edge_labels" in flagged_data
+        and len(flagged_data["other_edge_labels"]) >= 2
+    ):
         try:
             # Get all three labels at the vertex (flagged + 2 others)
-            all_labels = [flagged_data['edge_label']] + flagged_data['other_edge_labels'][:2]
+            all_labels = [flagged_data["edge_label"]] + flagged_data[
+                "other_edge_labels"
+            ][:2]
 
             # Compute theta
             theta_val = compute_theta_product(all_labels)
-            print(f"  Theta({all_labels[0]}, {all_labels[1]}, {all_labels[2]}) = {theta_val}")
+            print(
+                f"  Theta({all_labels[0]}, {all_labels[1]}, {all_labels[2]}) = {theta_val}"
+            )
 
             # Compute delta for flagged edge
-            delta_val = compute_delta_product([flagged_data['edge_label']])
+            delta_val = compute_delta_product([flagged_data["edge_label"]])
             print(f"  Delta({flagged_data['edge_label']}) = {delta_val}")
 
             # For transition probability: ratio involves these coefficients
@@ -299,21 +302,25 @@ def main():
             print(f"  ⚠ Error computing coefficients: {e}")
 
     # Step 6: Display results
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("COMPARISON RESULTS")
-    print("="*70)
+    print("=" * 70)
     print(f"\nOriginal Graph: {args.input_file}")
     print(f"  Norm = {original_norm}")
     print(f"\nModified Graph: {args.output}")
     print(f"  Norm = {modified_norm}")
-    print(f"\nNorm Ratio: {modified_norm / original_norm if original_norm != 0 else 'undefined'}")
+    print(
+        f"\nNorm Ratio: {modified_norm / original_norm if original_norm != 0 else 'undefined'}"
+    )
 
     if flagged_data:
         print(f"\nFlagged Edge:")
         print(f"  Nodes: {flagged_data.get('edge_nodes', 'N/A')}")
         print(f"  Label: {flagged_data.get('edge_label', 'N/A')}")
         print(f"  Vertex: {flagged_data.get('vertex_id', 'N/A')}")
-        print(f"  Other labels at vertex: {flagged_data.get('other_edge_labels', 'N/A')}")
+        print(
+            f"  Other labels at vertex: {flagged_data.get('other_edge_labels', 'N/A')}"
+        )
 
         if theta_ratio is not None:
             print(f"\nCoefficients:")
@@ -321,23 +328,25 @@ def main():
             print(f"  Delta = {delta_ratio}")
 
     # Save results to JSON
-    results_file = args.output.replace('.graphml', '_comparison.json')
+    results_file = args.output.replace(".graphml", "_comparison.json")
     results = {
-        'original_file': args.input_file,
-        'modified_file': args.output,
-        'original_norm': float(original_norm),
-        'modified_norm': float(modified_norm),
-        'norm_ratio': float(modified_norm / original_norm) if original_norm != 0 else None,
-        'flagged_edge': flagged_data,
-        'theta': float(theta_ratio) if theta_ratio is not None else None,
-        'delta': float(delta_ratio) if delta_ratio is not None else None
+        "original_file": args.input_file,
+        "modified_file": args.output,
+        "original_norm": float(original_norm),
+        "modified_norm": float(modified_norm),
+        "norm_ratio": (
+            float(modified_norm / original_norm) if original_norm != 0 else None
+        ),
+        "flagged_edge": flagged_data,
+        "theta": float(theta_ratio) if theta_ratio is not None else None,
+        "delta": float(delta_ratio) if delta_ratio is not None else None,
     }
 
-    with open(results_file, 'w') as f:
+    with open(results_file, "w") as f:
         json.dump(results, f, indent=2)
 
     print(f"\n✓ Results saved to: {results_file}")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     # Return results for programmatic use
     return results

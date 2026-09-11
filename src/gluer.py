@@ -31,6 +31,7 @@ import copy
 # The result is a closed trivalent graph called the "theta graph" (for a
 # simple two-legged network it literally becomes a theta shape).
 
+
 def glue_open_edges(graph, offset=10):
     G1 = copy.deepcopy(graph)
     G2 = copy.deepcopy(graph)

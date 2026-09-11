@@ -108,7 +108,9 @@ def _vertex_matching(graph, orientation=None):
     """
     match = {}
     for node in graph.nodes():
-        incident = [(u, v, k, d) for u, v, k, d in graph.edges(node, keys=True, data=True)]
+        incident = [
+            (u, v, k, d) for u, v, k, d in graph.edges(node, keys=True, data=True)
+        ]
         if orientation is not None and node in orientation:
             # Re-order this vertex's incident edges into the caller's cyclic
             # order, so the sign convention is explicit rather than whatever
@@ -175,7 +177,9 @@ def evaluate(graph, normalise=False, loop_value=-2.0, orientation=None):
     -------
     float
     """
-    edges = [(u, v, k, float(d["label"])) for u, v, k, d in graph.edges(keys=True, data=True)]
+    edges = [
+        (u, v, k, float(d["label"])) for u, v, k, d in graph.edges(keys=True, data=True)
+    ]
     for node, deg in graph.degree():
         if deg != 3:
             raise ValueError(f"node {node!r} has degree {deg}; expected 3")
@@ -214,7 +218,7 @@ def evaluate(graph, normalise=False, loop_value=-2.0, orientation=None):
                     break
             loops += 1
 
-        total += sign * (loop_value ** loops)
+        total += sign * (loop_value**loops)
 
     if normalise:
         for w in widths:

@@ -21,7 +21,8 @@ import networkx as nx
 import math
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.utils import vertex_satisfies_triangular_conditions, parse_spin_label
 from src.orientation import set_reference_orientation, calculate_layout_phase
@@ -56,7 +57,14 @@ class GraphEditor:
         self.create_toolbar(main_frame)
 
         # Create canvas
-        self.canvas = tk.Canvas(main_frame, width=900, height=650, bg="#f5f5f5", highlightthickness=1, highlightbackground="#cccccc")
+        self.canvas = tk.Canvas(
+            main_frame,
+            width=900,
+            height=650,
+            bg="#f5f5f5",
+            highlightthickness=1,
+            highlightbackground="#cccccc",
+        )
         self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # Create info panel
@@ -64,13 +72,15 @@ class GraphEditor:
 
         # Graph data
         self.graph = nx.MultiGraph()
-        self.graph.graph['phase'] = complex(1)  # cumulative orientation phase
+        self.graph.graph["phase"] = complex(1)  # cumulative orientation phase
         self.nodes = {}  # {node_id: (x, y)}
         self.node_graphics = {}  # {node_id: [oval_id, text_id]}
         self.edge_graphics = {}  # {(node1, node2, key): [line_ids, label_id]}
 
         # Editor state
-        self.mode = "add_node"  # Modes: add_node, add_edge, delete_node, delete_edge, move_node
+        self.mode = (
+            "add_node"  # Modes: add_node, add_edge, delete_node, delete_edge, move_node
+        )
         self.selected_node = None
         self.dragging_node = None
         self.hover_node = None
@@ -94,11 +104,11 @@ class GraphEditor:
 
         # Zoom bindings (mouse wheel)
         self.canvas.bind("<MouseWheel>", self.on_mouse_wheel)  # Windows/Mac
-        self.canvas.bind("<Button-4>", self.on_mouse_wheel)    # Linux scroll up
-        self.canvas.bind("<Button-5>", self.on_mouse_wheel)    # Linux scroll down
+        self.canvas.bind("<Button-4>", self.on_mouse_wheel)  # Linux scroll up
+        self.canvas.bind("<Button-5>", self.on_mouse_wheel)  # Linux scroll down
 
         # Pan bindings (middle mouse button or Shift+drag)
-        self.canvas.bind("<Button-2>", self.on_pan_start)      # Middle click
+        self.canvas.bind("<Button-2>", self.on_pan_start)  # Middle click
         self.canvas.bind("<B2-Motion>", self.on_pan_motion)
         self.canvas.bind("<ButtonRelease-2>", self.on_pan_end)
         self.canvas.bind("<Shift-Button-1>", self.on_pan_start)
@@ -119,27 +129,53 @@ class GraphEditor:
         toolbar.pack(side=tk.TOP, fill=tk.X)
 
         # Title
-        title = tk.Label(toolbar, text="Spin Network Editor", font=("Arial", 16, "bold"),
-                        bg="#2c3e50", fg="white")
+        title = tk.Label(
+            toolbar,
+            text="Spin Network Editor",
+            font=("Arial", 16, "bold"),
+            bg="#2c3e50",
+            fg="white",
+        )
         title.pack(side=tk.LEFT, padx=10)
 
         # Just essential utility buttons on the right
         util_frame = tk.Frame(toolbar, bg="#2c3e50")
         util_frame.pack(side=tk.RIGHT, padx=10)
 
-        undo_btn = tk.Button(util_frame, text="↶ Undo (Z)", width=12, height=1,
-                           command=self.undo, fg="black",
-                           font=("Arial", 10, "bold"), cursor="hand2")
+        undo_btn = tk.Button(
+            util_frame,
+            text="↶ Undo (Z)",
+            width=12,
+            height=1,
+            command=self.undo,
+            fg="black",
+            font=("Arial", 10, "bold"),
+            cursor="hand2",
+        )
         undo_btn.grid(row=0, column=0, padx=3)
 
-        clear_btn = tk.Button(util_frame, text="Clear All", width=12, height=1,
-                            command=self.clear_all, fg="black",
-                            font=("Arial", 10, "bold"), cursor="hand2")
+        clear_btn = tk.Button(
+            util_frame,
+            text="Clear All",
+            width=12,
+            height=1,
+            command=self.clear_all,
+            fg="black",
+            font=("Arial", 10, "bold"),
+            cursor="hand2",
+        )
         clear_btn.grid(row=0, column=1, padx=3)
 
-        save_btn = tk.Button(util_frame, text="Save & Exit", width=12, height=1,
-                           command=self.save_graph, fg="black",
-                           font=("Arial", 10, "bold"), cursor="hand2")
+        save_btn = tk.Button(
+            util_frame,
+            text="Save & Exit",
+            width=12,
+            height=1,
+            command=self.save_graph,
+            fg="black",
+            font=("Arial", 10, "bold"),
+            cursor="hand2",
+        )
         save_btn.grid(row=0, column=2, padx=3)
 
         # Store empty dict for mode_buttons to avoid errors
@@ -152,49 +188,116 @@ class GraphEditor:
         info_frame.pack_propagate(False)
 
         # Mode info
-        tk.Label(info_frame, text="Current Mode", font=("Arial", 12, "bold"),
-                bg="white", fg="#2c3e50").pack(pady=(10, 5))
+        tk.Label(
+            info_frame,
+            text="Current Mode",
+            font=("Arial", 12, "bold"),
+            bg="white",
+            fg="#2c3e50",
+        ).pack(pady=(10, 5))
 
-        self.mode_label = tk.Label(info_frame, text="Add Node", font=("Arial", 14),
-                                   bg="#ecf0f1", fg="#2c3e50", relief=tk.RAISED, bd=2,
-                                   width=20, height=2)
+        self.mode_label = tk.Label(
+            info_frame,
+            text="Add Node",
+            font=("Arial", 14),
+            bg="#ecf0f1",
+            fg="#2c3e50",
+            relief=tk.RAISED,
+            bd=2,
+            width=20,
+            height=2,
+        )
         self.mode_label.pack(padx=10, pady=5)
 
         # Instructions
-        tk.Label(info_frame, text="Instructions", font=("Arial", 12, "bold"),
-                bg="white", fg="#2c3e50").pack(pady=(20, 5))
+        tk.Label(
+            info_frame,
+            text="Instructions",
+            font=("Arial", 12, "bold"),
+            bg="white",
+            fg="#2c3e50",
+        ).pack(pady=(20, 5))
 
-        self.instructions = tk.Text(info_frame, height=15, width=28, wrap=tk.WORD,
-                                   bg="#ecf0f1", fg="#2c3e50", font=("Arial", 10),
-                                   relief=tk.FLAT, padx=10, pady=10, state=tk.DISABLED)
+        self.instructions = tk.Text(
+            info_frame,
+            height=15,
+            width=28,
+            wrap=tk.WORD,
+            bg="#ecf0f1",
+            fg="#2c3e50",
+            font=("Arial", 10),
+            relief=tk.FLAT,
+            padx=10,
+            pady=10,
+            state=tk.DISABLED,
+        )
         self.instructions.pack(padx=10, pady=5)
 
         # Graph info
-        tk.Label(info_frame, text="Graph Statistics", font=("Arial", 12, "bold"),
-                bg="white", fg="#2c3e50").pack(pady=(20, 5))
+        tk.Label(
+            info_frame,
+            text="Graph Statistics",
+            font=("Arial", 12, "bold"),
+            bg="white",
+            fg="#2c3e50",
+        ).pack(pady=(20, 5))
 
-        self.stats_label = tk.Label(info_frame, text="Nodes: 0\nEdges: 0",
-                                   font=("Arial", 11), bg="#ecf0f1", fg="#2c3e50",
-                                   relief=tk.RAISED, bd=1, width=20, height=3,
-                                   justify=tk.LEFT, padx=10)
+        self.stats_label = tk.Label(
+            info_frame,
+            text="Nodes: 0\nEdges: 0",
+            font=("Arial", 11),
+            bg="#ecf0f1",
+            fg="#2c3e50",
+            relief=tk.RAISED,
+            bd=1,
+            width=20,
+            height=3,
+            justify=tk.LEFT,
+            padx=10,
+        )
         self.stats_label.pack(padx=10, pady=5)
 
         # Graph phase display
-        tk.Label(info_frame, text="Graph Phase", font=("Arial", 12, "bold"),
-                bg="white", fg="#2c3e50").pack(pady=(20, 5))
+        tk.Label(
+            info_frame,
+            text="Graph Phase",
+            font=("Arial", 12, "bold"),
+            bg="white",
+            fg="#2c3e50",
+        ).pack(pady=(20, 5))
 
-        self.phase_label = tk.Label(info_frame, text="phase: N/A",
-                                    font=("Arial", 11), bg="#ecf0f1", fg="#2c3e50",
-                                    relief=tk.RAISED, bd=1, width=20, height=2)
+        self.phase_label = tk.Label(
+            info_frame,
+            text="phase: N/A",
+            font=("Arial", 11),
+            bg="#ecf0f1",
+            fg="#2c3e50",
+            relief=tk.RAISED,
+            bd=1,
+            width=20,
+            height=2,
+        )
         self.phase_label.pack(padx=10, pady=5)
 
         # Edge curvature slider
-        tk.Label(info_frame, text="Edge Curvature", font=("Arial", 11, "bold"),
-                bg="white", fg="#2c3e50").pack(pady=(20, 5))
+        tk.Label(
+            info_frame,
+            text="Edge Curvature",
+            font=("Arial", 11, "bold"),
+            bg="white",
+            fg="#2c3e50",
+        ).pack(pady=(20, 5))
 
-        self.curvature_slider = tk.Scale(info_frame, from_=0, to=150, orient=tk.HORIZONTAL,
-                                        bg="white", highlightthickness=0, length=200,
-                                        command=self.on_curvature_change)
+        self.curvature_slider = tk.Scale(
+            info_frame,
+            from_=0,
+            to=150,
+            orient=tk.HORIZONTAL,
+            bg="white",
+            highlightthickness=0,
+            length=200,
+            command=self.on_curvature_change,
+        )
         self.curvature_slider.set(50)
         self.curvature_slider.pack(padx=10, pady=5)
 
@@ -209,10 +312,26 @@ class GraphEditor:
         """Update UI to reflect current mode."""
         mode_info = {
             "add_node": ("Add Node", "Click anywhere to add a node", "#27ae60"),
-            "add_edge": ("Add Edge", "1. Click first node (it will turn blue)\n2. Click second node\n3. Enter spin value", "#3498db"),
-            "move_node": ("Move Node", "Click and HOLD, then drag a node to move it", "#f39c12"),
-            "delete_node": ("Delete Node", "Click a node to delete it.\nConnected edges will be removed.", "#95a5a6"),
-            "delete_edge": ("Delete Edge", "Click near an edge to delete it\n(edges turn red when hovering)", "#7f8c8d"),
+            "add_edge": (
+                "Add Edge",
+                "1. Click first node (it will turn blue)\n2. Click second node\n3. Enter spin value",
+                "#3498db",
+            ),
+            "move_node": (
+                "Move Node",
+                "Click and HOLD, then drag a node to move it",
+                "#f39c12",
+            ),
+            "delete_node": (
+                "Delete Node",
+                "Click a node to delete it.\nConnected edges will be removed.",
+                "#95a5a6",
+            ),
+            "delete_edge": (
+                "Delete Edge",
+                "Click near an edge to delete it\n(edges turn red when hovering)",
+                "#7f8c8d",
+            ),
         }
 
         title, instructions, color = mode_info[self.mode]
@@ -220,15 +339,19 @@ class GraphEditor:
 
         self.instructions.config(state=tk.NORMAL)
         self.instructions.delete(1.0, tk.END)
-        self.instructions.insert(1.0, instructions + "\n\n" +
-                               "Keyboard Shortcuts:\n" +
-                               "N - Add Node\n" +
-                               "E - Add Edge\n" +
-                               "M - Move Node\n" +
-                               "D - Delete Node\n" +
-                               "X - Delete Edge\n" +
-                               "Z - Undo\n" +
-                               "S - Save & Exit")
+        self.instructions.insert(
+            1.0,
+            instructions
+            + "\n\n"
+            + "Keyboard Shortcuts:\n"
+            + "N - Add Node\n"
+            + "E - Add Edge\n"
+            + "M - Move Node\n"
+            + "D - Delete Node\n"
+            + "X - Delete Edge\n"
+            + "Z - Undo\n"
+            + "S - Save & Exit",
+        )
         self.instructions.config(state=tk.DISABLED)
 
     def update_stats(self):
@@ -241,15 +364,15 @@ class GraphEditor:
         """Recompute graph phase from current node positions and store it."""
         layout = {v: self.nodes[v] for v in self.graph.nodes() if v in self.nodes}
         phase = calculate_layout_phase(self.graph, layout)
-        self.graph.graph['phase'] = phase
+        self.graph.graph["phase"] = phase
         self.update_phase_display()
 
     def update_phase_display(self):
         """Refresh the phase label in the info panel."""
-        phase = self.graph.graph.get('phase', None)
+        phase = self.graph.graph.get("phase", None)
         # Only show a numeric value if at least one vertex has a reference orientation.
         has_ref = any(
-            self.graph.nodes[v].get('reference_orientation') is not None
+            self.graph.nodes[v].get("reference_orientation") is not None
             for v in self.graph.nodes()
         )
         if phase is None or not has_ref:
@@ -264,21 +387,21 @@ class GraphEditor:
     def on_key_press(self, event):
         """Handle keyboard shortcuts."""
         key = event.char.lower()
-        if key == 'n':
+        if key == "n":
             self.set_mode("add_node")
-        elif key == 'e':
+        elif key == "e":
             self.set_mode("add_edge")
-        elif key == 'm':
+        elif key == "m":
             self.set_mode("move_node")
-        elif key == 'd':
+        elif key == "d":
             self.set_mode("delete_node")
-        elif key == 'x':
+        elif key == "x":
             self.set_mode("delete_edge")
-        elif key == 'z':
+        elif key == "z":
             self.undo()
-        elif key == 's':
+        elif key == "s":
             self.save_graph()
-        elif key == 'r':
+        elif key == "r":
             self.reset_view()
 
     def on_canvas_click(self, event):
@@ -323,7 +446,7 @@ class GraphEditor:
         if self.mode == "move_node" and self.dragging_node is not None:
             wx, wy = self.screen_to_world(event.x, event.y)
             self.nodes[self.dragging_node] = (wx, wy)
-            self.graph.nodes[self.dragging_node]['pos'] = (wx, wy)
+            self.graph.nodes[self.dragging_node]["pos"] = (wx, wy)
             self._recompute_phase()  # live phase update
             self.redraw_all()
 
@@ -353,7 +476,7 @@ class GraphEditor:
         wx, wy = self.screen_to_world(x, y)
         threshold = 15 / self.zoom_level  # Adjust threshold for zoom
         for node_id, (nx, ny) in self.nodes.items():
-            if (wx - nx)**2 + (wy - ny)**2 <= threshold**2:
+            if (wx - nx) ** 2 + (wy - ny) ** 2 <= threshold**2:
                 return node_id
         return None
 
@@ -376,12 +499,12 @@ class GraphEditor:
         dx = x2 - x1
         dy = y2 - y1
         if dx == 0 and dy == 0:
-            return math.sqrt((px - x1)**2 + (py - y1)**2)
+            return math.sqrt((px - x1) ** 2 + (py - y1) ** 2)
 
         t = max(0, min(1, ((px - x1) * dx + (py - y1) * dy) / (dx**2 + dy**2)))
         proj_x = x1 + t * dx
         proj_y = y1 + t * dy
-        return math.sqrt((px - proj_x)**2 + (py - proj_y)**2)
+        return math.sqrt((px - proj_x) ** 2 + (py - proj_y) ** 2)
 
     def add_node(self, x, y):
         """Add a new node at the specified screen position."""
@@ -416,11 +539,15 @@ class GraphEditor:
 
         # Check degree constraints
         if self.graph.degree(node1) >= 3:
-            tk.messagebox.showwarning("Invalid Edge", f"Node {node1} already has 3 edges!")
+            tk.messagebox.showwarning(
+                "Invalid Edge", f"Node {node1} already has 3 edges!"
+            )
             return
 
         if self.graph.degree(node2) >= 3:
-            tk.messagebox.showwarning("Invalid Edge", f"Node {node2} already has 3 edges!")
+            tk.messagebox.showwarning(
+                "Invalid Edge", f"Node {node2} already has 3 edges!"
+            )
             return
 
         # Get edge label
@@ -437,9 +564,11 @@ class GraphEditor:
         # Check triangular conditions for numeric labels
         if isinstance(label, (int, float)):
             if not self.check_conditions(node1) or not self.check_conditions(node2):
-                tk.messagebox.showerror("Triangular Condition Violated",
-                    f"Edge with label {label} violates triangular inequality!\n" +
-                    f"For edges j₁, j₂, j₃ at a node: |j₁-j₂| ≤ j₃ ≤ j₁+j₂")
+                tk.messagebox.showerror(
+                    "Triangular Condition Violated",
+                    f"Edge with label {label} violates triangular inequality!\n"
+                    + f"For edges j₁, j₂, j₃ at a node: |j₁-j₂| ≤ j₃ ≤ j₁+j₂",
+                )
                 self.graph.remove_edge(node1, node2)
                 self.history.pop()  # edge was rolled back: drop the useless undo entry
                 return
@@ -455,7 +584,7 @@ class GraphEditor:
     def delete_edge(self, node1, node2, key):
         """Delete a specific edge."""
         self.save_state(f"Delete edge {node1}-{node2}")
-        label = self.graph.edges[node1, node2, key].get('label', '?')
+        label = self.graph.edges[node1, node2, key].get("label", "?")
         self.graph.remove_edge(node1, node2, key)
         self.redraw_all()
         self.update_stats()
@@ -469,7 +598,7 @@ class GraphEditor:
             "  • Numeric:     1,  1/2,  1.5\n"
             "  • Symbol:      F_1,  a\n"
             "  • Expression:  a+2b,  (a+b)/2",
-            parent=self.master
+            parent=self.master,
         )
 
         if raw is None:
@@ -480,7 +609,9 @@ class GraphEditor:
         # Validate numeric labels: must be integer or half-integer
         if isinstance(label, (int, float)):
             if label * 2 != int(label * 2):
-                tk.messagebox.showwarning("Invalid Label", "Numeric spin must be integer or half-integer!")
+                tk.messagebox.showwarning(
+                    "Invalid Label", "Numeric spin must be integer or half-integer!"
+                )
                 return None
 
         return label
@@ -514,16 +645,17 @@ class GraphEditor:
 
         # Draw zoom indicator
         zoom_text = f"Zoom: {self.zoom_level:.1f}x"
-        self.canvas.create_text(10, 10, text=zoom_text, anchor="nw",
-                               font=("Arial", 9), fill="#7f8c8d")
+        self.canvas.create_text(
+            10, 10, text=zoom_text, anchor="nw", font=("Arial", 9), fill="#7f8c8d"
+        )
 
         # Draw edges first (so nodes appear on top)
         try:
             for n1, n2, key in self.graph.edges(keys=True):
                 if n1 in self.nodes and n2 in self.nodes:
                     edge_data = self.graph.edges[n1, n2, key]
-                    label = edge_data.get('label', '?')
-                    is_hover = (self.hover_edge == (n1, n2, key))
+                    label = edge_data.get("label", "?")
+                    is_hover = self.hover_edge == (n1, n2, key)
                     self.draw_edge(n1, n2, key, label, is_hover)
         except Exception as e:
             print(f"Warning: Error drawing edges: {e}")
@@ -532,9 +664,9 @@ class GraphEditor:
         for node_id in list(self.nodes.keys()):
             if node_id in self.nodes:
                 x, y = self.nodes[node_id]
-                is_selected = (node_id == self.selected_node)
-                is_hover = (node_id == self.hover_node)
-                is_dragging = (node_id == self.dragging_node)
+                is_selected = node_id == self.selected_node
+                is_hover = node_id == self.hover_node
+                is_dragging = node_id == self.dragging_node
                 self.draw_node(node_id, x, y, is_selected, is_hover, is_dragging)
 
     def draw_node(self, node_id, x, y, is_selected, is_hover, is_dragging):
@@ -561,11 +693,19 @@ class GraphEditor:
             outline = "#34495e"
             width = 2
 
-        self.canvas.create_oval(sx-radius, sy-radius, sx+radius, sy+radius,
-                               fill=fill, outline=outline, width=width)
+        self.canvas.create_oval(
+            sx - radius,
+            sy - radius,
+            sx + radius,
+            sy + radius,
+            fill=fill,
+            outline=outline,
+            width=width,
+        )
         font_size = max(8, int(11 * self.zoom_level))
-        self.canvas.create_text(sx, sy, text=str(node_id), font=("Arial", font_size, "bold"),
-                               fill="#2c3e50")
+        self.canvas.create_text(
+            sx, sy, text=str(node_id), font=("Arial", font_size, "bold"), fill="#2c3e50"
+        )
 
     def draw_edge(self, node1, node2, key, label, is_hover):
         """Draw a single edge."""
@@ -583,19 +723,41 @@ class GraphEditor:
         num_edges = self.graph.number_of_edges(node1, node2)
 
         if num_edges > 1:
-            edge_keys = [k for (n1, n2, k) in self.graph.edges(keys=True) if {n1, n2} == {node1, node2}]
+            edge_keys = [
+                k
+                for (n1, n2, k) in self.graph.edges(keys=True)
+                if {n1, n2} == {node1, node2}
+            ]
             edge_index = edge_keys.index(key)
-            offset = (edge_index - (num_edges - 1) / 2) * self.curvature * self.zoom_level
+            offset = (
+                (edge_index - (num_edges - 1) / 2) * self.curvature * self.zoom_level
+            )
             self.draw_curved_edge(x1, y1, x2, y2, offset, label, color, width)
         else:
             self.canvas.create_line(x1, y1, x2, y2, fill=color, width=width)
             lx, ly = (x1 + x2) / 2, (y1 + y2) / 2
             font_size = max(8, int(10 * self.zoom_level))
-            bbox = self.canvas.bbox(self.canvas.create_text(lx, ly, text=str(label), font=("Arial", font_size, "bold")))
+            bbox = self.canvas.bbox(
+                self.canvas.create_text(
+                    lx, ly, text=str(label), font=("Arial", font_size, "bold")
+                )
+            )
             if bbox:
-                self.canvas.create_rectangle(bbox[0]-2, bbox[1]-2, bbox[2]+2, bbox[3]+2, fill="#f5f5f5", outline="")
-            self.canvas.create_text(lx, ly, text=str(label), font=("Arial", font_size, "bold"),
-                                   fill="#c0392b")
+                self.canvas.create_rectangle(
+                    bbox[0] - 2,
+                    bbox[1] - 2,
+                    bbox[2] + 2,
+                    bbox[3] + 2,
+                    fill="#f5f5f5",
+                    outline="",
+                )
+            self.canvas.create_text(
+                lx,
+                ly,
+                text=str(label),
+                font=("Arial", font_size, "bold"),
+                fill="#c0392b",
+            )
 
     def draw_curved_edge(self, x1, y1, x2, y2, offset, label, color, width):
         """Draw a curved edge (coordinates already in screen space)."""
@@ -608,17 +770,30 @@ class GraphEditor:
         cx = mx + offset * dx
         cy = my + offset * dy
 
-        self.canvas.create_line(x1, y1, cx, cy, x2, y2, smooth=True,
-                               fill=color, width=width)
+        self.canvas.create_line(
+            x1, y1, cx, cy, x2, y2, smooth=True, fill=color, width=width
+        )
 
         lx = (x1 + x2 + 2 * cx) / 4
         ly = (y1 + y2 + 2 * cy) / 4
         font_size = max(8, int(10 * self.zoom_level))
-        bbox = self.canvas.bbox(self.canvas.create_text(lx, ly, text=str(label), font=("Arial", font_size, "bold")))
+        bbox = self.canvas.bbox(
+            self.canvas.create_text(
+                lx, ly, text=str(label), font=("Arial", font_size, "bold")
+            )
+        )
         if bbox:
-            self.canvas.create_rectangle(bbox[0]-2, bbox[1]-2, bbox[2]+2, bbox[3]+2, fill="#f5f5f5", outline="")
-        self.canvas.create_text(lx, ly, text=str(label), font=("Arial", font_size, "bold"),
-                               fill="#c0392b")
+            self.canvas.create_rectangle(
+                bbox[0] - 2,
+                bbox[1] - 2,
+                bbox[2] + 2,
+                bbox[3] + 2,
+                fill="#f5f5f5",
+                outline="",
+            )
+        self.canvas.create_text(
+            lx, ly, text=str(label), font=("Arial", font_size, "bold"), fill="#c0392b"
+        )
 
     # ========== Zoom and Pan Methods ==========
 
@@ -640,9 +815,9 @@ class GraphEditor:
         mx, my = event.x, event.y
 
         # Determine zoom direction
-        if event.num == 4 or (hasattr(event, 'delta') and event.delta > 0):
+        if event.num == 4 or (hasattr(event, "delta") and event.delta > 0):
             factor = 1.1
-        elif event.num == 5 or (hasattr(event, 'delta') and event.delta < 0):
+        elif event.num == 5 or (hasattr(event, "delta") and event.delta < 0):
             factor = 0.9
         else:
             return
@@ -694,9 +869,9 @@ class GraphEditor:
     def save_state(self, action):
         """Save current state for undo."""
         state = {
-            'graph': self.graph.copy(),
-            'nodes': self.nodes.copy(),
-            'action': action
+            "graph": self.graph.copy(),
+            "nodes": self.nodes.copy(),
+            "action": action,
         }
         self.history.append(state)
         if len(self.history) > 50:  # Limit history
@@ -709,8 +884,8 @@ class GraphEditor:
             return
 
         state = self.history.pop()
-        self.graph = state['graph']
-        self.nodes = state['nodes']
+        self.graph = state["graph"]
+        self.nodes = state["nodes"]
         self.selected_node = None
         self.redraw_all()
         self.update_stats()
@@ -740,8 +915,8 @@ class GraphEditor:
         graph_copy = self.graph.copy()
 
         # Graph-level attributes: phase (complex) → string
-        if 'phase' in graph_copy.graph:
-            graph_copy.graph['phase'] = str(graph_copy.graph['phase'])
+        if "phase" in graph_copy.graph:
+            graph_copy.graph["phase"] = str(graph_copy.graph["phase"])
 
         for node, attrs in graph_copy.nodes(data=True):
             for key, value in list(attrs.items()):
@@ -752,17 +927,18 @@ class GraphEditor:
             for attr_key, value in list(attrs.items()):
                 if isinstance(value, tuple):
                     graph_copy.edges[u, v, k][attr_key] = str(value)
-                elif hasattr(value, 'free_symbols'):   # sympy expression
+                elif hasattr(value, "free_symbols"):  # sympy expression
                     graph_copy.edges[u, v, k][attr_key] = str(value)
 
         try:
             nx.write_graphml(graph_copy, "drawn_graph.graphml")
-            tk.messagebox.showinfo("Success",
-                "Graph saved to 'drawn_graph.graphml'\n\n" +
-                f"Nodes: {len(self.graph.nodes())}\n" +
-                f"Edges: {len(self.graph.edges())}")
+            tk.messagebox.showinfo(
+                "Success",
+                "Graph saved to 'drawn_graph.graphml'\n\n"
+                + f"Nodes: {len(self.graph.nodes())}\n"
+                + f"Edges: {len(self.graph.edges())}",
+            )
             print("✓ Graph saved successfully")
             self.master.destroy()
         except Exception as e:
             tk.messagebox.showerror("Error", f"Failed to save graph:\n{e}")
-

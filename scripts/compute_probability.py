@@ -34,7 +34,8 @@ Usage:
 
 import os
 import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import argparse
 import json
@@ -64,7 +65,10 @@ def load_graph_from_file(file_path):
     pos = nx.kamada_kawai_layout(graph)
     for node in graph.nodes:
         if "x" in graph.nodes[node] and "y" in graph.nodes[node]:
-            graph.nodes[node]["pos"] = (float(graph.nodes[node]["x"]), float(graph.nodes[node]["y"]))
+            graph.nodes[node]["pos"] = (
+                float(graph.nodes[node]["x"]),
+                float(graph.nodes[node]["y"]),
+            )
         else:
             graph.nodes[node]["pos"] = pos[node]
 
@@ -130,7 +134,7 @@ def compute_norm(graph_file, quiet=True):
 # old_edges (label_a, label_b) and new_edge (label_c) for each reconnection.
 def load_reconnection_data(recon_file):
     """Load reconnection data from JSON."""
-    with open(recon_file, 'r') as f:
+    with open(recon_file, "r") as f:
         return json.load(f)
 
 
@@ -178,18 +182,16 @@ Formula:
 
 Example:
   python compute_probability.py original.graphml reconnected.graphml
-"""
+""",
     )
     parser.add_argument("original_file", help="Original graph file (.graphml)")
     parser.add_argument("reconnected_file", help="Reconnected graph file (.graphml)")
     parser.add_argument(
         "--reconnection-data",
-        help="Reconnection data file (.json). Auto-detected if not provided."
+        help="Reconnection data file (.json). Auto-detected if not provided.",
     )
     parser.add_argument(
-        "--quiet", "-q",
-        action="store_true",
-        help="Suppress intermediate output"
+        "--quiet", "-q", action="store_true", help="Suppress intermediate output"
     )
 
     args = parser.parse_args()
@@ -204,16 +206,20 @@ Example:
 
     # Auto-detect reconnection data file
     if not args.reconnection_data:
-        args.reconnection_data = args.reconnected_file.replace('.graphml', '_reconnections.json')
+        args.reconnection_data = args.reconnected_file.replace(
+            ".graphml", "_reconnections.json"
+        )
 
     if not os.path.exists(args.reconnection_data):
         print(f"Error: Reconnection data file '{args.reconnection_data}' not found.")
-        print(f"\nPlease specify it with --reconnection-data or ensure it's saved alongside the reconnected graph.")
+        print(
+            f"\nPlease specify it with --reconnection-data or ensure it's saved alongside the reconnected graph."
+        )
         sys.exit(1)
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("SPIN NETWORK RECONNECTION PROBABILITY")
-    print("="*70)
+    print("=" * 70)
 
     # Step 1: Compute norms
     print("\n[STEP 1] Computing graph norms...")
@@ -242,13 +248,13 @@ Example:
     theta_triplets = []
 
     for i, recon in enumerate(reconnections, 1):
-        old_edge1 = recon['old_edges'][0]
-        old_edge2 = recon['old_edges'][1]
-        new_edge = recon['new_edge']
+        old_edge1 = recon["old_edges"][0]
+        old_edge2 = recon["old_edges"][1]
+        new_edge = recon["new_edge"]
 
-        label_a = old_edge1['label']
-        label_b = old_edge2['label']
-        label_c = new_edge['label']
+        label_a = old_edge1["label"]
+        label_b = old_edge2["label"]
+        label_c = new_edge["label"]
 
         new_labels.append(label_c)
         theta_triplets.append((label_a, label_b, label_c))
@@ -266,7 +272,7 @@ Example:
     # Step 5: Compute Theta product
     print("\n[STEP 5] Computing Θ product...")
     theta_product = compute_theta_product(theta_triplets)
-    theta_str = ' × '.join([f"Θ({a},{b},{c})" for a, b, c in theta_triplets])
+    theta_str = " × ".join([f"Θ({a},{b},{c})" for a, b, c in theta_triplets])
     print(f"  {theta_str} = {theta_product}")
 
     # Step 6: Compute probability
@@ -284,9 +290,9 @@ Example:
     print(f"    = {probability}")
 
     # Display results
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("RESULTS")
-    print("="*70)
+    print("=" * 70)
     print(f"\nOriginal graph norm: ||G₁|| = {norm1}")
     print(f"Reconnected graph norm: ||G₂|| = {norm2}")
     print(f"Norm ratio: ||G₂||/||G₁|| = {norm_ratio}")
@@ -299,32 +305,35 @@ Example:
     print(f"{'★'*70}")
 
     # Save results
-    results_file = args.reconnected_file.replace('.graphml', '_probability.json')
+    results_file = args.reconnected_file.replace(".graphml", "_probability.json")
     results = {
-        'original_file': args.original_file,
-        'reconnected_file': args.reconnected_file,
-        'original_norm': float(norm1),
-        'reconnected_norm': float(norm2),
-        'norm_ratio': float(norm_ratio),
-        'num_reconnections': len(reconnections),
-        'new_edge_labels': new_labels,
-        'theta_triplets': theta_triplets,
-        'delta_product': float(delta_product),
-        'theta_product': float(theta_product),
-        'probability': float(probability)
+        "original_file": args.original_file,
+        "reconnected_file": args.reconnected_file,
+        "original_norm": float(norm1),
+        "reconnected_norm": float(norm2),
+        "norm_ratio": float(norm_ratio),
+        "num_reconnections": len(reconnections),
+        "new_edge_labels": new_labels,
+        "theta_triplets": theta_triplets,
+        "delta_product": float(delta_product),
+        "theta_product": float(theta_product),
+        "probability": float(probability),
     }
 
-    with open(results_file, 'w') as f:
+    with open(results_file, "w") as f:
         json.dump(results, f, indent=2)
 
     print(f"\n✓ Results saved to: {results_file}")
 
     # Save symbolic formula .txt
     delta_str = " * ".join(f"delta({_sanitize_py(str(c))})" for c in new_labels) or "1"
-    theta_str = " * ".join(
-        f"theta({_sanitize_py(str(a))}, {_sanitize_py(str(b))}, {_sanitize_py(str(c))})"
-        for a, b, c in theta_triplets
-    ) or "1"
+    theta_str = (
+        " * ".join(
+            f"theta({_sanitize_py(str(a))}, {_sanitize_py(str(b))}, {_sanitize_py(str(c))})"
+            for a, b, c in theta_triplets
+        )
+        or "1"
+    )
     norm_G1_formula = terms_to_formula_string(canon_G1)
     norm_G2_formula = terms_to_formula_string(canon_G2)
     prob_formula = (
@@ -335,13 +344,15 @@ Example:
         f"    / ({norm_G1_formula})\n"
         f")"
     )
-    formula_file = args.reconnected_file.replace('.graphml', '_probability_formula.txt')
-    with open(formula_file, 'w') as f:
+    formula_file = args.reconnected_file.replace(".graphml", "_probability_formula.txt")
+    with open(formula_file, "w") as f:
         f.write(f"# Reconnection probability formula\n")
-        f.write(f"# Evaluate: python scripts/evaluate_formula.py --formula-file {formula_file}\n")
+        f.write(
+            f"# Evaluate: python scripts/evaluate_formula.py --formula-file {formula_file}\n"
+        )
         f.write(prob_formula + "\n")
     print(f"✓ Formula saved to: {formula_file}")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     return results
 
@@ -355,5 +366,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n\n✗ Error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

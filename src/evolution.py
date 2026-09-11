@@ -46,6 +46,7 @@ if TYPE_CHECKING:
 # Exceptions
 # ---------------------------------------------------------------------------
 
+
 class LineageError(ValueError):
     """
     Raised when two SpinNetworks do not share a valid ancestor–descendant
@@ -60,6 +61,7 @@ class LineageError(ValueError):
 # ---------------------------------------------------------------------------
 # Transition
 # ---------------------------------------------------------------------------
+
 
 class Transition:
     """
@@ -203,7 +205,9 @@ class Transition:
             Its probability must be computed via calculate_probability().
         """
         import networkx as nx
-        from src.api import Graph  # deferred import avoids circular dependency at module load
+        from src.api import (
+            Graph,
+        )  # deferred import avoids circular dependency at module load
 
         # Merge the two structural deltas
         merged_nx = nx.compose(
@@ -216,14 +220,10 @@ class Transition:
         # when both are available, for the most accurate result.
         if other._child is not None:
             parent_open = frozenset(
-                str(n)
-                for n, d in self._parent._graph._nx_graph.degree()
-                if d == 1
+                str(n) for n, d in self._parent._graph._nx_graph.degree() if d == 1
             )
             child_open = frozenset(
-                str(n)
-                for n, d in other._child._graph._nx_graph.degree()
-                if d == 1
+                str(n) for n, d in other._child._graph._nx_graph.degree() if d == 1
             )
             net_open_ends: FrozenSet[str] = child_open - parent_open
         else:
@@ -250,7 +250,11 @@ class Transition:
     # ------------------------------------------------------------------
 
     def __repr__(self) -> str:
-        parent_id = self._parent._id if hasattr(self._parent, "_id") else f"{id(self._parent):#x}"
+        parent_id = (
+            self._parent._id
+            if hasattr(self._parent, "_id")
+            else f"{id(self._parent):#x}"
+        )
         child_id = (
             self._child._id
             if self._child is not None and hasattr(self._child, "_id")

@@ -79,6 +79,7 @@ import sys
 import time
 from functools import lru_cache
 
+
 # Cached factorial for performance optimization
 @lru_cache(maxsize=512)
 def cached_factorial(n: int) -> int:
@@ -101,8 +102,13 @@ class SpinNetworkEvaluator:
         evaluator.cleanup()
     """
 
-    def __init__(self, max_two_j: int = 200, backend: str = 'auto',
-                 n_workers: Optional[int] = None, verbose: bool = True):
+    def __init__(
+        self,
+        max_two_j: int = 200,
+        backend: str = "auto",
+        n_workers: Optional[int] = None,
+        verbose: bool = True,
+    ):
         """
         Initialize the evaluator with wigxjpf tables.
 
@@ -178,12 +184,14 @@ class SpinNetworkEvaluator:
         # multi-variable summations where it pays off (measured 2.5x at 2.7M
         # terms). Even then the evaluator times a pilot slice first and stays
         # serial unless the work clearly exceeds the startup cost.
-        if backend == 'auto':
-            self.backend = 'serial'
-            say("Using serial backend "
-                "(pass backend='multiprocessing' for very large summations)")
-        elif backend == 'serial':
-            self.backend = 'serial'
+        if backend == "auto":
+            self.backend = "serial"
+            say(
+                "Using serial backend "
+                "(pass backend='multiprocessing' for very large summations)"
+            )
+        elif backend == "serial":
+            self.backend = "serial"
             say("Using serial backend (single-threaded)")
         else:
             self.backend = backend
@@ -275,7 +283,10 @@ class SpinNetworkEvaluator:
 
         # Check triangular inequality - if violated, theta = 0
         if not (abs(j - k) <= l <= j + k):
-            return (0.0, 0.0)  # (sign_exponent, magnitude) - magnitude 0 means result is 0
+            return (
+                0.0,
+                0.0,
+            )  # (sign_exponent, magnitude) - magnitude 0 means result is 0
 
         # Sign exponent: (j+k+l) * power
         sign_exponent = (j + k + l) * power
@@ -288,9 +299,11 @@ class SpinNetworkEvaluator:
 
             # Compute in log space to avoid overflow
             log_num = gammaln(j + k + l + 2)
-            log_denom = (gammaln(j + k - l + 1) +
-                        gammaln(j - k + l + 1) +
-                        gammaln(-j + k + l + 1))
+            log_denom = (
+                gammaln(j + k - l + 1)
+                + gammaln(j - k + l + 1)
+                + gammaln(-j + k + l + 1)
+            )
 
             # log(|θ|) = log_num - log_denom (magnitude only, no sign)
             log_theta = log_num - log_denom
@@ -389,9 +402,11 @@ class SpinNetworkEvaluator:
             log_num = gammaln(j_valid + k_valid + l_valid + 2)
 
             # log(denominator) = log((j+k-l)!) + log((j-k+l)!) + log((-j+k+l)!)
-            log_denom = (gammaln(j_valid + k_valid - l_valid + 1) +
-                        gammaln(j_valid - k_valid + l_valid + 1) +
-                        gammaln(-j_valid + k_valid + l_valid + 1))
+            log_denom = (
+                gammaln(j_valid + k_valid - l_valid + 1)
+                + gammaln(j_valid - k_valid + l_valid + 1)
+                + gammaln(-j_valid + k_valid + l_valid + 1)
+            )
 
             # θ(j,k,l) = sign × exp(log_num - log_denom)
             theta_values = signs * np.exp(log_num - log_denom)
@@ -563,9 +578,9 @@ class SpinNetworkEvaluator:
         print(f"  Computing summation over {len(sum_vars)} variable(s)...")
 
         # Choose evaluation method based on backend and summation size
-        if self.backend == 'serial':
+        if self.backend == "serial":
             sum_result = self._evaluate_sum_serial(coeffs, sum_vars)
-        elif self.backend == 'multiprocessing':
+        elif self.backend == "multiprocessing":
             sum_result = self._evaluate_sum_parallel(coeffs, sum_vars)
         else:
             # Fallback to serial
@@ -590,7 +605,7 @@ class SpinNetworkEvaluator:
         # Calculate total iterations for progress
         total_iters = 1
         for min_val, max_val in sum_vars.values():
-            total_iters *= (max_val - min_val + 1)
+            total_iters *= max_val - min_val + 1
 
         print(f"    Total iterations: {total_iters:,}")
 
@@ -637,7 +652,9 @@ class SpinNetworkEvaluator:
 
             # Progress reporting for large sums
             if total_iters > 1000 and count % max(1, total_iters // 10) == 0:
-                print(f"    Progress: {count:,}/{total_iters:,} ({100*count/total_iters:.1f}%)")
+                print(
+                    f"    Progress: {count:,}/{total_iters:,} ({100*count/total_iters:.1f}%)"
+                )
 
         return sum_result
 
@@ -659,8 +676,13 @@ class SpinNetworkEvaluator:
         print(f"    Using {self.n_workers} parallel workers")
 
         # Chunk the combinations for parallel processing
-        chunk_size = max(1, total_iters // (self.n_workers * 4))  # 4x workers for load balancing
-        chunks = [all_combinations[i:i + chunk_size] for i in range(0, total_iters, chunk_size)]
+        chunk_size = max(
+            1, total_iters // (self.n_workers * 4)
+        )  # 4x workers for load balancing
+        chunks = [
+            all_combinations[i : i + chunk_size]
+            for i in range(0, total_iters, chunk_size)
+        ]
 
         print(f"    Split into {len(chunks)} chunks of ~{chunk_size} iterations each")
 
@@ -675,8 +697,7 @@ class SpinNetworkEvaluator:
             return self._evaluate_sum_serial(coeffs, sum_vars)
 
         tasks = [
-            (coeffs, sum_vars, var_names, chunk, self.max_two_j)
-            for chunk in chunks
+            (coeffs, sum_vars, var_names, chunk, self.max_two_j) for chunk in chunks
         ]
         try:
             with Pool(
@@ -719,7 +740,9 @@ class SpinNetworkEvaluator:
 
         return False
 
-    def _evaluate_coefficient(self, coeff: Dict, substitutions: Dict[str, int]) -> float:
+    def _evaluate_coefficient(
+        self, coeff: Dict, substitutions: Dict[str, int]
+    ) -> float:
         """
         Evaluate a single coefficient with variable substitutions.
 
@@ -788,7 +811,7 @@ class SpinNetworkEvaluator:
                 val_subst = substitutions.get(val, val) if isinstance(val, str) else val
 
                 # Apply sign (sgn can be '+', '-', or None which means '+')
-                if sgn == '-':
+                if sgn == "-":
                     exponent -= val_subst
                 else:  # '+' or None
                     exponent += val_subst
@@ -894,6 +917,7 @@ def _multiprocessing_is_usable() -> bool:
     """
     try:
         import multiprocessing as _mp
+
         if _mp.get_start_method(allow_none=False) == "fork":
             # fork copies the parent wholesale; no re-import, always safe here.
             return True
@@ -980,7 +1004,7 @@ def _sanitize_primes(formula: str) -> str:
     while i < n:
         c = formula[i]
         if c in ('"', "'"):
-            prev_is_word = bool(result) and (result[-1].isalnum() or result[-1] == '_')
+            prev_is_word = bool(result) and (result[-1].isalnum() or result[-1] == "_")
             if prev_is_word:
                 # Prime suffix on a variable name
                 j = i
@@ -1027,10 +1051,10 @@ class FormulaEvaluator:
         fe.cleanup()
     """
 
-    def __init__(self, max_two_j: int = 200, backend: str = 'auto',
-                 verbose: bool = True):
-        self._ev = SpinNetworkEvaluator(max_two_j, backend=backend,
-                                        verbose=verbose)
+    def __init__(
+        self, max_two_j: int = 200, backend: str = "auto", verbose: bool = True
+    ):
+        self._ev = SpinNetworkEvaluator(max_two_j, backend=backend, verbose=verbose)
         self._base_namespace = self._build_namespace()
 
     def evaluate_many(
@@ -1067,8 +1091,10 @@ class FormulaEvaluator:
                     initializer=_parallel_worker_init,
                     initargs=(self._ev.max_two_j,),
                 ) as pool:
-                    return [float(x) for x in
-                            pool.map(_parallel_worker_evaluate_variables, tasks)]
+                    return [
+                        float(x)
+                        for x in pool.map(_parallel_worker_evaluate_variables, tasks)
+                    ]
             except Exception:
                 pass  # fall through to the serial path below
 
@@ -1121,22 +1147,28 @@ class FormulaEvaluator:
                 v += 1.0
             return total
 
-        ns = {name: getattr(math, name) for name in dir(math) if not name.startswith('_')}
-        ns.update({
-            'theta': theta,
-            'delta': delta,
-            'deltatheta': deltatheta,
-            'safe_div': safe_div,
-            'W6j': W6j,
-            'Sum': Sum,
-            'abs': abs,
-            'round': round,
-            'max': max,
-            'min': min,
-        })
+        ns = {
+            name: getattr(math, name) for name in dir(math) if not name.startswith("_")
+        }
+        ns.update(
+            {
+                "theta": theta,
+                "delta": delta,
+                "deltatheta": deltatheta,
+                "safe_div": safe_div,
+                "W6j": W6j,
+                "Sum": Sum,
+                "abs": abs,
+                "round": round,
+                "max": max,
+                "min": min,
+            }
+        )
         return ns
 
-    def evaluate(self, formula: str, variables: Optional[Dict[str, float]] = None) -> float:
+    def evaluate(
+        self, formula: str, variables: Optional[Dict[str, float]] = None
+    ) -> float:
         """
         Evaluate a formula string numerically, preserving its sign.
 
@@ -1327,9 +1359,7 @@ class FormulaEvaluator:
         pilot_n = min(self._PILOT_ITERATIONS, n_iterations)
         pilot_start = time.perf_counter()
         try:
-            self._evaluate_here(
-                formula, variables, outer_chunk=(lo, lo + pilot_n - 1)
-            )
+            self._evaluate_here(formula, variables, outer_chunk=(lo, lo + pilot_n - 1))
         except Exception:
             return None
         pilot_seconds = time.perf_counter() - pilot_start
@@ -1338,7 +1368,8 @@ class FormulaEvaluator:
         # Parallel wins when  startup + T/n < T, i.e. T > startup*n/(n-1).
         break_even = (
             self._PARALLEL_STARTUP_SECONDS
-            * n_workers / (n_workers - 1)
+            * n_workers
+            / (n_workers - 1)
             * self._PARALLEL_SPEEDUP_MARGIN
         )
         if estimated_serial < break_even:
@@ -1354,9 +1385,7 @@ class FormulaEvaluator:
             chunks.append((lo + start, lo + stop - 1))
             start = stop
 
-        tasks = [
-            (formula, variables, self._ev.max_two_j, chunk) for chunk in chunks
-        ]
+        tasks = [(formula, variables, self._ev.max_two_j, chunk) for chunk in chunks]
         try:
             with Pool(
                 processes=len(chunks),
@@ -1474,8 +1503,13 @@ class FormulaEvaluator:
 # CONVENIENCE FUNCTION
 # ============================================================================
 
-def evaluate_spin_network(canonical_terms: List[Dict], max_two_j: int = 200,
-                          backend: str = 'auto', n_workers: Optional[int] = None) -> float:
+
+def evaluate_spin_network(
+    canonical_terms: List[Dict],
+    max_two_j: int = 200,
+    backend: str = "auto",
+    n_workers: Optional[int] = None,
+) -> float:
     """
     Convenience function to evaluate spin network in one call.
 
@@ -1511,7 +1545,9 @@ def evaluate_spin_network(canonical_terms: List[Dict], max_two_j: int = 200,
         evaluator.cleanup()
 
 
-def benchmark_backends(canonical_terms: List[Dict], max_two_j: int = 200) -> Dict[str, float]:
+def benchmark_backends(
+    canonical_terms: List[Dict], max_two_j: int = 200
+) -> Dict[str, float]:
     """
     Benchmark all available backends and compare performance.
 
@@ -1531,8 +1567,7 @@ def benchmark_backends(canonical_terms: List[Dict], max_two_j: int = 200) -> Dic
     import time
 
     results = {}
-    backends_to_test = ['serial', 'multiprocessing']
-
+    backends_to_test = ["serial", "multiprocessing"]
 
     print("\n" + "=" * 70)
     print("BACKEND PERFORMANCE BENCHMARK")
@@ -1552,7 +1587,7 @@ def benchmark_backends(canonical_terms: List[Dict], max_two_j: int = 200) -> Dic
 
         except Exception as e:
             print(f"✗ {backend} failed: {e}")
-            results[backend] = float('inf')
+            results[backend] = float("inf")
 
         finally:
             evaluator.cleanup()
@@ -1566,10 +1601,10 @@ def benchmark_backends(canonical_terms: List[Dict], max_two_j: int = 200) -> Dic
     print("=" * 70)
 
     for backend, elapsed in sorted(results.items(), key=lambda x: x[1]):
-        if elapsed == float('inf'):
+        if elapsed == float("inf"):
             print(f"  {backend}: FAILED")
         else:
-            speedup = results['serial'] / elapsed if backend != 'serial' else 1.0
+            speedup = results["serial"] / elapsed if backend != "serial" else 1.0
             print(f"  {backend}: {elapsed:.3f}s (speedup: {speedup:.2f}x)")
 
     print(f"\n🏆 Best backend: {best_backend} ({best_time:.3f}s)")
