@@ -24,7 +24,6 @@ from src.graph_reducer import (
     find_triangle_candidate,
     apply_triangle_reduction,
     reduce_all_cycles,
-    reduce_all_triangles,
 )
 
 
@@ -37,9 +36,6 @@ class TestTriangleDetection(unittest.TestCase):
         G.add_edge(0, 1, label=1)
         G.add_edge(1, 2, label=1)
         G.add_edge(2, 0, label=1)
-
-        # Create a term dict
-        term = {"graph": G, "coeffs": []}
 
         # Try to find triangle
         triangle_nodes = find_triangle_candidate(G)

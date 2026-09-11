@@ -102,24 +102,24 @@ def formula_ev():
 # --------------------------------------------------------------------------
 
 
-def reference_theta(j, k, l):
+def reference_theta(j, k, j3):
     """
-    theta(j,k,l) = (-1)^(j+k+l) * (j+k+l+1)! / [(j+k-l)! (j-k+l)! (-j+k+l)!]
+    theta(j,k,j3) = (-1)^(j+k+j3) * (j+k+j3+1)! / [(j+k-j3)! (j-k+j3)! (-j+k+j3)!]
 
     Written from the formula in the module docstring of graph_reducer, NOT by
     calling into src/. Returns 0.0 when the triangle inequality fails.
     """
-    if not (abs(j - k) <= l <= j + k):
+    if not (abs(j - k) <= j3 <= j + k):
         return 0.0
     # The integer-sum rule guarantees these are all non-negative integers for
     # an admissible trivalent vertex.
-    s = j + k + l
+    s = j + k + j3
     if abs(s - round(s)) > 1e-9:
         return 0.0
     n = math.factorial(int(round(s)) + 1)
-    d1 = math.factorial(int(round(j + k - l)))
-    d2 = math.factorial(int(round(j - k + l)))
-    d3 = math.factorial(int(round(-j + k + l)))
+    d1 = math.factorial(int(round(j + k - j3)))
+    d2 = math.factorial(int(round(j - k + j3)))
+    d3 = math.factorial(int(round(-j + k + j3)))
     return ((-1.0) ** int(round(s))) * n / (d1 * d2 * d3)
 
 

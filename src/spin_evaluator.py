@@ -279,30 +279,30 @@ class SpinNetworkEvaluator:
         # Work with actual j values (not 2*j)
         j = j1 if isinstance(j1, (int, float)) else float(j1)
         k = j2 if isinstance(j2, (int, float)) else float(j2)
-        l = j3 if isinstance(j3, (int, float)) else float(j3)
+        j3v = j3 if isinstance(j3, (int, float)) else float(j3)
 
         # Check triangular inequality - if violated, theta = 0
-        if not (abs(j - k) <= l <= j + k):
+        if not (abs(j - k) <= j3v <= j + k):
             return (
                 0.0,
                 0.0,
             )  # (sign_exponent, magnitude) - magnitude 0 means result is 0
 
         # Sign exponent: (j+k+l) * power
-        sign_exponent = (j + k + l) * power
+        sign_exponent = (j + k + j3v) * power
 
         # For large spins, use log-gamma to avoid overflow
         # factorial(~170) starts overflowing Python floats
-        max_spin = max(j, k, l)
+        max_spin = max(j, k, j3v)
         if max_spin > 50:
             from scipy.special import gammaln
 
             # Compute in log space to avoid overflow
-            log_num = gammaln(j + k + l + 2)
+            log_num = gammaln(j + k + j3v + 2)
             log_denom = (
-                gammaln(j + k - l + 1)
-                + gammaln(j - k + l + 1)
-                + gammaln(-j + k + l + 1)
+                gammaln(j + k - j3v + 1)
+                + gammaln(j - k + j3v + 1)
+                + gammaln(-j + k + j3v + 1)
             )
 
             # log(|θ|) = log_num - log_denom (magnitude only, no sign)
@@ -312,10 +312,10 @@ class SpinNetworkEvaluator:
             magnitude = math.exp(power * log_theta)
         else:
             # For small spins, use cached factorials (faster)
-            numerator = cached_factorial(int(j + k + l + 1))
-            denom1 = cached_factorial(int(j + k - l))
-            denom2 = cached_factorial(int(j - k + l))
-            denom3 = cached_factorial(int(-j + k + l))
+            numerator = cached_factorial(int(j + k + j3v + 1))
+            denom1 = cached_factorial(int(j + k - j3v))
+            denom2 = cached_factorial(int(j - k + j3v))
+            denom3 = cached_factorial(int(-j + k + j3v))
 
             # |θ(j,k,l)| = numerator / (denom1 × denom2 × denom3)
             theta_magnitude = numerator / (denom1 * denom2 * denom3)

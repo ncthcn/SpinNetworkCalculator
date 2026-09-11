@@ -59,7 +59,7 @@ import re
 import sys
 import tempfile
 from dataclasses import dataclass
-from typing import List, Literal, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import networkx as nx
 
@@ -1013,10 +1013,10 @@ class Graph:
         free_args = [arg for arg in args if not arg.is_numeric]
         print(f"Free args: {free_args}")
         if not free_args:
-            raise ValueError(f"No free variables — all are already assigned.")
+            raise ValueError("No free variables — all are already assigned.")
         elif len(free_args) > 1:
             print("")
-            raise ValueError(f"Too many free variables - only one should be given")
+            raise ValueError("Too many free variables - only one should be given")
         else:
             scanned_label = free_args[0].label
             print(f"Scanning variable: '{scanned_label}'")

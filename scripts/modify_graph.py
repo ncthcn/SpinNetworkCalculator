@@ -524,8 +524,8 @@ class GraphModifier:
         """Find node at given screen coordinates."""
         wx, wy = self.screen_to_world(x, y)
         threshold = 15 / self.zoom_level
-        for node_id, (nx, ny) in self.nodes.items():
-            if (wx - nx) ** 2 + (wy - ny) ** 2 <= threshold**2:
+        for node_id, (node_x, node_y) in self.nodes.items():
+            if (wx - node_x) ** 2 + (wy - node_y) ** 2 <= threshold**2:
                 return node_id
         return None
 
@@ -608,7 +608,7 @@ class GraphModifier:
                 tk.messagebox.showerror(
                     "Triangular Condition Violated",
                     f"Edge with label {label} violates triangular inequality!\n"
-                    + f"For edges j₁, j₂, j₃ at a node: |j₁-j₂| ≤ j₃ ≤ j₁+j₂",
+                    + "For edges j₁, j₂, j₃ at a node: |j₁-j₂| ≤ j₃ ≤ j₁+j₂",
                 )
                 self.graph.remove_edge(node1, node2)
                 return

@@ -40,7 +40,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from src.utils import (
     vertex_satisfies_triangular_conditions,
     parse_spin_label,
-    is_numeric_label,
 )
 
 
@@ -526,7 +525,7 @@ class TransitionTool:
                 tk.messagebox.showerror(
                     "Triangular Condition Violated",
                     f"Edge with label {label} violates triangular inequality!\n"
-                    + f"For edges j₁, j₂, j₃ at a node: |j₁-j₂| ≤ j₃ ≤ j₁+j₂",
+                    + "For edges j₁, j₂, j₃ at a node: |j₁-j₂| ≤ j₃ ≤ j₁+j₂",
                 )
                 self.undo()
                 return
@@ -757,8 +756,8 @@ class TransitionTool:
         """Find node near screen coordinates."""
         wx, wy = self.screen_to_world(x, y)
         threshold = 15 / self.zoom_level
-        for node, (nx, ny) in self.nodes.items():
-            dist = math.sqrt((wx - nx) ** 2 + (wy - ny) ** 2)
+        for node, (node_x, node_y) in self.nodes.items():
+            dist = math.sqrt((wx - node_x) ** 2 + (wy - node_y) ** 2)
             if dist < threshold:
                 return node
         return None

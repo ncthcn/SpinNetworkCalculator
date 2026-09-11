@@ -25,7 +25,6 @@ from .utils import (
     remove_one_cycle_edge,
     is_numeric_label,
     to_doubled,
-    f_range_symbolic,
     uv_parallel_labels,
     incident_labels_excluding_pair,
     f_range_with_symbolic,

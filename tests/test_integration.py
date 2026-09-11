@@ -19,7 +19,6 @@ Integration tests for complete spin network evaluation pipeline
 """
 
 import unittest
-import os
 import networkx as nx
 from src.graph_reducer import reduce_all_cycles
 from src.spin_evaluator import SpinNetworkEvaluator

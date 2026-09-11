@@ -31,7 +31,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import json
 import networkx as nx
 import tempfile
-import shutil
 
 
 def make_fixture_graph_file():

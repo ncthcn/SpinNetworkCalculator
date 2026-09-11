@@ -302,14 +302,14 @@ Examples:
     print(f"\nNorm Ratio: {norm_ratio}")
 
     if flagged_data:
-        print(f"\nFlagged Edge:")
+        print("\nFlagged Edge:")
         print(f"  Nodes: {flagged_data['edge_nodes']}")
         print(f"  Label: {flagged_data['edge_label']}")
         print(f"  Vertex: {flagged_data['vertex_id']}")
         print(f"  Other labels: {flagged_data['other_edge_labels']}")
 
         if theta_val is not None:
-            print(f"\nCoefficients:")
+            print("\nCoefficients:")
             print(f"  Theta = {theta_val}")
             print(f"  Delta = {delta_val}")
 

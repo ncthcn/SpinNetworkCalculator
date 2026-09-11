@@ -20,15 +20,14 @@ import math
 import pytest
 import networkx as nx
 
-import sys, os
+import sys
+import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.orientation import (
     canonical_edge,
-    get_incident_edges,
     set_reference_orientation,
-    get_reference_orientation,
     _transposition_sequence,
     _cyclic_align,
     phase_factor_for_transposition,

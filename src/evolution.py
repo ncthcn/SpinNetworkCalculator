@@ -34,7 +34,7 @@ The genealogy forms a directed tree:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, FrozenSet, List, Optional, Tuple
+from typing import TYPE_CHECKING, FrozenSet, Optional, Tuple
 
 # TYPE_CHECKING is False at runtime, True for type-checkers only.
 # This avoids the circular import api.py → evolution.py → api.py.

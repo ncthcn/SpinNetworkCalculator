@@ -34,7 +34,6 @@ exponent is always an integer and the factor is ±1.
 from __future__ import annotations
 
 import math
-from typing import NamedTuple
 
 import networkx as nx
 

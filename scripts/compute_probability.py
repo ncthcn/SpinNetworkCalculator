@@ -45,7 +45,7 @@ from src.gluer import glue_open_edges
 from src.graph_reducer import reduce_all_cycles
 from src.norm_reducer import canonicalise_terms, apply_kroneckers, expand_6j_symbolic
 from src.spin_evaluator import evaluate_spin_network, SpinNetworkEvaluator
-from src.LaTeX_rendering import terms_to_formula_string, save_formula_txt, _sanitize_py
+from src.LaTeX_rendering import terms_to_formula_string, _sanitize_py
 
 
 # Standard graph loader shared by all scripts: reads GraphML, coerces labels
@@ -213,7 +213,7 @@ Example:
     if not os.path.exists(args.reconnection_data):
         print(f"Error: Reconnection data file '{args.reconnection_data}' not found.")
         print(
-            f"\nPlease specify it with --reconnection-data or ensure it's saved alongside the reconnected graph."
+            "\nPlease specify it with --reconnection-data or ensure it's saved alongside the reconnected graph."
         )
         sys.exit(1)
 
@@ -284,7 +284,7 @@ Example:
     else:
         probability = abs((delta_product / theta_product) * norm_ratio)
 
-    print(f"\n  p = abs(Δ / Θ × ||G₂||/||G₁||)")
+    print("\n  p = abs(Δ / Θ × ||G₂||/||G₁||)")
     print(f"    = abs({delta_product} / {theta_product} × {norm_ratio})")
     print(f"    = abs({(delta_product / theta_product) * norm_ratio})")
     print(f"    = {probability}")
@@ -346,7 +346,7 @@ Example:
     )
     formula_file = args.reconnected_file.replace(".graphml", "_probability_formula.txt")
     with open(formula_file, "w") as f:
-        f.write(f"# Reconnection probability formula\n")
+        f.write("# Reconnection probability formula\n")
         f.write(
             f"# Evaluate: python scripts/evaluate_formula.py --formula-file {formula_file}\n"
         )

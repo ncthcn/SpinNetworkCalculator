@@ -17,7 +17,6 @@
 import re
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from sympy import symbols, latex
 
 # Enable system LaTeX so that rendered PDFs use proper math fonts.
 mpl.rcParams["text.usetex"] = True

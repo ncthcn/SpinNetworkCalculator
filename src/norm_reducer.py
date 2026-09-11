@@ -14,7 +14,7 @@
 #     You should have received a copy of the GNU General Public License
 #     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from .utils import is_numeric_label, to_doubled
+from .utils import is_numeric_label
 
 # -----------------------------------------------------------------------
 # norm_reducer.py — post-reduction simplification and canonicalisation
@@ -205,7 +205,7 @@ def canonicalise_sign(sign_coeff):
         else:
             try:
                 coeff = float(coeff_str)
-            except:
+            except (ValueError, TypeError):
                 coeff = 1
 
         if isinstance(val, (int, float)):

@@ -154,7 +154,7 @@ def extract_flagged_info(flagged_file):
             label_str = line.split(":", 1)[1].strip()
             try:
                 data["edge_label"] = float(label_str)
-            except:
+            except (ValueError, TypeError):
                 data["edge_label"] = label_str
         elif line.startswith("Vertex ID:"):
             data["vertex_id"] = int(line.split(":", 1)[1].strip())
@@ -243,7 +243,7 @@ def main():
         print("  → Press 'Save & Exit' when done\n")
 
         root = tk.Tk()
-        modifier = GraphModifier(root, args.input_file)
+        GraphModifier(root, args.input_file)  # constructor drives the GUI
         root.mainloop()
 
         # Check if file was saved
@@ -314,7 +314,7 @@ def main():
     )
 
     if flagged_data:
-        print(f"\nFlagged Edge:")
+        print("\nFlagged Edge:")
         print(f"  Nodes: {flagged_data.get('edge_nodes', 'N/A')}")
         print(f"  Label: {flagged_data.get('edge_label', 'N/A')}")
         print(f"  Vertex: {flagged_data.get('vertex_id', 'N/A')}")
@@ -323,7 +323,7 @@ def main():
         )
 
         if theta_ratio is not None:
-            print(f"\nCoefficients:")
+            print("\nCoefficients:")
             print(f"  Theta = {theta_ratio}")
             print(f"  Delta = {delta_ratio}")
 

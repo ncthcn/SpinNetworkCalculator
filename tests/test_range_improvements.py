@@ -134,7 +134,7 @@ class TestImprovedRanges(unittest.TestCase):
         # Known range should have same or fewer iterations
         self.assertLessEqual(known_count, unknown_count)
 
-        print(f"\nIteration comparison:")
+        print("\nIteration comparison:")
         print(f"  Unknown ranges: {unknown_count} iterations")
         print(f"  Known ranges: {known_count} iterations")
         if known_count < unknown_count:

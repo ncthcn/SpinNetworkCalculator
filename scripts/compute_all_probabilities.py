@@ -288,7 +288,7 @@ This will:
     print(f"  Edges: {original_graph.number_of_edges()}")
 
     # Get edge labels
-    print(f"\n[STEP 2] Analyzing edges to reconnect...")
+    print("\n[STEP 2] Analyzing edges to reconnect...")
     print(f"  Edge 1: {args.edge1}")
     print(f"  Edge 2: {args.edge2}")
 
@@ -309,12 +309,12 @@ This will:
     )
 
     # Compute original norm
-    print(f"\n[STEP 4] Computing original graph norm...")
+    print("\n[STEP 4] Computing original graph norm...")
     canon_G1, norm1 = _compute_norm_full(original_graph)
     print(f"  ||G₁|| = {norm1}")
 
     # Compute probability for each possible value
-    print(f"\n[STEP 5] Computing probabilities for each possible value...")
+    print("\n[STEP 5] Computing probabilities for each possible value...")
     print("  " + "-" * 66)
 
     results = []
@@ -344,7 +344,7 @@ This will:
 
         # Compute probability
         if theta == 0:
-            print(f"    ⚠ Warning: Theta is zero!")
+            print("    ⚠ Warning: Theta is zero!")
             probability = 0
         else:
             norm_ratio = norm2 / norm1 if norm1 != 0 else 0
@@ -382,7 +382,7 @@ This will:
     print(
         f"Edges reconnected: {args.edge1} (label={label1}) + {args.edge2} (label={label2})"
     )
-    print(f"\nProbability distribution:")
+    print("\nProbability distribution:")
     print("  " + "-" * 66)
     print(f"  {'New Edge':<12} {'||G₂||':<15} {'Δ':<10} {'Θ':<10} {'Probability':<15}")
     print("  " + "-" * 66)
@@ -407,14 +407,14 @@ This will:
     epsilon = 1e-10
     if abs(total_probability - 1.0) < epsilon:
         print(f"✓ PASSED: Probabilities sum to 1 (within ε={epsilon})")
-        print(f"  Physical consistency verified!")
+        print("  Physical consistency verified!")
     else:
-        print(f"✗ FAILED: Probabilities do not sum to 1")
+        print("✗ FAILED: Probabilities do not sum to 1")
         print(f"  Difference: {abs(total_probability - 1.0):.15e}")
-        print(f"  This may indicate:")
-        print(f"    - Numerical precision issues")
-        print(f"    - Missing transitions")
-        print(f"    - Incorrect formula implementation")
+        print("  This may indicate:")
+        print("    - Numerical precision issues")
+        print("    - Missing transitions")
+        print("    - Incorrect formula implementation")
 
     # Save results
     results_file = args.original_file.replace(".graphml", "_all_probabilities.json")
@@ -441,12 +441,12 @@ This will:
         ".graphml", "_all_probability_formulas.txt"
     )
     with open(formula_file, "w") as f:
-        f.write(f"# All reconnection probability formulas\n")
+        f.write("# All reconnection probability formulas\n")
         f.write(
             f"# Edges: {args.edge1} (label={label1}) + {args.edge2} (label={label2})\n"
         )
         f.write(
-            f'# Evaluate each block with: python scripts/evaluate_formula.py "<formula>"\n\n'
+            '# Evaluate each block with: python scripts/evaluate_formula.py "<formula>"\n\n'
         )
         f.write("\n\n".join(formula_entries) + "\n")
     print(f"✓ Formulas saved to: {formula_file}")
