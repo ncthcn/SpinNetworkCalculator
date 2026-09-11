@@ -1,8 +1,9 @@
 # Style checks (formatting + common mistakes like unused imports).
 # continue-on-error: true means these steps REPORT problems in the Actions
-# log but never turn the check red or block a merge. The codebase has
-# ~420 pre-existing flake8 findings; this workflow surfaces them without
-# blocking work until they're cleaned up on purpose.
+# log but never turn the check red or block a merge. As of the September
+# 2026 cleanup, black and flake8 are both clean — continue-on-error is kept
+# for now so a future violation is visible but non-blocking; remove it to
+# make this job an actual enforced gate.
 name: Lint
 
 on:
