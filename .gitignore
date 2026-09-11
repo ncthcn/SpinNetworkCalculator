@@ -28,11 +28,7 @@ graph_snapshots/
 *.graphml
 *.pdf
 *.png
-transition_to_graph_norm_G1.txt
-transition_to_graph_norm_G2.txt
-transition_to_graph_symbolic_probability.txt
-transition_to_graph_transition.json
-
+my_norm.txt
 
 # Comparison workflow outputs
 test_graph.graphml
@@ -48,11 +44,6 @@ reconnected_graph*.graphml
 *_reconnections.json
 *_probability.json
 *_all_probabilities.json
-
-# Animation output
-reduction_steps/
-reduction.gif
-reduction_slides.pdf
 
 # Matplotlib cache
 .matplotlib/
