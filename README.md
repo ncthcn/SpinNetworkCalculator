@@ -1,5 +1,7 @@
 # Spin Networks Calculator
 
+[![Tests](https://github.com/ncthcn/SpinNetworkCalculator/actions/workflows/tests.yml/badge.svg)](https://github.com/ncthcn/SpinNetworkCalculator/actions/workflows/tests.yml)
+
 A computational tool for calculating spin network norms and probabilities. This project performs symbolic graph reduction and numerical evaluation of spin networks using a combinatoric algorithm inspired by the Decomposition Theorem [1,2].
 
 ---
