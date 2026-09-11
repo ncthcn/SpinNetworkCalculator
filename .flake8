@@ -5,3 +5,11 @@ max-line-length = 88
 # Standard combo when using both tools together.
 extend-ignore = E203, W503
 exclude = myenv,build,dist,__pycache__,.git
+
+# scripts/ and tests/ do `sys.path.insert(...)` before `from src...` imports
+# so the script finds the src package when run standalone — imports can't be
+# moved to the top without breaking that. This is a known, intentional
+# pattern, not a bug: don't flag E402 for it.
+per-file-ignores =
+    scripts/*.py: E402
+    tests/*.py: E402
