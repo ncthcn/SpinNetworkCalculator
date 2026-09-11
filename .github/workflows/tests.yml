@@ -14,19 +14,22 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       # Run the whole job once per Python version below (a "build matrix").
-      # If 3.9 fails but 3.11 passes, you see exactly which version broke.
+      # If 3.10 fails but 3.11 passes, you see exactly which version broke.
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11"]
+        # 3.9 dropped: networkx 3.3+/scipy 1.14+ no longer support it, so CI
+        # resolved older deps than anything actually validated locally,
+        # producing a false-positive failure unrelated to real code changes.
+        python-version: ["3.10", "3.11"]
 
     steps:
       # 1. Clone the repo into the runner's temporary VM.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # 2. Install the Python version for this matrix slot.
       #    cache: pip re-uses downloaded packages between runs, so CI
       #    doesn't recompile pywigxjpf's C extension from scratch every time.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
